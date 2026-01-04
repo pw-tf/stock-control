@@ -3,85 +3,207 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asset Tracking System</title>
+    <title>Stock Submission</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Playfair Display', serif;
+            background: linear-gradient(135deg, #D9D0C7 0%, #BFB6AE 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
-        .header h1 { font-size: 28px; margin-bottom: 8px; }
-        .header p { opacity: 0.9; font-size: 14px; }
+        .container { max-width: 800px; margin: 0 auto; background: #F2E7DC; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); overflow: hidden; position: relative; }
+        .header { 
+            background: linear-gradient(135deg, #97A681 0%, #8A9975 100%); 
+            color: white; 
+            padding: 30px; 
+            text-align: center;
+            position: relative;
+        }
+        .hamburger-btn {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 1001;
+        }
+        .hamburger-btn span {
+            width: 25px;
+            height: 3px;
+            background: white;
+            border-radius: 2px;
+            transition: all 0.3s;
+        }
+        .hamburger-btn.active span:nth-child(1) {
+            transform: rotate(45deg) translate(8px, 8px);
+        }
+        .hamburger-btn.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger-btn.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -7px);
+        }
+        .header h1 { font-size: 28px; font-weight: 700; }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: -300px;
+            width: 300px;
+            height: 100vh;
+            background: #F2E7DC;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            transition: left 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        .sidebar.active {
+            left: 0;
+        }
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            display: none;
+        }
+        .sidebar-overlay.active {
+            display: block;
+        }
+        .sidebar-header {
+            background: linear-gradient(135deg, #97A681 0%, #8A9975 100%);
+            color: white;
+            padding: 30px 20px;
+        }
+        .sidebar-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .sidebar-menu {
+            padding: 20px 0;
+        }
+        .sidebar-menu-item {
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-left: 4px solid transparent;
+            font-weight: 500;
+            color: #5a5a5a;
+        }
+        .sidebar-menu-item:hover {
+            background: rgba(151,166,129,0.1);
+            border-left-color: #97A681;
+        }
+        .sidebar-menu-item.active {
+            background: rgba(151,166,129,0.15);
+            border-left-color: #97A681;
+            color: #97A681;
+        }
         .content { padding: 30px; }
-        .agent-selection { background: #f8f9fa; padding: 25px; border-radius: 12px; margin-bottom: 30px; }
-        .agent-selection h2 { margin-bottom: 20px; color: #2d3748; font-size: 20px; }
+        .agent-selection { background: rgba(255,255,255,0.6); padding: 25px; border-radius: 12px; margin-bottom: 30px; border: 1px solid rgba(151,166,129,0.2); }
+        .agent-selection h2 { margin-bottom: 20px; color: #5a5a5a; font-size: 20px; font-weight: 600; }
         .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; color: #4a5568; font-weight: 600; font-size: 14px; }
-        .required { color: #e53e3e; }
-        select, input[type="text"], textarea { width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px; transition: all 0.3s; font-family: inherit; }
-        select:focus, input[type="text"]:focus, textarea:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
-        textarea { resize: vertical; min-height: 120px; font-family: monospace; }
+        label { display: block; margin-bottom: 8px; color: #5a5a5a; font-weight: 600; font-size: 14px; }
+        .required { color: #A68572; }
+        select, input[type="text"], textarea { 
+            width: 100%; 
+            padding: 12px 16px; 
+            border: 2px solid #D9D0C7; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            transition: all 0.3s; 
+            font-family: 'Courier New', monospace;
+            background: white; 
+        }
+        select:focus, input[type="text"]:focus, textarea:focus { outline: none; border-color: #97A681; box-shadow: 0 0 0 3px rgba(151, 166, 129, 0.1); }
+        textarea { resize: vertical; min-height: 120px; font-family: 'Courier New', monospace; }
         .checkbox-group { display: flex; align-items: center; margin-top: 15px; }
-        .checkbox-group input[type="checkbox"] { width: 20px; height: 20px; margin-right: 10px; cursor: pointer; }
-        .checkbox-group label { margin: 0; cursor: pointer; font-weight: normal; }
-        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; display: inline-flex; align-items: center; gap: 8px; }
+        .checkbox-group input[type="checkbox"] { width: 20px; height: 20px; margin-right: 10px; cursor: pointer; accent-color: #97A681; }
+        .checkbox-group label { margin: 0; cursor: pointer; font-weight: normal; font-family: 'Playfair Display', serif; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; display: inline-flex; align-items: center; gap: 8px; font-family: 'Playfair Display', serif; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3); }
-        .btn-secondary { background: #48bb78; color: white; }
-        .btn-secondary:hover:not(:disabled) { background: #38a169; transform: translateY(-2px); }
-        .btn-danger { background: #f56565; color: white; }
-        .btn-danger:hover:not(:disabled) { background: #e53e3e; }
-        .btn-outline { background: white; color: #667eea; border: 2px solid #667eea; }
-        .btn-outline:hover:not(:disabled) { background: #667eea; color: white; }
+        .btn-primary { background: #97A681; color: white; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(151, 166, 129, 0.3); background: #8A9975; }
+        .btn-secondary { background: #97A681; color: white; }
+        .btn-secondary:hover:not(:disabled) { background: #8A9975; transform: translateY(-2px); }
+        .btn-danger { background: #A68572; color: white; }
+        .btn-danger:hover:not(:disabled) { background: #967866; }
+        .btn-outline { background: white; color: #5a5a5a; border: 2px solid #97A681; }
+        .btn-outline:hover:not(:disabled) { background: #97A681; color: white; }
         .main-form { display: none; }
         .main-form.active { display: block; }
-        .current-box-info { background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); color: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
-        .current-box-info h3 { font-size: 18px; margin-bottom: 5px; }
-        .current-box-info p { opacity: 0.9; font-size: 14px; }
+        .current-box-info { 
+            background: white;
+            color: #5a5a5a;
+            padding: 20px; 
+            border-radius: 12px; 
+            margin-bottom: 25px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            gap: 15px;
+            border: 3px solid #97A681;
+            box-shadow: 0 2px 8px rgba(151,166,129,0.15);
+        }
+        .current-box-info h3 { font-size: 18px; margin-bottom: 5px; font-weight: 600; color: #000; font-family: 'Courier New', monospace; }
+        .current-box-info h3.has-box { color: #000; }
+        .current-box-info p { opacity: 0.8; font-size: 14px; font-family: 'Playfair Display', serif; }
         .serial-inputs { margin-top: 15px; }
         .serial-input-row { display: flex; gap: 10px; margin-bottom: 10px; }
         .serial-input-row input { flex: 1; }
-        .serial-input-row button { padding: 12px 16px; background: #f56565; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .serial-input-row button { padding: 12px 16px; background: #A68572; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-family: 'Playfair Display', serif; font-weight: 600; }
+        .serial-input-row button:hover { background: #967866; }
         .add-serial-btn { margin-top: 10px; background: #4299e1; color: white; }
         .add-serial-btn:hover { background: #3182ce; }
         .button-group { display: flex; gap: 12px; margin-top: 25px; flex-wrap: wrap; }
         .button-group .btn { flex: 1; justify-content: center; min-width: 150px; }
         .alert { padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; display: flex; align-items: center; gap: 10px; }
-        .alert-success { background: #c6f6d5; color: #22543d; border: 1px solid #9ae6b4; }
-        .alert-error { background: #fed7d7; color: #742a2a; border: 1px solid #fc8181; }
-        .alert-warning { background: #feebc8; color: #744210; border: 1px solid #fbd38d; }
-        .alert-info { background: #bee3f8; color: #2c5282; border: 1px solid #90cdf4; }
-        .box-history { margin-top: 40px; padding-top: 30px; border-top: 2px solid #e2e8f0; }
-        .box-history h2 { margin-bottom: 20px; color: #2d3748; }
+        .alert-success { background: #e8f4e8; color: #2d5a2d; border: 1px solid #97A681; }
+        .alert-error { background: #f7e6e6; color: #7a3a3a; border: 1px solid #A68572; }
+        .alert-warning { background: #fef5e7; color: #7a5a3a; border: 1px solid #BFB6AE; }
+        .alert-info { background: #e8f3f7; color: #2d5a7a; border: 1px solid #97A681; }
+        .box-history { padding: 30px; }
+        .box-history h2 { margin-bottom: 20px; color: #5a5a5a; font-weight: 600; }
         .box-list { display: grid; gap: 15px; }
-        .box-item { background: #f8f9fa; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0; }
-        .box-item.closed { border-color: #48bb78; background: #f0fff4; }
+        .box-item { background: white; padding: 20px; border-radius: 12px; border: 2px solid #D9D0C7; }
+        .box-item.closed { border-color: #A68572; background: #A68572; color: white; }
+        .box-item.closed .box-item-title { color: white; }
+        .box-item.closed .box-item-details { color: rgba(255,255,255,0.9); }
         .box-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .box-item-title { font-weight: 600; font-size: 18px; color: #2d3748; }
+        .box-item-title { font-weight: 600; font-size: 18px; color: #5a5a5a; font-family: 'Courier New', monospace; }
         .box-status { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-        .box-status.open { background: #bee3f8; color: #2c5282; }
-        .box-status.closed { background: #c6f6d5; color: #22543d; }
-        .box-item-details { font-size: 14px; color: #4a5568; margin-bottom: 10px; }
+        .box-status.open { background: #97A681; color: white; }
+        .box-status.closed { background: rgba(255,255,255,0.9); color: #A68572; }
+        .box-item-details { font-size: 14px; color: #6a6a6a; margin-bottom: 10px; }
         .box-item-details p { margin: 5px 0; }
+        .box-item-details strong { font-family: 'Playfair Display', serif; }
         .box-item-actions { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
-        .toggle-switch { display: flex; align-items: center; gap: 12px; margin-top: 15px; padding: 12px; background: #edf2f7; border-radius: 8px; }
-        .toggle-switch input[type="checkbox"] { width: 44px; height: 24px; cursor: pointer; appearance: none; background: #cbd5e0; border-radius: 12px; position: relative; transition: all 0.3s; }
-        .toggle-switch input[type="checkbox"]:checked { background: #48bb78; }
+        .toggle-switch { display: flex; align-items: center; gap: 12px; margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.6); border-radius: 8px; border: 1px solid rgba(151,166,129,0.2); }
+        .toggle-switch input[type="checkbox"] { width: 44px; height: 24px; cursor: pointer; appearance: none; background: #D9D0C7; border-radius: 12px; position: relative; transition: all 0.3s; }
+        .toggle-switch input[type="checkbox"]:checked { background: #97A681; }
         .toggle-switch input[type="checkbox"]::before { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 50%; background: white; top: 2px; left: 2px; transition: all 0.3s; }
         .toggle-switch input[type="checkbox"]:checked::before { left: 22px; }
         .toggle-switch label { margin: 0; cursor: pointer; font-weight: 600; }
         .bulk-entry-area { display: none; margin-top: 15px; }
         .bulk-entry-area.active { display: block; }
         .individual-entry-area.hidden { display: none; }
-        .loading { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; }
+        .loading { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(217, 208, 199, 0.9); z-index: 9999; align-items: center; justify-content: center; }
         .loading.active { display: flex; }
-        .spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; }
+        .spinner { width: 50px; height: 50px; border: 5px solid #F2E7DC; border-top: 5px solid #97A681; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @media (max-width: 600px) {
             body { padding: 10px; }
@@ -91,24 +213,54 @@
             .current-box-info { flex-direction: column; text-align: center; }
             .box-item-actions { flex-direction: column; }
             .box-item-actions .btn { width: 100%; }
+            .sidebar { width: 280px; left: -280px; }
         }
         .hidden { display: none; }
-        .jobs-summary { margin-top: 10px; font-size: 14px; }
-        .sync-status { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 13px; font-weight: 600; display: none; align-items: center; gap: 8px; z-index: 1000; }
+        .jobs-summary { margin-top: 10px; font-size: 14px; font-family: 'Courier New', monospace; }
+        .sync-status { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 13px; font-weight: 600; display: none; align-items: center; gap: 8px; z-index: 1000; border: 2px solid #D9D0C7; }
         .sync-status.active { display: flex; }
-        .sync-status.syncing { background: #bee3f8; color: #2c5282; }
-        .sync-status.synced { background: #c6f6d5; color: #22543d; }
-        .sync-status.error { background: #fed7d7; color: #742a2a; }
+        .sync-status.syncing { background: #e8f3f7; color: #2d5a7a; border-color: #97A681; }
+        .sync-status.synced { background: #e8f4e8; color: #2d5a2d; border-color: #97A681; }
+        .sync-status.error { background: #f7e6e6; color: #7a3a3a; border-color: #A68572; }
+        .page-content { display: none; }
+        .page-content.active { display: block; }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #8a8a8a;
+        }
     </style>
 </head>
 <body>
     <div class="loading" id="loading"><div class="spinner"></div></div>
     <div class="sync-status" id="syncStatus"></div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>Menu</h2>
+        </div>
+        <div class="sidebar-menu">
+            <div class="sidebar-menu-item active" data-page="main" id="menuMain">
+                <span>📋 Stock Entry</span>
+            </div>
+            <div class="sidebar-menu-item" data-page="history" id="menuHistory">
+                <span>📦 Box History</span>
+            </div>
+            <div class="sidebar-menu-item" id="menuChangeAgent">
+                <span>👤 Change Agent</span>
+            </div>
+        </div>
+    </div>
     
     <div class="container">
         <div class="header">
-            <h1>📦 Asset Tracking System</h1>
-            <p>Professional Stock & Serial Management</p>
+            <button class="hamburger-btn" id="hamburgerBtn">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <h1>Stock Submission</h1>
         </div>
         <div class="content">
             <div class="agent-selection" id="agentSelection">
@@ -130,59 +282,64 @@
                     <button class="btn btn-primary" id="confirmAgentBtn">Continue</button>
                 </div>
             </div>
-            <div class="main-form" id="mainForm">
-                <div id="alertContainer"></div>
-                <div class="current-box-info">
-                    <div>
-                        <h3 id="currentBoxId">No Active Box</h3>
-                        <p id="currentBoxClient">Select client to start</p>
-                        <div class="jobs-summary" id="jobsSummary"></div>
+            
+            <div class="page-content active" id="mainPage">
+                <div class="main-form" id="mainForm">
+                    <div id="alertContainer"></div>
+                    <div class="current-box-info">
+                        <div>
+                            <h3 id="currentBoxId">No Active Box</h3>
+                            <p id="currentBoxClient">Select client to start</p>
+                            <div class="jobs-summary" id="jobsSummary"></div>
+                        </div>
+                        <button class="btn btn-secondary" id="newBoxBtn" disabled>Start New Box</button>
                     </div>
-                    <button class="btn btn-secondary" id="newBoxBtn" disabled>Start New Box</button>
-                </div>
-                <div class="form-group">
-                    <label for="clientSelect">Client <span class="required">*</span></label>
-                    <select id="clientSelect">
-                        <option value="">-- Select Client --</option>
-                        <option value="VERIFONE">VERIFONE</option>
-                        <option value="INGENICO">INGENICO</option>
-                        <option value="OTHER">OTHER</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="vendorSelect">Vendor <span class="required">*</span></label>
-                    <select id="vendorSelect">
-                        <option value="">-- Select Vendor --</option>
-                        <option value="ANZ">ANZ</option><option value="CBA">CBA</option><option value="FDI">FDI</option><option value="HJK">HJK</option><option value="MCA">MCA</option><option value="NAB">NAB</option><option value="SUN">SUN</option><option value="WPB">WPB</option><option value="OTH">OTH</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="jobNumber">Job Number <span class="required">*</span></label>
-                    <input type="text" id="jobNumber" placeholder="Enter job number">
-                </div>
-                <div class="toggle-switch">
-                    <input type="checkbox" id="bulkToggle">
-                    <label for="bulkToggle">Bulk Entry Mode</label>
-                </div>
-                <div class="form-group individual-entry-area" id="individualEntry">
-                    <label>Serials <span class="required">*</span></label>
-                    <div class="serial-inputs" id="serialInputs">
-                        <div class="serial-input-row">
-                            <input type="text" class="serial-input" placeholder="Enter serial number">
+                    <div class="form-group">
+                        <label for="clientSelect">Client <span class="required">*</span></label>
+                        <select id="clientSelect">
+                            <option value="">-- Select Client --</option>
+                            <option value="VERIFONE">VERIFONE</option>
+                            <option value="INGENICO">INGENICO</option>
+                            <option value="OTHER">OTHER</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="vendorSelect">Vendor <span class="required">*</span></label>
+                        <select id="vendorSelect">
+                            <option value="">-- Select Vendor --</option>
+                            <option value="ANZ">ANZ</option><option value="CBA">CBA</option><option value="FDI">FDI</option><option value="HJK">HJK</option><option value="MCA">MCA</option><option value="NAB">NAB</option><option value="SUN">SUN</option><option value="WPB">WPB</option><option value="OTH">OTH</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="jobNumber">Job Number <span class="required">*</span></label>
+                        <input type="text" id="jobNumber" placeholder="Enter job number">
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="bulkToggle">
+                        <label for="bulkToggle">Bulk Entry Mode</label>
+                    </div>
+                    <div class="form-group individual-entry-area" id="individualEntry">
+                        <label>Serials <span class="required">*</span></label>
+                        <div class="serial-inputs" id="serialInputs">
+                            <div class="serial-input-row">
+                                <input type="text" class="serial-input" placeholder="Enter serial number">
+                            </div>
+                        </div>
+                        <button class="btn add-serial-btn" id="addSerialBtn">+ Add Another Serial</button>
+                    </div>
+                    <div class="bulk-entry-area" id="bulkEntry">
+                        <div class="form-group">
+                            <label for="bulkSerials">Serials (one per line) <span class="required">*</span></label>
+                            <textarea id="bulkSerials" placeholder="Enter serial numbers, one per line"></textarea>
                         </div>
                     </div>
-                    <button class="btn add-serial-btn" id="addSerialBtn">+ Add Another Serial</button>
-                </div>
-                <div class="bulk-entry-area" id="bulkEntry">
-                    <div class="form-group">
-                        <label for="bulkSerials">Serials (one per line) <span class="required">*</span></label>
-                        <textarea id="bulkSerials" placeholder="Enter serial numbers, one per line"></textarea>
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="addJobBtn">Add Job to Box</button>
                     </div>
                 </div>
-                <div class="button-group">
-                    <button class="btn btn-primary" id="addJobBtn">Add Job to Box</button>
-                    <button class="btn btn-outline" id="changeAgentBtn">Change Agent</button>
-                </div>
+            </div>
+            
+            <div class="page-content" id="historyPage">
                 <div class="box-history">
                     <h2>Box History</h2>
                     <div class="box-list" id="boxList"></div>
@@ -191,7 +348,7 @@
         </div>
     </div>
     <script>
-const db=window.supabase.createClient("https://lfydtctndrzzdyavmlva.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmeWR0Y3RuZHJ6emR5YXZtbHZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0Nzc5MTksImV4cCI6MjA4MzA1MzkxOX0.O7dL6Gl-Re1yKEixO_BRa-goj67os6riy15hRIE4nqY");let currentAgent,boxes=[],currentBox;document.addEventListener("DOMContentLoaded",()=>{const e=localStorage.getItem("rememberedAgent");e&&(document.getElementById("agentSelect").value=e,document.getElementById("rememberAgent").checked=!0),document.getElementById("confirmAgentBtn").addEventListener("click",async()=>{const e=document.getElementById("agentSelect").value;if(!e)return void showAlert("Please select an agent","error");currentAgent=e,document.getElementById("rememberAgent").checked?localStorage.setItem("rememberedAgent",e):localStorage.removeItem("rememberedAgent"),document.getElementById("agentSelection").style.display="none",document.getElementById("mainForm").classList.add("active"),await loadBoxesForAgent(),renderBoxHistory()}),document.getElementById("clientSelect").addEventListener("change",async()=>{const e=document.getElementById("clientSelect").value;if(!e)return currentBox=null,void updateCurrentBoxDisplay();showLoading(!0);try{const{data:t,error:r}=await db.from("boxes").select("*").eq("agent",currentAgent).eq("client",e).eq("status","open").order("created_at",{ascending:!1}).limit(1);if(r)throw r;if(t&&t.length>0)currentBox=t[0],await loadJobsForBox(currentBox.id);else{const t=await getNextBoxNumber(e),{data:r,error:a}=await db.from("boxes").insert([{box_id:`${e}-${currentAgent}-${t}`,agent:currentAgent,client:e,box_number:t,status:"open",created_at:(new Date).toISOString()}]).select().single();if(a)throw a;currentBox=r,currentBox.jobs=[]}updateCurrentBoxDisplay(),await loadBoxesForAgent(),renderBoxHistory(),showSyncStatus("✓ Synced","synced")}catch(e){showAlert("Error loading box: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}),document.getElementById("bulkToggle").addEventListener("change",()=>{const e=document.getElementById("bulkToggle").checked;document.getElementById("individualEntry").classList.toggle("hidden",e),document.getElementById("bulkEntry").classList.toggle("active",e)}),document.getElementById("addSerialBtn").addEventListener("click",()=>{const e=document.createElement("div");e.className="serial-input-row",e.innerHTML='<input type="text" class="serial-input" placeholder="Enter serial number"><button type="button" onclick="this.parentElement.remove()">Remove</button>',document.getElementById("serialInputs").appendChild(e)}),document.getElementById("addJobBtn").addEventListener("click",async()=>{if(!currentBox)return void showAlert("Please select a client first","error");const e=document.getElementById("vendorSelect").value,t=document.getElementById("jobNumber").value.trim(),r=document.getElementById("bulkToggle").checked;if(!e||!t)return void showAlert("Please fill in all required fields","error");let a=[];if(r){const e=document.getElementById("bulkSerials").value.trim();if(!e)return void showAlert("Please enter at least one serial","error");a=e.split("\n").map(e=>e.trim()).filter(e=>e.length>0)}else document.querySelectorAll(".serial-input").forEach(e=>{const t=e.value.trim();t&&a.push(t)});if(0===a.length)return void showAlert("Please enter at least one serial","error");const l=await checkDuplicates(a);if(l.length>0)return void showAlert(`Duplicate serials found: ${l.join(", ")}`,"warning");showLoading(!0),showSyncStatus("Syncing...","syncing");try{const{data:r,error:l}=await db.from("jobs").insert([{box_id:currentBox.id,job_number:t,vendor:e,created_at:(new Date).toISOString()}]).select().single();if(l)throw l;const o=a.map(e=>({job_id:r.id,box_id:currentBox.id,serial_number:e,created_at:(new Date).toISOString()})),{error:c}=await db.from("serials").insert(o);if(c)throw c;showAlert(`✓ Job ${t} added with ${a.length} serial(s)`,"success"),showSyncStatus("✓ Synced","synced"),clearJobForm(),await document.getElementById("clientSelect").dispatchEvent(new Event("change"))}catch(e){showAlert("Error saving job: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}),document.getElementById("changeAgentBtn").addEventListener("click",()=>{confirm("Are you sure you want to change agent?")&&(currentAgent=null,currentBox=null,document.getElementById("agentSelection").style.display="block",document.getElementById("mainForm").classList.remove("active"),clearForm())}),document.getElementById("newBoxBtn").addEventListener("click",async()=>{if(!currentBox||!currentBox.jobs||0===currentBox.jobs.length)return void showAlert("Cannot start new box without adding jobs to current one","warning");if(confirm(`Start new box for ${currentBox.client}?`)){showLoading(!0);try{const e=currentBox.client,t=await getNextBoxNumber(e),{data:r,error:a}=await db.from("boxes").insert([{box_id:`${e}-${currentAgent}-${t}`,agent:currentAgent,client:e,box_number:t,status:"open",created_at:(new Date).toISOString()}]).select().single();if(a)throw a;currentBox=r,currentBox.jobs=[],updateCurrentBoxDisplay(),await loadBoxesForAgent(),renderBoxHistory(),showAlert(`✓ New box started: ${currentBox.box_id}`,"success"),showSyncStatus("✓ Synced","synced")}catch(e){showAlert("Error starting new box: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}})});async function loadJobsForBox(e){try{const{data:t,error:r}=await db.from("jobs").select("*").eq("box_id",e).order("created_at",{ascending:!0});if(r)throw r;for(let e of t){const{data:t,error:r}=await db.from("serials").select("serial_number").eq("job_id",e.id).order("created_at",{ascending:!0});if(r)throw r;e.serials=t.map(e=>e.serial_number)}currentBox.jobs=t}catch(e){currentBox.jobs=[]}}async function getNextBoxNumber(e){try{const{data:t,error:r}=await db.from("boxes").select("box_number").eq("agent",currentAgent).eq("client",e).order("box_number",{ascending:!1}).limit(1);if(r)throw r;return t&&0!==t.length?String(parseInt(t[0].box_number)+1).padStart(3,"0"):"001"}catch(e){return"001"}}function updateCurrentBoxDisplay(){const e=document.getElementById("currentBoxId"),t=document.getElementById("currentBoxClient"),r=document.getElementById("jobsSummary"),a=document.getElementById("newBoxBtn");if(currentBox){e.textContent=currentBox.box_id,t.textContent=`${currentBox.client} - Agent ${currentBox.agent}`;const l=currentBox.jobs||[],o=l.length,c=l.reduce((e,t)=>e+(t.serials?t.serials.length:0),0);r.textContent=`${o} job(s), ${c} serial(s)`,a.disabled=!1}else e.textContent="No Active Box",t.textContent="Select client to start",r.textContent="",a.disabled=!0}async function checkDuplicates(e){try{const{data:t,error:r}=await db.from("serials").select("serial_number").in("serial_number",e);if(r)throw r;return t.map(e=>e.serial_number)}catch(e){return[]}}async function closeBox(e){if(!confirm("Close this box? It will be marked as completed."))return;showLoading(!0);try{const{error:t}=await db.from("boxes").update({status:"closed",closed_at:(new Date).toISOString()}).eq("id",e);if(t)throw t;currentBox&&currentBox.id===e&&(currentBox=null,document.getElementById("clientSelect").value="",updateCurrentBoxDisplay()),await loadBoxesForAgent(),renderBoxHistory(),showAlert("✓ Box closed successfully","success"),showSyncStatus("✓ Synced","synced")}catch(e){showAlert("Error closing box: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}async function viewBoxDetails(e){showLoading(!0);try{const{data:t,error:r}=await db.from("boxes").select("*").eq("id",e).single();if(r)throw r;const{data:a,error:l}=await db.from("jobs").select("*").eq("box_id",e).order("created_at",{ascending:!0});if(l)throw l;for(let e of a){const{data:t,error:r}=await db.from("serials").select("serial_number").eq("job_id",e.id);if(r)throw r;e.serials=t.map(e=>e.serial_number)}let o=`Box: ${t.box_id}\nAgent: ${t.agent}\nClient: ${t.client}\nStatus: ${t.status}\nCreated: ${new Date(t.created_at).toLocaleString()}\n`;t.closed_at&&(o+=`Closed: ${new Date(t.closed_at).toLocaleString()}\n`),o+=`\nJobs: ${a.length}\nTotal Serials: ${a.reduce((e,t)=>e+t.serials.length,0)}\n\n`,a.forEach((e,t)=>{o+=`Job ${t+1}: ${e.job_number}\nVendor: ${e.vendor}\nSerials (${e.serials.length}): ${e.serials.join(", ")}\n\n`}),alert(o)}catch(e){showAlert("Error loading details: "+e.message,"error")}finally{showLoading(!1)}}async function renderBoxHistory(){const e=document.getElementById("boxList"),t=boxes.filter(e=>e.agent===currentAgent).reverse();if(0===t.length)return void(e.innerHTML='<p style="color: #718096; text-align: center; padding: 20px;">No boxes yet. Select a client to start.</p>');for(let e of t)try{const{count:t}=await db.from("jobs").select("*",{count:"exact",head:!0}).eq("box_id",e.id),{count:r}=await db.from("serials").select("*",{count:"exact",head:!0}).eq("box_id",e.id);e.jobCount=t,e.serialCount=r}catch(e){console.error("Error loading stats:",e)}e.innerHTML=t.map(e=>`<div class="box-item ${e.status}"><div class="box-item-header"><div class="box-item-title">${e.box_id}</div><span class="box-status ${e.status}">${e.status}</span></div><div class="box-item-details"><p><strong>Client:</strong> ${e.client}</p><p><strong>Jobs:</strong> ${e.jobCount||0} | <strong>Serials:</strong> ${e.serialCount||0}</p><p><strong>Created:</strong> ${new Date(e.created_at).toLocaleDateString()}</p>${e.closed_at?`<p><strong>Closed:</strong> ${new Date(e.closed_at).toLocaleDateString()}</p>`:""}</div><div class="box-item-actions"><button class="btn btn-outline" onclick="viewBoxDetails(${e.id})">View Details</button>${"open"===e.status?`<button class="btn btn-danger" onclick="closeBox(${e.id})">Close Box</button>`:""}</div></div>`).join("")}async function loadBoxesForAgent(){try{const{data:e,error:t}=await db.from("boxes").select("*").eq("agent",currentAgent).order("created_at",{ascending:!1});if(t)throw t;boxes=e||[]}catch(e){boxes=[]}}function clearJobForm(){document.getElementById("vendorSelect").value="",document.getElementById("jobNumber").value="",document.getElementById("bulkSerials").value="",document.getElementById("bulkToggle").checked=!1,document.getElementById("serialInputs").innerHTML='<div class="serial-input-row"><input type="text" class="serial-input" placeholder="Enter serial number"></div>',document.getElementById("bulkToggle").dispatchEvent(new Event("change"))}function clearForm(){clearJobForm(),document.getElementById("clientSelect").value=""}function showAlert(e,t){const r=document.getElementById("alertContainer"),a=document.createElement("div");a.className=`alert alert-${t}`;const l="success"===t?"✓":"error"===t?"✗":"warning"===t?"⚠":"ℹ";a.innerHTML=`<span style="font-size: 18px;">${l}</span><span>${e}</span>`,r.appendChild(a),setTimeout(()=>a.remove(),5e3)}function showLoading(e){document.getElementById("loading").classList.toggle("active",e)}function showSyncStatus(e,t){const r=document.getElementById("syncStatus");r.textContent=e,r.className=`sync-status active ${t}`,setTimeout(()=>r.classList.remove("active"),3e3)}
+const db=window.supabase.createClient("https://lfydtctndrzzdyavmlva.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmeWR0Y3RuZHJ6emR5YXZtbHZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0Nzc5MTksImV4cCI6MjA4MzA1MzkxOX0.O7dL6Gl-Re1yKEixO_BRa-goj67os6riy15hRIE4nqY");let currentAgent,boxes=[],currentBox;function getClientCode(e){return"VERIFONE"===e?"VER":"INGENICO"===e?"ING":"OTH"}function formatBoxId(e,t,a){return`${e}-${getClientCode(t)}-${a}`}document.addEventListener("DOMContentLoaded",()=>{const e=localStorage.getItem("rememberedAgent");e&&(document.getElementById("agentSelect").value=e,document.getElementById("rememberAgent").checked=!0),document.getElementById("hamburgerBtn").addEventListener("click",toggleSidebar),document.getElementById("sidebarOverlay").addEventListener("click",closeSidebar),document.getElementById("menuMain").addEventListener("click",()=>switchPage("main")),document.getElementById("menuHistory").addEventListener("click",()=>switchPage("history")),document.getElementById("menuChangeAgent").addEventListener("click",changeAgent),document.getElementById("confirmAgentBtn").addEventListener("click",async()=>{const e=document.getElementById("agentSelect").value;if(!e)return void showAlert("Please select an agent","error");currentAgent=e,document.getElementById("rememberAgent").checked?localStorage.setItem("rememberedAgent",e):localStorage.removeItem("rememberedAgent"),document.getElementById("agentSelection").style.display="none",document.getElementById("mainForm").classList.add("active"),await loadBoxesForAgent(),renderBoxHistory()}),document.getElementById("clientSelect").addEventListener("change",async()=>{const e=document.getElementById("clientSelect").value;if(!e)return currentBox=null,void updateCurrentBoxDisplay();showLoading(!0);try{const{data:t,error:a}=await db.from("boxes").select("*").eq("agent",currentAgent).eq("client",e).eq("status","open").order("created_at",{ascending:!1}).limit(1);if(a)throw a;if(t&&t.length>0)currentBox=t[0],await loadJobsForBox(currentBox.id);else{const t=await getNextBoxNumber(e),a=formatBoxId(currentAgent,e,t),{data:n,error:o}=await db.from("boxes").insert([{box_id:a,agent:currentAgent,client:e,box_number:t,status:"open",created_at:(new Date).toISOString()}]).select().single();if(o)throw o;currentBox=n,currentBox.jobs=[]}updateCurrentBoxDisplay(),await loadBoxesForAgent(),renderBoxHistory(),showSyncStatus("✓ Synced","synced")}catch(e){showAlert("Error loading box: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}),document.getElementById("bulkToggle").addEventListener("change",()=>{const e=document.getElementById("bulkToggle").checked;document.getElementById("individualEntry").classList.toggle("hidden",e),document.getElementById("bulkEntry").classList.toggle("active",e)}),document.getElementById("addSerialBtn").addEventListener("click",()=>{const e=document.createElement("div");e.className="serial-input-row",e.innerHTML='<input type="text" class="serial-input" placeholder="Enter serial number"><button type="button" onclick="this.parentElement.remove()">Remove</button>',document.getElementById("serialInputs").appendChild(e)}),document.getElementById("addJobBtn").addEventListener("click",async()=>{if(!currentBox)return void showAlert("Please select a client first","error");const e=document.getElementById("vendorSelect").value,t=document.getElementById("jobNumber").value.trim(),a=document.getElementById("bulkToggle").checked;if(!e||!t)return void showAlert("Please fill in all required fields","error");let n=[];if(a){const e=document.getElementById("bulkSerials").value.trim();if(!e)return void showAlert("Please enter at least one serial","error");n=e.split("\n").map(e=>e.trim()).filter(e=>e.length>0)}else document.querySelectorAll(".serial-input").forEach(e=>{const t=e.value.trim();t&&n.push(t)});if(0===n.length)return void showAlert("Please enter at least one serial","error");const o=await checkDuplicates(n);if(o.length>0)return void showAlert(`Duplicate serials found: ${o.join(", ")}`,"warning");showLoading(!0),showSyncStatus("Syncing...","syncing");try{const{data:a,error:o}=await db.from("jobs").insert([{box_id:currentBox.id,job_number:t,vendor:e,created_at:(new Date).toISOString()}]).select().single();if(o)throw o;const r=n.map(e=>({job_id:a.id,box_id:currentBox.id,serial_number:e,created_at:(new Date).toISOString()})),{error:s}=await db.from("serials").insert(r);if(s)throw s;showAlert(`✓ Job ${t} added with ${n.length} serial(s)`,"success"),showSyncStatus("✓ Synced","synced"),clearJobForm(),await document.getElementById("clientSelect").dispatchEvent(new Event("change"))}catch(e){showAlert("Error saving job: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}),document.getElementById("newBoxBtn").addEventListener("click",async()=>{if(!currentBox||!currentBox.jobs||0===currentBox.jobs.length)return void showAlert("Cannot start new box without adding jobs to current one","warning");if(confirm(`Close current box and start new box for ${currentBox.client}?`)){showLoading(!0);try{const e=currentBox.client,t=currentBox.id;await db.from("boxes").update({status:"closed",closed_at:(new Date).toISOString()}).eq("id",t);const a=await getNextBoxNumber(e),n=formatBoxId(currentAgent,e,a),{data:o,error:r}=await db.from("boxes").insert([{box_id:n,agent:currentAgent,client:e,box_number:a,status:"open",created_at:(new Date).toISOString()}]).select().single();if(r)throw r;currentBox=o,currentBox.jobs=[],updateCurrentBoxDisplay(),await loadBoxesForAgent(),renderBoxHistory(),showAlert(`✓ Previous box closed. New box started: ${currentBox.box_id}`,"success"),showSyncStatus("✓ Synced","synced")}catch(e){showAlert("Error starting new box: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}})});function toggleSidebar(){document.getElementById("sidebar").classList.toggle("active"),document.getElementById("sidebarOverlay").classList.toggle("active"),document.getElementById("hamburgerBtn").classList.toggle("active")}function closeSidebar(){document.getElementById("sidebar").classList.remove("active"),document.getElementById("sidebarOverlay").classList.remove("active"),document.getElementById("hamburgerBtn").classList.remove("active")}function switchPage(e){document.querySelectorAll(".page-content").forEach(e=>e.classList.remove("active")),document.querySelectorAll(".sidebar-menu-item[data-page]").forEach(e=>e.classList.remove("active")),"main"===e?(document.getElementById("mainPage").classList.add("active"),document.getElementById("menuMain").classList.add("active")):"history"===e&&(document.getElementById("historyPage").classList.add("active"),document.getElementById("menuHistory").classList.add("active"),renderBoxHistory()),closeSidebar()}function changeAgent(){closeSidebar(),confirm("Are you sure you want to change agent?")&&(currentAgent=null,currentBox=null,document.getElementById("agentSelection").style.display="block",document.getElementById("mainForm").classList.remove("active"),clearForm())}async function loadJobsForBox(e){try{const{data:t,error:a}=await db.from("jobs").select("*").eq("box_id",e).order("created_at",{ascending:!0});if(a)throw a;for(let e of t){const{data:t,error:a}=await db.from("serials").select("serial_number").eq("job_id",e.id).order("created_at",{ascending:!0});if(a)throw a;e.serials=t.map(e=>e.serial_number)}currentBox.jobs=t}catch(e){currentBox.jobs=[]}}async function getNextBoxNumber(e){try{const{data:t,error:a}=await db.from("boxes").select("box_number").eq("agent",currentAgent).eq("client",e).order("box_number",{ascending:!1}).limit(1);if(a)throw a;return t&&0!==t.length?String(parseInt(t[0].box_number)+1).padStart(3,"0"):"001"}catch(e){return"001"}}function updateCurrentBoxDisplay(){const e=document.getElementById("currentBoxId"),t=document.getElementById("currentBoxClient"),a=document.getElementById("jobsSummary"),n=document.getElementById("newBoxBtn");if(currentBox){e.textContent=currentBox.box_id,e.classList.add("has-box"),t.textContent=`${currentBox.client} - Agent ${currentBox.agent}`;const o=currentBox.jobs||[],r=o.length,s=o.reduce((e,t)=>e+(t.serials?t.serials.length:0),0);a.textContent=`${r} job(s), ${s} serial(s)`,n.disabled=!1}else e.textContent="No Active Box",e.classList.remove("has-box"),t.textContent="Select client to start",a.textContent="",n.disabled=!0}async function checkDuplicates(e){try{const{data:t,error:a}=await db.from("serials").select("serial_number").in("serial_number",e);if(a)throw a;return t.map(e=>e.serial_number)}catch(e){return[]}}async function closeBox(e){if(!confirm("Close this box? It will be marked as completed."))return;showLoading(!0);try{const{error:t}=await db.from("boxes").update({status:"closed",closed_at:(new Date).toISOString()}).eq("id",e);if(t)throw t;currentBox&&currentBox.id===e&&(currentBox=null,document.getElementById("clientSelect").value="",updateCurrentBoxDisplay()),await loadBoxesForAgent(),renderBoxHistory(),showAlert("✓ Box closed successfully","success"),showSyncStatus("✓ Synced","synced")}catch(e){showAlert("Error closing box: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}async function viewBoxDetails(e){showLoading(!0);try{const{data:t,error:a}=await db.from("boxes").select("*").eq("id",e).single();if(a)throw a;const{data:n,error:o}=await db.from("jobs").select("*").eq("box_id",e).order("created_at",{ascending:!0});if(o)throw o;for(let e of n){const{data:t,error:a}=await db.from("serials").select("serial_number").eq("job_id",e.id);if(a)throw a;e.serials=t.map(e=>e.serial_number)}let r=`Box: ${t.box_id}\nAgent: ${t.agent}\nClient: ${t.client}\nStatus: ${t.status}\nCreated: ${new Date(t.created_at).toLocaleString()}\n`;t.closed_at&&(r+=`Closed: ${new Date(t.closed_at).toLocaleString()}\n`),r+=`\nJobs: ${n.length}\nTotal Serials: ${n.reduce((e,t)=>e+t.serials.length,0)}\n\n`,n.forEach((e,t)=>{r+=`Job ${t+1}: ${e.job_number}\nVendor: ${e.vendor}\nSerials (${e.serials.length}): ${e.serials.join(", ")}\n\n`}),alert(r)}catch(e){showAlert("Error loading details: "+e.message,"error")}finally{showLoading(!1)}}async function renderBoxHistory(){const e=document.getElementById("boxList"),t=boxes.filter(e=>e.agent===currentAgent).reverse();if(0===t.length)return void(e.innerHTML='<div class="empty-state"><p>No boxes yet. Add jobs to create your first box.</p></div>');for(let e of t)try{const{count:t}=await db.from("jobs").select("*",{count:"exact",head:!0}).eq("box_id",e.id),{count:a}=await db.from("serials").select("*",{count:"exact",head:!0}).eq("box_id",e.id);e.jobCount=t,e.serialCount=a}catch(e){console.error("Error loading stats:",e)}e.innerHTML=t.map(e=>`<div class="box-item ${e.status}"><div class="box-item-header"><div class="box-item-title">${e.box_id}</div><span class="box-status ${e.status}">${e.status}</span></div><div class="box-item-details"><p><strong>Client:</strong> ${e.client}</p><p><strong>Jobs:</strong> ${e.jobCount||0} | <strong>Serials:</strong> ${e.serialCount||0}</p><p><strong>Created:</strong> ${new Date(e.created_at).toLocaleDateString()}</p>${e.closed_at?`<p><strong>Closed:</strong> ${new Date(e.closed_at).toLocaleDateString()}</p>`:""}</div><div class="box-item-actions"><button class="btn btn-outline" onclick="viewBoxDetails(${e.id})">View Details</button>${"open"===e.status?`<button class="btn btn-danger" onclick="closeBox(${e.id})">Close Box</button>`:""}</div></div>`).join("")}async function loadBoxesForAgent(){try{const{data:e,error:t}=await db.from("boxes").select("*").eq("agent",currentAgent).order("created_at",{ascending:!1});if(t)throw t;boxes=e||[]}catch(e){boxes=[]}}function clearJobForm(){document.getElementById("vendorSelect").value="",document.getElementById("jobNumber").value="",document.getElementById("bulkSerials").value="",document.getElementById("bulkToggle").checked=!1,document.getElementById("serialInputs").innerHTML='<div class="serial-input-row"><input type="text" class="serial-input" placeholder="Enter serial number"></div>',document.getElementById("bulkToggle").dispatchEvent(new Event("change"))}function clearForm(){clearJobForm(),document.getElementById("clientSelect").value=""}function showAlert(e,t){const a=document.getElementById("alertContainer"),n=document.createElement("div");n.className=`alert alert-${t}`;const o="success"===t?"✓":"error"===t?"✗":"warning"===t?"⚠":"ℹ";n.innerHTML=`<span style="font-size: 18px;">${o}</span><span>${e}</span>`,a.appendChild(n),setTimeout(()=>n.remove(),5e3)}function showLoading(e){document.getElementById("loading").classList.toggle("active",e)}function showSyncStatus(e,t){const a=document.getElementById("syncStatus");a.textContent=e,a.className=`sync-status active ${t}`,setTimeout(()=>a.classList.remove("active"),3e3)}
     </script>
 </body>
 </html>
