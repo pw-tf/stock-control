@@ -483,8 +483,8 @@
             <div id="configWarning" class="config-warning hidden">
                 <h3>⚠️ Supabase Configuration Required</h3>
                 <p>Please update the Supabase credentials in lines 503-504:</p>
-                <p>1. Replace <code>YOUR_SUPABASE_URL_HERE</code></p>
-                <p>2. Replace <code>YOUR_SUPABASE_ANON_KEY_HERE</code></p>
+                <p>1. Replace <code>https://lfydtctndrzzdyavmlva.supabase.co</code></p>
+                <p>2. Replace <code>sb_publishable_-YsH762Mq7PpDenqA3y0KA_XlUbMXtT</code></p>
             </div>
 
             <div class="agent-selection" id="agentSelection">
@@ -590,9 +590,9 @@
     <script>
         // TODO: Replace with your Supabase credentials
         const SUPABASE_URL = 'https://lfydtctndrzzdyavmlva.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_-YsH762Mq7PpDenqA3y0KA_XlUbMXtT';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmeWR0Y3RuZHJ6emR5YXZtbHZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0Nzc5MTksImV4cCI6MjA4MzA1MzkxOX0.O7dL6Gl-Re1yKEixO_BRa-goj67os6riy15hRIE4nqY';
         
-        let supabase;
+        let supabaseClient;
         let currentAgent = null;
         let boxes = [];
         let currentBox = null;
@@ -603,13 +603,11 @@
         });
 
         function initializeSupabase() {
-            if (SUPABASE_URL === 'YOUR_SUPABASE_URL_HERE' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY_HERE') {
-                document.getElementById('configWarning').classList.remove('hidden');
-                return;
-            }
             try {
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log('Supabase connected successfully');
             } catch (error) {
+                console.error('Error connecting to database:', error);
                 showAlert('Error connecting to database: ' + error.message, 'error');
             }
         }
@@ -639,7 +637,7 @@
                 showAlert('Please select an agent', 'error');
                 return;
             }
-            if (!supabase) {
+            if (!supabaseClient) {
                 showAlert('Database not configured', 'error');
                 return;
             }
@@ -678,7 +676,7 @@
 
             showLoading(true);
             try {
-                const { data: openBoxes, error } = await supabase
+                const { data: openBoxes, error } = await supabaseClient
                     .from('boxes')
                     .select('*')
                     .eq('agent', currentAgent)
@@ -694,7 +692,7 @@
                     await loadJobsForBox(currentBox.id);
                 } else {
                     const boxNumber = await getNextBoxNumber(client);
-                    const { data, error: insertError } = await supabase
+                    const { data, error: insertError } = await supabaseClient
                         .from('boxes')
                         .insert([{
                             box_id: `${client}-${currentAgent}-${boxNumber}`,
@@ -726,7 +724,7 @@
 
         async function loadJobsForBox(boxId) {
             try {
-                const { data: jobs, error } = await supabase
+                const { data: jobs, error } = await supabaseClient
                     .from('jobs')
                     .select('*')
                     .eq('box_id', boxId)
@@ -735,7 +733,7 @@
                 if (error) throw error;
 
                 for (let job of jobs) {
-                    const { data: serials, error: serialsError } = await supabase
+                    const { data: serials, error: serialsError } = await supabaseClient
                         .from('serials')
                         .select('serial_number')
                         .eq('job_id', job.id)
@@ -753,7 +751,7 @@
 
         async function getNextBoxNumber(client) {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('boxes')
                     .select('box_number')
                     .eq('agent', currentAgent)
@@ -857,7 +855,7 @@
             showSyncStatus('Syncing...', 'syncing');
 
             try {
-                const { data: jobData, error: jobError } = await supabase
+                const { data: jobData, error: jobError } = await supabaseClient
                     .from('jobs')
                     .insert([{
                         box_id: currentBox.id,
@@ -877,7 +875,7 @@
                     created_at: new Date().toISOString()
                 }));
 
-                const { error: serialsError } = await supabase
+                const { error: serialsError } = await supabaseClient
                     .from('serials')
                     .insert(serialsToInsert);
 
@@ -897,7 +895,7 @@
 
         async function checkDuplicates(newSerials) {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('serials')
                     .select('serial_number')
                     .in('serial_number', newSerials);
@@ -920,7 +918,7 @@
                 try {
                     const client = currentBox.client;
                     const boxNumber = await getNextBoxNumber(client);
-                    const { data, error } = await supabase
+                    const { data, error } = await supabaseClient
                         .from('boxes')
                         .insert([{
                             box_id: `${client}-${currentAgent}-${boxNumber}`,
@@ -955,7 +953,7 @@
 
             showLoading(true);
             try {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('boxes')
                     .update({
                         status: 'closed',
@@ -986,7 +984,7 @@
         async function viewBoxDetails(boxId) {
             showLoading(true);
             try {
-                const { data: box, error: boxError } = await supabase
+                const { data: box, error: boxError } = await supabaseClient
                     .from('boxes')
                     .select('*')
                     .eq('id', boxId)
@@ -994,7 +992,7 @@
 
                 if (boxError) throw boxError;
 
-                const { data: jobs, error: jobsError } = await supabase
+                const { data: jobs, error: jobsError } = await supabaseClient
                     .from('jobs')
                     .select('*')
                     .eq('box_id', boxId)
@@ -1003,7 +1001,7 @@
                 if (jobsError) throw jobsError;
 
                 for (let job of jobs) {
-                    const { data: serials, error: serialsError } = await supabase
+                    const { data: serials, error: serialsError } = await supabaseClient
                         .from('serials')
                         .select('serial_number')
                         .eq('job_id', job.id);
@@ -1046,12 +1044,12 @@
 
             for (let box of agentBoxes) {
                 try {
-                    const { count: jobCount } = await supabase
+                    const { count: jobCount } = await supabaseClient
                         .from('jobs')
                         .select('*', { count: 'exact', head: true })
                         .eq('box_id', box.id);
 
-                    const { count: serialCount } = await supabase
+                    const { count: serialCount } = await supabaseClient
                         .from('serials')
                         .select('*', { count: 'exact', head: true })
                         .eq('box_id', box.id);
@@ -1085,7 +1083,7 @@
 
         async function loadBoxesForAgent() {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('boxes')
                     .select('*')
                     .eq('agent', currentAgent)
