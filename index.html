@@ -1272,7 +1272,7 @@ async function generateExportPreview() {
             <div class="export-box-item">
                 <div class="export-box-header">
                     <div class="export-box-title">${e.box_id}</div>
-                    <div class="export-box-subtitle">Agent: ${e.agent} | Client: ${e.client} | Closed: ${new Date(e.closed_at).toLocaleDateString()}</div>
+                    <div class="export-box-subtitle">Agent: ${e.agent} | Client: ${e.client} ${e.status === 'closed' && e.closed_at ? ' | Closed: ' + new Date(e.closed_at).toLocaleDateString() : ''}</div>
                 </div>
         `;
         
