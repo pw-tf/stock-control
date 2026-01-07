@@ -425,45 +425,98 @@
         
         /* Print Styles */
         @media print {
+            * {
+                margin: 0;
+                padding: 0;
+            }
             body {
                 background: white;
                 padding: 0;
+                margin: 0;
             }
             .container {
                 max-width: 100%;
                 box-shadow: none;
                 background: white;
+                border-radius: 0;
             }
             .header, .sidebar, .hamburger-btn, .export-filters, .export-box-selection, .sync-status, .loading, .boxes-list {
                 display: none !important;
             }
             .content {
-                padding: 20px;
+                padding: 10px;
             }
             .export-box-item {
-                page-break-after: always;
-                border: 3px solid #000;
+                padding: 0;
+                margin: 0;
+                border: none;
+                background: none;
+                border-radius: 0;
+            }
+            .export-box-header {
+                padding: 5px 0;
+                margin-bottom: 10px;
+                border-bottom: 2px solid #000;
+            }
+            .export-box-title {
+                font-size: 16px;
+                margin-bottom: 3px;
+            }
+            .export-box-subtitle {
+                font-size: 11px;
             }
             .job-section {
                 page-break-inside: avoid;
-                border-left: 5px solid #000;
+                margin: 8px 0;
+                padding: 5px;
+                background: none;
+                border: none;
+                border-radius: 0;
                 cursor: default;
             }
             .job-section:hover {
-                background: rgba(151,166,129,0.05);
+                background: none;
+            }
+            .job-date {
+                font-size: 9px;
+                margin-bottom: 3px;
+                text-align: left;
+            }
+            .job-header {
+                font-size: 12px;
+                margin-bottom: 5px;
+                padding: 3px 0;
+                border-bottom: 1px solid #ccc;
+                text-align: left;
             }
             .job-expand-icon {
                 display: none;
             }
             .serial-grid {
                 display: grid !important;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 5px;
+                margin-top: 5px;
             }
             .serial-item {
                 break-inside: avoid;
-                border: 2px solid #000;
+                padding: 3px;
+                border: 1px solid #ccc;
+                background: none;
+                border-radius: 0;
             }
-            .export-box-header {
-                border-bottom: 5px solid #000;
+            .serial-number {
+                font-size: 10px;
+                margin-bottom: 2px;
+            }
+            .barcode-container {
+                padding: 0;
+                min-height: 30px;
+                background: none;
+                border-radius: 0;
+            }
+            .barcode-container svg {
+                height: 30px;
             }
         }
     </style>
