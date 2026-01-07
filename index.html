@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -33,10 +34,13 @@
             border: none;
             cursor: pointer;
             padding: 10px;
-            display: flex;
+            display: none;
             flex-direction: column;
             gap: 5px;
             z-index: 1001;
+        }
+        .hamburger-btn.visible {
+            display: flex;
         }
         .hamburger-btn span {
             width: 25px;
@@ -229,6 +233,192 @@
             padding: 40px 20px;
             color: #8a8a8a;
         }
+        
+        /* Export Page Styles */
+        .export-filters {
+            background: rgba(255,255,255,0.6);
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(151,166,129,0.2);
+        }
+        .export-filters h2 {
+            margin-bottom: 20px;
+            color: #5a5a5a;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .filter-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .export-results {
+            margin-top: 25px;
+        }
+        .boxes-list {
+            background: rgba(255,255,255,0.6);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(151,166,129,0.2);
+        }
+        .boxes-list h3 {
+            margin-bottom: 15px;
+            color: #5a5a5a;
+            font-weight: 600;
+        }
+        .box-item {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            border: 2px solid #D9D0C7;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .box-item:hover {
+            border-color: #97A681;
+            background: rgba(151,166,129,0.05);
+        }
+        .box-item.selected {
+            border-color: #97A681;
+            background: rgba(151,166,129,0.1);
+        }
+        .box-info {
+            flex: 1;
+        }
+        .box-id {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            font-size: 16px;
+            color: #5a5a5a;
+            margin-bottom: 5px;
+        }
+        .box-meta {
+            font-size: 13px;
+            color: #8a8a8a;
+            font-family: 'Courier New', monospace;
+        }
+        .export-box-selection {
+            margin-top: 25px;
+            text-align: center;
+        }
+        .export-preview {
+            margin-top: 25px;
+        }
+        .export-box-item {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            border: 2px solid #D9D0C7;
+            margin-bottom: 20px;
+        }
+        .export-box-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #97A681;
+        }
+        .export-box-title {
+            font-weight: 700;
+            font-size: 28px;
+            color: #5a5a5a;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 10px;
+        }
+        .export-box-subtitle {
+            font-size: 16px;
+            color: #8a8a8a;
+            font-family: 'Playfair Display', serif;
+        }
+        .job-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: rgba(151,166,129,0.05);
+            border-radius: 8px;
+            border-left: 4px solid #97A681;
+            page-break-inside: avoid;
+        }
+        .job-header {
+            font-weight: 600;
+            font-size: 18px;
+            color: #5a5a5a;
+            margin-bottom: 20px;
+            font-family: 'Courier New', monospace;
+            text-align: center;
+        }
+        .serial-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .serial-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #D9D0C7;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+        .serial-number {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #5a5a5a;
+            font-weight: 700;
+        }
+        .barcode-container {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 60px;
+        }
+        .barcode-container svg {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        /* Print Styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                max-width: 100%;
+                box-shadow: none;
+                background: white;
+            }
+            .header, .sidebar, .hamburger-btn, .export-filters, .export-box-selection, .sync-status, .loading, .boxes-list {
+                display: none !important;
+            }
+            .content {
+                padding: 20px;
+            }
+            .export-box-item {
+                page-break-after: always;
+                border: 3px solid #000;
+            }
+            .job-section {
+                page-break-inside: avoid;
+                border-left: 5px solid #000;
+            }
+            .serial-item {
+                break-inside: avoid;
+                border: 2px solid #000;
+            }
+            .export-box-header {
+                border-bottom: 5px solid #000;
+            }
+        }
     </style>
 </head>
 <body>
@@ -244,8 +434,8 @@
             <div class="sidebar-menu-item active" data-page="main" id="menuMain">
                 <span>📋 Stock Entry</span>
             </div>
-            <div class="sidebar-menu-item" data-page="history" id="menuHistory">
-                <span>📦 Box History</span>
+            <div class="sidebar-menu-item" data-page="export" id="menuExport">
+                <span>📊 View Boxes</span>
             </div>
             <div class="sidebar-menu-item" id="menuChangeAgent">
                 <span>👤 Change Agent</span>
@@ -339,16 +529,790 @@
                 </div>
             </div>
             
-            <div class="page-content" id="historyPage">
-                <div class="box-history">
-                    <h2>Box History</h2>
-                    <div class="box-list" id="boxList"></div>
+            <div class="page-content" id="exportPage">
+                <div class="export-filters">
+                    <h2>View Boxes</h2>
+                    <div class="filter-row">
+                        <div class="form-group">
+                            <label for="filterAgent">Filter by Agent <span class="required">*</span></label>
+                            <select id="filterAgent">
+                                <option value="">-- Select Agent --</option>
+                                <option value="801">Agent 801</option>
+                                <option value="802">Agent 802</option>
+                                <option value="803">Agent 803</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="filterExportClient">Filter by Client <span class="required">*</span></label>
+                            <select id="filterExportClient">
+                                <option value="">-- Select Client --</option>
+                                <option value="VERIFONE">VERIFONE</option>
+                                <option value="INGENICO">INGENICO</option>
+                                <option value="OTHER">OTHER</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="loadBoxesBtn">Load Boxes</button>
+                        <button class="btn btn-outline" id="clearExportFiltersBtn">Clear Selection</button>
+                    </div>
                 </div>
+                
+                <div class="export-results" id="exportResults">
+                    <div class="empty-state">
+                        <p>Select an agent and client, then click "Load Boxes"</p>
+                    </div>
+                </div>
+                
+                <div class="export-box-selection hidden" id="exportBoxSelection"></div>
+                
+                <div class="export-preview hidden" id="exportPreview"></div>
             </div>
         </div>
     </div>
     <script>
-const db=window.supabase.createClient("https://lfydtctndrzzdyavmlva.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmeWR0Y3RuZHJ6emR5YXZtbHZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0Nzc5MTksImV4cCI6MjA4MzA1MzkxOX0.O7dL6Gl-Re1yKEixO_BRa-goj67os6riy15hRIE4nqY");let currentAgent,boxes=[],currentBox;function getClientCode(e){return"VERIFONE"===e?"VER":"INGENICO"===e?"ING":"OTH"}function formatBoxId(e,t,a){return`${e}-${getClientCode(t)}-${a}`}document.addEventListener("DOMContentLoaded",()=>{const e=localStorage.getItem("rememberedAgent");e&&(document.getElementById("agentSelect").value=e,document.getElementById("rememberAgent").checked=!0),document.getElementById("hamburgerBtn").addEventListener("click",toggleSidebar),document.getElementById("sidebarOverlay").addEventListener("click",closeSidebar),document.getElementById("menuMain").addEventListener("click",()=>switchPage("main")),document.getElementById("menuHistory").addEventListener("click",()=>switchPage("history")),document.getElementById("menuChangeAgent").addEventListener("click",changeAgent),document.getElementById("confirmAgentBtn").addEventListener("click",async()=>{const e=document.getElementById("agentSelect").value;if(!e)return void showAlert("Please select an agent","error");currentAgent=e,document.getElementById("rememberAgent").checked?localStorage.setItem("rememberedAgent",e):localStorage.removeItem("rememberedAgent"),document.getElementById("agentSelection").style.display="none",document.getElementById("mainForm").classList.add("active"),await loadBoxesForAgent(),renderBoxHistory()}),document.getElementById("clientSelect").addEventListener("change",async()=>{const e=document.getElementById("clientSelect").value;if(!e)return currentBox=null,void updateCurrentBoxDisplay();showLoading(!0);try{const{data:t,error:a}=await db.from("boxes").select("*").eq("agent",currentAgent).eq("client",e).eq("status","open").order("created_at",{ascending:!1}).limit(1);if(a)throw a;if(t&&t.length>0)currentBox=t[0],await loadJobsForBox(currentBox.id);else{const t=await getNextBoxNumber(e),a=formatBoxId(currentAgent,e,t),{data:n,error:o}=await db.from("boxes").insert([{box_id:a,agent:currentAgent,client:e,box_number:t,status:"open",created_at:(new Date).toISOString()}]).select().single();if(o)throw o;currentBox=n,currentBox.jobs=[]}updateCurrentBoxDisplay(),await loadBoxesForAgent(),renderBoxHistory(),showSyncStatus("✓ Synced","synced")}catch(e){showAlert("Error loading box: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}),document.getElementById("bulkToggle").addEventListener("change",()=>{const e=document.getElementById("bulkToggle").checked;document.getElementById("individualEntry").classList.toggle("hidden",e),document.getElementById("bulkEntry").classList.toggle("active",e)}),document.getElementById("addSerialBtn").addEventListener("click",()=>{const e=document.createElement("div");e.className="serial-input-row",e.innerHTML='<input type="text" class="serial-input" placeholder="Enter serial number"><button type="button" onclick="this.parentElement.remove()">Remove</button>',document.getElementById("serialInputs").appendChild(e)}),document.getElementById("addJobBtn").addEventListener("click",async()=>{if(!currentBox)return void showAlert("Please select a client first","error");const e=document.getElementById("vendorSelect").value,t=document.getElementById("jobNumber").value.trim(),a=document.getElementById("bulkToggle").checked;if(!e||!t)return void showAlert("Please fill in all required fields","error");let n=[];if(a){const e=document.getElementById("bulkSerials").value.trim();if(!e)return void showAlert("Please enter at least one serial","error");n=e.split("\n").map(e=>e.trim()).filter(e=>e.length>0)}else document.querySelectorAll(".serial-input").forEach(e=>{const t=e.value.trim();t&&n.push(t)});if(0===n.length)return void showAlert("Please enter at least one serial","error");const o=await checkDuplicates(n);if(o.length>0)return void showAlert(`Duplicate serials found: ${o.join(", ")}`,"warning");showLoading(!0),showSyncStatus("Syncing...","syncing");try{const{data:a,error:o}=await db.from("jobs").insert([{box_id:currentBox.id,job_number:t,vendor:e,created_at:(new Date).toISOString()}]).select().single();if(o)throw o;const r=n.map(e=>({job_id:a.id,box_id:currentBox.id,serial_number:e,created_at:(new Date).toISOString()})),{error:s}=await db.from("serials").insert(r);if(s)throw s;showAlert(`✓ Job ${t} added with ${n.length} serial(s)`,"success"),showSyncStatus("✓ Synced","synced"),clearJobForm(),await document.getElementById("clientSelect").dispatchEvent(new Event("change"))}catch(e){showAlert("Error saving job: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}),document.getElementById("newBoxBtn").addEventListener("click",async()=>{if(!currentBox||!currentBox.jobs||0===currentBox.jobs.length)return void showAlert("Cannot start new box without adding jobs to current one","warning");if(confirm(`Close current box and start new box for ${currentBox.client}?`)){showLoading(!0);try{const e=currentBox.client,t=currentBox.id;await db.from("boxes").update({status:"closed",closed_at:(new Date).toISOString()}).eq("id",t);const a=await getNextBoxNumber(e),n=formatBoxId(currentAgent,e,a),{data:o,error:r}=await db.from("boxes").insert([{box_id:n,agent:currentAgent,client:e,box_number:a,status:"open",created_at:(new Date).toISOString()}]).select().single();if(r)throw r;currentBox=o,currentBox.jobs=[],updateCurrentBoxDisplay(),await loadBoxesForAgent(),renderBoxHistory(),showAlert(`✓ Previous box closed. New box started: ${currentBox.box_id}`,"success"),showSyncStatus("✓ Synced","synced")}catch(e){showAlert("Error starting new box: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}})});function toggleSidebar(){document.getElementById("sidebar").classList.toggle("active"),document.getElementById("sidebarOverlay").classList.toggle("active"),document.getElementById("hamburgerBtn").classList.toggle("active")}function closeSidebar(){document.getElementById("sidebar").classList.remove("active"),document.getElementById("sidebarOverlay").classList.remove("active"),document.getElementById("hamburgerBtn").classList.remove("active")}function switchPage(e){document.querySelectorAll(".page-content").forEach(e=>e.classList.remove("active")),document.querySelectorAll(".sidebar-menu-item[data-page]").forEach(e=>e.classList.remove("active")),"main"===e?(document.getElementById("mainPage").classList.add("active"),document.getElementById("menuMain").classList.add("active")):"history"===e&&(document.getElementById("historyPage").classList.add("active"),document.getElementById("menuHistory").classList.add("active"),renderBoxHistory()),closeSidebar()}function changeAgent(){closeSidebar(),confirm("Are you sure you want to change agent?")&&(currentAgent=null,currentBox=null,document.getElementById("agentSelection").style.display="block",document.getElementById("mainForm").classList.remove("active"),clearForm())}async function loadJobsForBox(e){try{const{data:t,error:a}=await db.from("jobs").select("*").eq("box_id",e).order("created_at",{ascending:!0});if(a)throw a;for(let e of t){const{data:t,error:a}=await db.from("serials").select("serial_number").eq("job_id",e.id).order("created_at",{ascending:!0});if(a)throw a;e.serials=t.map(e=>e.serial_number)}currentBox.jobs=t}catch(e){currentBox.jobs=[]}}async function getNextBoxNumber(e){try{const{data:t,error:a}=await db.from("boxes").select("box_number").eq("agent",currentAgent).eq("client",e).order("box_number",{ascending:!1}).limit(1);if(a)throw a;return t&&0!==t.length?String(parseInt(t[0].box_number)+1).padStart(3,"0"):"001"}catch(e){return"001"}}function updateCurrentBoxDisplay(){const e=document.getElementById("currentBoxId"),t=document.getElementById("currentBoxClient"),a=document.getElementById("jobsSummary"),n=document.getElementById("newBoxBtn");if(currentBox){e.textContent=currentBox.box_id,e.classList.add("has-box"),t.textContent=`${currentBox.client} - Agent ${currentBox.agent}`;const o=currentBox.jobs||[],r=o.length,s=o.reduce((e,t)=>e+(t.serials?t.serials.length:0),0);a.textContent=`${r} job(s), ${s} serial(s)`,n.disabled=!1}else e.textContent="No Active Box",e.classList.remove("has-box"),t.textContent="Select client to start",a.textContent="",n.disabled=!0}async function checkDuplicates(e){try{const{data:t,error:a}=await db.from("serials").select("serial_number").in("serial_number",e);if(a)throw a;return t.map(e=>e.serial_number)}catch(e){return[]}}async function closeBox(e){if(!confirm("Close this box? It will be marked as completed."))return;showLoading(!0);try{const{error:t}=await db.from("boxes").update({status:"closed",closed_at:(new Date).toISOString()}).eq("id",e);if(t)throw t;currentBox&&currentBox.id===e&&(currentBox=null,document.getElementById("clientSelect").value="",updateCurrentBoxDisplay()),await loadBoxesForAgent(),renderBoxHistory(),showAlert("✓ Box closed successfully","success"),showSyncStatus("✓ Synced","synced")}catch(e){showAlert("Error closing box: "+e.message,"error"),showSyncStatus("✗ Sync failed","error")}finally{showLoading(!1)}}async function viewBoxDetails(e){showLoading(!0);try{const{data:t,error:a}=await db.from("boxes").select("*").eq("id",e).single();if(a)throw a;const{data:n,error:o}=await db.from("jobs").select("*").eq("box_id",e).order("created_at",{ascending:!0});if(o)throw o;for(let e of n){const{data:t,error:a}=await db.from("serials").select("serial_number").eq("job_id",e.id);if(a)throw a;e.serials=t.map(e=>e.serial_number)}let r=`Box: ${t.box_id}\nAgent: ${t.agent}\nClient: ${t.client}\nStatus: ${t.status}\nCreated: ${new Date(t.created_at).toLocaleString()}\n`;t.closed_at&&(r+=`Closed: ${new Date(t.closed_at).toLocaleString()}\n`),r+=`\nJobs: ${n.length}\nTotal Serials: ${n.reduce((e,t)=>e+t.serials.length,0)}\n\n`,n.forEach((e,t)=>{r+=`Job ${t+1}: ${e.job_number}\nVendor: ${e.vendor}\nSerials (${e.serials.length}): ${e.serials.join(", ")}\n\n`}),alert(r)}catch(e){showAlert("Error loading details: "+e.message,"error")}finally{showLoading(!1)}}async function renderBoxHistory(){const e=document.getElementById("boxList"),t=boxes.filter(e=>e.agent===currentAgent).reverse();if(0===t.length)return void(e.innerHTML='<div class="empty-state"><p>No boxes yet. Add jobs to create your first box.</p></div>');for(let e of t)try{const{count:t}=await db.from("jobs").select("*",{count:"exact",head:!0}).eq("box_id",e.id),{count:a}=await db.from("serials").select("*",{count:"exact",head:!0}).eq("box_id",e.id);e.jobCount=t,e.serialCount=a}catch(e){console.error("Error loading stats:",e)}e.innerHTML=t.map(e=>`<div class="box-item ${e.status}"><div class="box-item-header"><div class="box-item-title">${e.box_id}</div><span class="box-status ${e.status}">${e.status}</span></div><div class="box-item-details"><p><strong>Client:</strong> ${e.client}</p><p><strong>Jobs:</strong> ${e.jobCount||0} | <strong>Serials:</strong> ${e.serialCount||0}</p><p><strong>Created:</strong> ${new Date(e.created_at).toLocaleDateString()}</p>${e.closed_at?`<p><strong>Closed:</strong> ${new Date(e.closed_at).toLocaleDateString()}</p>`:""}</div><div class="box-item-actions"><button class="btn btn-outline" onclick="viewBoxDetails(${e.id})">View Details</button>${"open"===e.status?`<button class="btn btn-danger" onclick="closeBox(${e.id})">Close Box</button>`:""}</div></div>`).join("")}async function loadBoxesForAgent(){try{const{data:e,error:t}=await db.from("boxes").select("*").eq("agent",currentAgent).order("created_at",{ascending:!1});if(t)throw t;boxes=e||[]}catch(e){boxes=[]}}function clearJobForm(){document.getElementById("vendorSelect").value="",document.getElementById("jobNumber").value="",document.getElementById("bulkSerials").value="",document.getElementById("bulkToggle").checked=!1,document.getElementById("serialInputs").innerHTML='<div class="serial-input-row"><input type="text" class="serial-input" placeholder="Enter serial number"></div>',document.getElementById("bulkToggle").dispatchEvent(new Event("change"))}function clearForm(){clearJobForm(),document.getElementById("clientSelect").value=""}function showAlert(e,t){const a=document.getElementById("alertContainer"),n=document.createElement("div");n.className=`alert alert-${t}`;const o="success"===t?"✓":"error"===t?"✗":"warning"===t?"⚠":"ℹ";n.innerHTML=`<span style="font-size: 18px;">${o}</span><span>${e}</span>`,a.appendChild(n),setTimeout(()=>n.remove(),5e3)}function showLoading(e){document.getElementById("loading").classList.toggle("active",e)}function showSyncStatus(e,t){const a=document.getElementById("syncStatus");a.textContent=e,a.className=`sync-status active ${t}`,setTimeout(()=>a.classList.remove("active"),3e3)}
-    </script>
+const db = window.supabase.createClient(
+    "https://lfydtctndrzzdyavmlva.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmeWR0Y3RuZHJ6emR5YXZtbHZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0Nzc5MTksImV4cCI6MjA4MzA1MzkxOX0.O7dL6Gl-Re1yKEixO_BRa-goj67os6riy15hRIE4nqY"
+);
+
+let currentAgent, boxes = [], currentBox;
+
+function getClientCode(e) {
+    return "VERIFONE" === e ? "VER" : "INGENICO" === e ? "ING" : "OTH";
+}
+
+function formatBoxId(e, t, a) {
+    return `${e}-${getClientCode(t)}-${a}`;
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+    const e = localStorage.getItem("rememberedAgent");
+    if (e) {
+        document.getElementById("agentSelect").value = e;
+        document.getElementById("rememberAgent").checked = !0;
+        
+        // Auto-login if remember me was checked
+        currentAgent = e;
+        document.getElementById("agentSelection").style.display = "none";
+        document.getElementById("mainForm").classList.add("active");
+        document.getElementById("hamburgerBtn").classList.add("visible");
+        await loadBoxesForAgent();
+    }
+
+    // Sidebar controls
+    document.getElementById("hamburgerBtn").addEventListener("click", toggleSidebar);
+    document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
+    document.getElementById("menuMain").addEventListener("click", () => switchPage("main"));
+    document.getElementById("menuExport").addEventListener("click", () => switchPage("export"));
+    document.getElementById("menuChangeAgent").addEventListener("click", changeAgent);
+
+    // Confirm agent button
+    document.getElementById("confirmAgentBtn").addEventListener("click", async () => {
+        const e = document.getElementById("agentSelect").value;
+        if (!e) {
+            showAlert("Please select an agent", "error");
+            return;
+        }
+        
+        currentAgent = e;
+        
+        if (document.getElementById("rememberAgent").checked) {
+            localStorage.setItem("rememberedAgent", e);
+        } else {
+            localStorage.removeItem("rememberedAgent");
+        }
+        
+        document.getElementById("agentSelection").style.display = "none";
+        document.getElementById("mainForm").classList.add("active");
+        document.getElementById("hamburgerBtn").classList.add("visible");
+        await loadBoxesForAgent();
+    });
+
+    // Client select change
+    document.getElementById("clientSelect").addEventListener("change", async () => {
+        const e = document.getElementById("clientSelect").value;
+        if (!e) {
+            currentBox = null;
+            updateCurrentBoxDisplay();
+            return;
+        }
+        
+        showLoading(!0);
+        
+        try {
+            const { data: t, error: a } = await db
+                .from("boxes")
+                .select("*")
+                .eq("agent", currentAgent)
+                .eq("client", e)
+                .eq("status", "open")
+                .order("created_at", { ascending: !1 })
+                .limit(1);
+                
+            if (a) throw a;
+            
+            if (t && t.length > 0) {
+                currentBox = t[0];
+                await loadJobsForBox(currentBox.id);
+            } else {
+                const t = await getNextBoxNumber(e);
+                const a = formatBoxId(currentAgent, e, t);
+                const { data: n, error: o } = await db
+                    .from("boxes")
+                    .insert([{
+                        box_id: a,
+                        agent: currentAgent,
+                        client: e,
+                        box_number: t,
+                        status: "open",
+                        created_at: (new Date).toISOString()
+                    }])
+                    .select()
+                    .single();
+                    
+                if (o) throw o;
+                
+                currentBox = n;
+                currentBox.jobs = [];
+            }
+            
+            updateCurrentBoxDisplay();
+            await loadBoxesForAgent();
+            showSyncStatus("✓ Synced", "synced");
+        } catch (e) {
+            showAlert("Error loading box: " + e.message, "error");
+            showSyncStatus("✗ Sync failed", "error");
+        } finally {
+            showLoading(!1);
+        }
+    });
+
+    // Bulk toggle
+    document.getElementById("bulkToggle").addEventListener("change", () => {
+        const e = document.getElementById("bulkToggle").checked;
+        document.getElementById("individualEntry").classList.toggle("hidden", e);
+        document.getElementById("bulkEntry").classList.toggle("active", e);
+    });
+
+    // Add serial button
+    document.getElementById("addSerialBtn").addEventListener("click", () => {
+        const e = document.createElement("div");
+        e.className = "serial-input-row";
+        e.innerHTML = '<input type="text" class="serial-input" placeholder="Enter serial number"><button type="button" onclick="this.parentElement.remove()">Remove</button>';
+        document.getElementById("serialInputs").appendChild(e);
+    });
+
+    // Add job button
+    document.getElementById("addJobBtn").addEventListener("click", async () => {
+        if (!currentBox) {
+            showAlert("Please select a client first", "error");
+            return;
+        }
+        
+        const e = document.getElementById("vendorSelect").value;
+        const t = document.getElementById("jobNumber").value.trim();
+        const a = document.getElementById("bulkToggle").checked;
+        
+        if (!e || !t) {
+            showAlert("Please fill in all required fields", "error");
+            return;
+        }
+        
+        let n = [];
+        
+        if (a) {
+            const e = document.getElementById("bulkSerials").value.trim();
+            if (!e) {
+                showAlert("Please enter at least one serial", "error");
+                return;
+            }
+            n = e.split("\n").map(e => e.trim()).filter(e => e.length > 0);
+        } else {
+            document.querySelectorAll(".serial-input").forEach(e => {
+                const t = e.value.trim();
+                if (t) n.push(t);
+            });
+        }
+        
+        if (0 === n.length) {
+            showAlert("Please enter at least one serial", "error");
+            return;
+        }
+        
+        const o = await checkDuplicates(n);
+        if (o.length > 0) {
+            showAlert(`Duplicate serials found: ${o.join(", ")}`, "warning");
+            return;
+        }
+        
+        showLoading(!0);
+        showSyncStatus("Syncing...", "syncing");
+        
+        try {
+            const { data: a, error: o } = await db
+                .from("jobs")
+                .insert([{
+                    box_id: currentBox.id,
+                    job_number: t,
+                    vendor: e,
+                    created_at: (new Date).toISOString()
+                }])
+                .select()
+                .single();
+                
+            if (o) throw o;
+            
+            const r = n.map(e => ({
+                job_id: a.id,
+                box_id: currentBox.id,
+                serial_number: e,
+                created_at: (new Date).toISOString()
+            }));
+            
+            const { error: s } = await db.from("serials").insert(r);
+            if (s) throw s;
+            
+            showAlert(`✓ Job ${t} added with ${n.length} serial(s)`, "success");
+            showSyncStatus("✓ Synced", "synced");
+            clearJobForm();
+            await document.getElementById("clientSelect").dispatchEvent(new Event("change"));
+        } catch (e) {
+            showAlert("Error saving job: " + e.message, "error");
+            showSyncStatus("✗ Sync failed", "error");
+        } finally {
+            showLoading(!1);
+        }
+    });
+
+    // New box button
+    document.getElementById("newBoxBtn").addEventListener("click", async () => {
+        if (!currentBox || !currentBox.jobs || 0 === currentBox.jobs.length) {
+            showAlert("Cannot start new box without adding jobs to current one", "warning");
+            return;
+        }
+        
+        if (confirm(`Close current box and start new box for ${currentBox.client}?`)) {
+            showLoading(!0);
+            
+            try {
+                const e = currentBox.client;
+                const t = currentBox.id;
+                
+                await db
+                    .from("boxes")
+                    .update({
+                        status: "closed",
+                        closed_at: (new Date).toISOString()
+                    })
+                    .eq("id", t);
+                    
+                const a = await getNextBoxNumber(e);
+                const n = formatBoxId(currentAgent, e, a);
+                const { data: o, error: r } = await db
+                    .from("boxes")
+                    .insert([{
+                        box_id: n,
+                        agent: currentAgent,
+                        client: e,
+                        box_number: a,
+                        status: "open",
+                        created_at: (new Date).toISOString()
+                    }])
+                    .select()
+                    .single();
+                    
+                if (r) throw r;
+                
+                currentBox = o;
+                currentBox.jobs = [];
+                updateCurrentBoxDisplay();
+                await loadBoxesForAgent();
+                showAlert(`✓ Previous box closed. New box started: ${currentBox.box_id}`, "success");
+                showSyncStatus("✓ Synced", "synced");
+            } catch (e) {
+                showAlert("Error starting new box: " + e.message, "error");
+                showSyncStatus("✗ Sync failed", "error");
+            } finally {
+                showLoading(!1);
+            }
+        }
+    });
+
+    // Export page buttons
+    document.getElementById("loadBoxesBtn").addEventListener("click", loadBoxes);
+    document.getElementById("clearExportFiltersBtn").addEventListener("click", clearExportPage);
+});
+
+function toggleSidebar() {
+    document.getElementById("sidebar").classList.toggle("active");
+    document.getElementById("sidebarOverlay").classList.toggle("active");
+    document.getElementById("hamburgerBtn").classList.toggle("active");
+}
+
+function closeSidebar() {
+    document.getElementById("sidebar").classList.remove("active");
+    document.getElementById("sidebarOverlay").classList.remove("active");
+    document.getElementById("hamburgerBtn").classList.remove("active");
+}
+
+function switchPage(e) {
+    document.querySelectorAll(".page-content").forEach(e => e.classList.remove("active"));
+    document.querySelectorAll(".sidebar-menu-item[data-page]").forEach(e => e.classList.remove("active"));
+    
+    if ("main" === e) {
+        document.getElementById("mainPage").classList.add("active");
+        document.getElementById("menuMain").classList.add("active");
+    } else if ("export" === e) {
+        document.getElementById("exportPage").classList.add("active");
+        document.getElementById("menuExport").classList.add("active");
+    }
+    
+    closeSidebar();
+}
+
+function changeAgent() {
+    closeSidebar();
+    
+    if (confirm("Are you sure you want to change agent?")) {
+        currentAgent = null;
+        currentBox = null;
+        localStorage.removeItem("rememberedAgent");
+        document.getElementById("agentSelection").style.display = "block";
+        document.getElementById("mainForm").classList.remove("active");
+        document.getElementById("hamburgerBtn").classList.remove("visible");
+        clearForm();
+    }
+}
+
+async function loadJobsForBox(e) {
+    try {
+        const { data: t, error: a } = await db
+            .from("jobs")
+            .select("*")
+            .eq("box_id", e)
+            .order("created_at", { ascending: !0 });
+            
+        if (a) throw a;
+        
+        for (let e of t) {
+            const { data: t, error: a } = await db
+                .from("serials")
+                .select("serial_number")
+                .eq("job_id", e.id)
+                .order("created_at", { ascending: !0 });
+                
+            if (a) throw a;
+            
+            e.serials = t.map(e => e.serial_number);
+        }
+        
+        currentBox.jobs = t;
+    } catch (e) {
+        currentBox.jobs = [];
+    }
+}
+
+async function getNextBoxNumber(e) {
+    try {
+        const { data: t, error: a } = await db
+            .from("boxes")
+            .select("box_number")
+            .eq("agent", currentAgent)
+            .eq("client", e)
+            .order("box_number", { ascending: !1 })
+            .limit(1);
+            
+        if (a) throw a;
+        
+        if (t && 0 !== t.length) {
+            return String(parseInt(t[0].box_number) + 1).padStart(3, "0");
+        }
+        return "001";
+    } catch (e) {
+        return "001";
+    }
+}
+
+function updateCurrentBoxDisplay() {
+    const e = document.getElementById("currentBoxId");
+    const t = document.getElementById("currentBoxClient");
+    const a = document.getElementById("jobsSummary");
+    const n = document.getElementById("newBoxBtn");
+    
+    if (currentBox) {
+        e.textContent = currentBox.box_id;
+        e.classList.add("has-box");
+        t.textContent = `${currentBox.client} - Agent ${currentBox.agent}`;
+        
+        const o = currentBox.jobs || [];
+        const r = o.length;
+        const s = o.reduce((e, t) => e + (t.serials ? t.serials.length : 0), 0);
+        
+        a.textContent = `${r} job(s), ${s} serial(s)`;
+        n.disabled = !1;
+    } else {
+        e.textContent = "No Active Box";
+        e.classList.remove("has-box");
+        t.textContent = "Select client to start";
+        a.textContent = "";
+        n.disabled = !0;
+    }
+}
+
+async function checkDuplicates(e) {
+    try {
+        const { data: t, error: a } = await db
+            .from("serials")
+            .select("serial_number")
+            .in("serial_number", e);
+            
+        if (a) throw a;
+        
+        return t.map(e => e.serial_number);
+    } catch (e) {
+        return [];
+    }
+}
+
+async function closeBox(e) {
+    if (!confirm("Close this box? It will be marked as completed.")) {
+        return;
+    }
+    
+    showLoading(!0);
+    
+    try {
+        const { error: t } = await db
+            .from("boxes")
+            .update({
+                status: "closed",
+                closed_at: (new Date).toISOString()
+            })
+            .eq("id", e);
+            
+        if (t) throw t;
+        
+        if (currentBox && currentBox.id === e) {
+            currentBox = null;
+            document.getElementById("clientSelect").value = "";
+            updateCurrentBoxDisplay();
+        }
+        
+        await loadBoxesForAgent();
+        showAlert("✓ Box closed successfully", "success");
+        showSyncStatus("✓ Synced", "synced");
+    } catch (e) {
+        showAlert("Error closing box: " + e.message, "error");
+        showSyncStatus("✗ Sync failed", "error");
+    } finally {
+        showLoading(!1);
+    }
+}
+
+async function viewBoxDetails(e) {
+    showLoading(!0);
+    
+    try {
+        const { data: t, error: a } = await db
+            .from("boxes")
+            .select("*")
+            .eq("id", e)
+            .single();
+            
+        if (a) throw a;
+        
+        const { data: n, error: o } = await db
+            .from("jobs")
+            .select("*")
+            .eq("box_id", e)
+            .order("created_at", { ascending: !0 });
+            
+        if (o) throw o;
+        
+        for (let e of n) {
+            const { data: t, error: a } = await db
+                .from("serials")
+                .select("serial_number")
+                .eq("job_id", e.id);
+                
+            if (a) throw a;
+            
+            e.serials = t.map(e => e.serial_number);
+        }
+        
+        let r = `Box: ${t.box_id}\nAgent: ${t.agent}\nClient: ${t.client}\nStatus: ${t.status}\nCreated: ${new Date(t.created_at).toLocaleString()}\n`;
+        
+        if (t.closed_at) {
+            r += `Closed: ${new Date(t.closed_at).toLocaleString()}\n`;
+        }
+        
+        r += `\nJobs: ${n.length}\nTotal Serials: ${n.reduce((e, t) => e + t.serials.length, 0)}\n\n`;
+        
+        n.forEach((e, t) => {
+            r += `Job ${t + 1}: ${e.job_number}\nVendor: ${e.vendor}\nSerials (${e.serials.length}): ${e.serials.join(", ")}\n\n`;
+        });
+        
+        alert(r);
+    } catch (e) {
+        showAlert("Error loading details: " + e.message, "error");
+    } finally {
+        showLoading(!1);
+    }
+}
+
+async function loadBoxesForAgent() {
+    try {
+        const { data: e, error: t } = await db
+            .from("boxes")
+            .select("*")
+            .eq("agent", currentAgent)
+            .order("created_at", { ascending: !1 });
+            
+        if (t) throw t;
+        
+        boxes = e || [];
+    } catch (e) {
+        boxes = [];
+    }
+}
+
+function clearJobForm() {
+    document.getElementById("vendorSelect").value = "";
+    document.getElementById("jobNumber").value = "";
+    document.getElementById("bulkSerials").value = "";
+    document.getElementById("bulkToggle").checked = !1;
+    document.getElementById("serialInputs").innerHTML = '<div class="serial-input-row"><input type="text" class="serial-input" placeholder="Enter serial number"></div>';
+    document.getElementById("bulkToggle").dispatchEvent(new Event("change"));
+}
+
+function clearForm() {
+    clearJobForm();
+    document.getElementById("clientSelect").value = "";
+}
+
+function showAlert(e, t) {
+    const a = document.getElementById("alertContainer");
+    const n = document.createElement("div");
+    n.className = `alert alert-${t}`;
+    
+    const o = "success" === t ? "✓" : "error" === t ? "✗" : "warning" === t ? "⚠" : "ℹ";
+    
+    n.innerHTML = `<span style="font-size: 18px;">${o}</span><span>${e}</span>`;
+    a.appendChild(n);
+    setTimeout(() => n.remove(), 5e3);
+}
+
+function showLoading(e) {
+    document.getElementById("loading").classList.toggle("active", e);
+}
+
+function showSyncStatus(e, t) {
+    const a = document.getElementById("syncStatus");
+    a.textContent = e;
+    a.className = `sync-status active ${t}`;
+    setTimeout(() => a.classList.remove("active"), 3e3);
+}
+
+let selectedExportBox = null;
+
+async function loadBoxes() {
+    const e = document.getElementById("filterAgent").value;
+    const t = document.getElementById("filterExportClient").value;
+    
+    if (!e || !t) {
+        showAlert("Please select both agent and client", "error");
+        return;
+    }
+    
+    showLoading(!0);
+    
+    try {
+        const { data: a, error: n } = await db
+            .from("boxes")
+            .select("*")
+            .eq("agent", e)
+            .eq("client", t)
+
+            .order("created_at", { ascending: !1 });
+            
+        if (n) throw n;
+        
+        if (!a || 0 === a.length) {
+            document.getElementById("exportResults").innerHTML = '<div class="empty-state"><p>No boxes found for selected filters</p></div>';
+            showLoading(!1);
+            return;
+        }
+        
+        for (let e of a) {
+            const { count: t } = await db
+                .from("jobs")
+                .select("*", { count: "exact", head: !0 })
+                .eq("box_id", e.id);
+                
+            const { count: a } = await db
+                .from("serials")
+                .select("*", { count: "exact", head: !0 })
+                .eq("box_id", e.id);
+                
+            e.jobCount = t || 0;
+            e.serialCount = a || 0;
+        }
+        
+        renderBoxesList(a);
+    } catch (e) {
+        showAlert("Error loading boxes: " + e.message, "error");
+    } finally {
+        showLoading(!1);
+    }
+}
+
+function renderBoxesList(e) {
+    const t = document.getElementById("exportResults");
+    let a = '<div class="boxes-list"><h3>Boxes - Click to Select</h3>';
+    
+    e.forEach(e => {
+        a += `
+            <div class="box-item" onclick="selectBoxForExport(${e.id}), generateExportPreview()">
+                <div class="box-info">
+                    <div class="box-id">${e.box_id}</div>
+                    <div class="box-meta">${e.jobCount} jobs | ${e.serialCount} serials${e.status === 'closed' && e.closed_at ? ' | Closed: ' + new Date(e.closed_at).toLocaleDateString() : ''}</div>
+                </div>
+                <span class="box-status">${e.status}</span>
+            </div>
+        `;
+    });
+    
+    a += "</div>";
+    t.innerHTML = a;
+}
+
+async function selectBoxForExport(e) {
+    document.querySelectorAll(".box-item").forEach(e => e.classList.remove("selected"));
+    event.currentTarget.classList.add("selected");
+    selectedExportBox = e;
+    
+    const t = document.getElementById("exportBoxSelection");
+    t.innerHTML = '<button class="btn btn-primary" onclick="generateExportPreview()">Generate Serials</button>';
+    t.classList.remove("hidden");
+}
+
+async function generateExportPreview() {
+    if (!selectedExportBox) {
+        return;
+    }
+    
+    showLoading(!0);
+    
+    try {
+        const { data: e, error: t } = await db
+            .from("boxes")
+            .select("*")
+            .eq("id", selectedExportBox)
+            .single();
+            
+        if (t) throw t;
+        
+        const { data: a, error: n } = await db
+            .from("jobs")
+            .select("*")
+            .eq("box_id", selectedExportBox)
+            .order("created_at", { ascending: !0 });
+            
+        if (n) throw n;
+        
+        let o = `
+            <div class="export-box-item">
+                <div class="export-box-header">
+                    <div class="export-box-title">${e.box_id}</div>
+                    <div class="export-box-subtitle">Agent: ${e.agent} | Client: ${e.client} | Closed: ${new Date(e.closed_at).toLocaleDateString()}</div>
+                </div>
+        `;
+        
+        for (let e of a) {
+            const { data: t, error: a } = await db
+                .from("serials")
+                .select("serial_number")
+                .eq("job_id", e.id)
+                .order("created_at", { ascending: !0 });
+                
+            if (a) throw a;
+            
+            o += `
+                <div class="job-section">
+                    <div class="job-header">Job: ${e.job_number} | Vendor: ${e.vendor} | Serials: ${t.length}</div>
+                    <div class="serial-grid">
+            `;
+            
+            t.forEach((e, t) => {
+                const a = `barcode-${selectedExportBox}-${Date.now()}-${t}`;
+                o += `
+                    <div class="serial-item">
+                        <div class="serial-number">${e.serial_number}</div>
+                        <div class="barcode-container">
+                            <svg class="barcode-svg" data-serial="${e.serial_number}" data-id="${a}"></svg>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            o += "</div></div>";
+        }
+        
+        o += '</div><div style="text-align: center; margin-top: 30px;"><button class="btn btn-secondary" onclick="window.print()">Generate PDF</button></div>';
+        
+        const r = document.getElementById("exportPreview");
+        r.innerHTML = o;
+        r.classList.remove("hidden");
+        
+        setTimeout(() => {
+            document.querySelectorAll(".barcode-svg").forEach(e => {
+                const t = e.getAttribute("data-serial");
+                const a = e.getAttribute("data-id");
+                
+                try {
+                    e.setAttribute("id", a);
+                    JsBarcode(`#${a}`, t, {
+                        format: "CODE128",
+                        width: 2,
+                        height: 50,
+                        displayValue: !1,
+                        margin: 5
+                    });
+                } catch (e) {
+                    console.error("Barcode error:", e);
+                }
+            });
+        }, 100);
+        
+        document.getElementById("exportBoxSelection").innerHTML = '<button class="btn btn-outline" onclick="clearExportPreview()">Close</button>';
+        showAlert("✓ Export preview generated. Click 'Print to PDF' to save.", "success");
+    } catch (e) {
+        showAlert("Error generating export: " + e.message, "error");
+    } finally {
+        showLoading(!1);
+    }
+}
+
+function clearExportPreview() {
+    document.getElementById("exportPreview").innerHTML = "";
+    document.getElementById("exportPreview").classList.add("hidden");
+    document.getElementById("exportBoxSelection").classList.add("hidden");
+    selectedExportBox = null;
+    document.querySelectorAll(".box-item").forEach(e => e.classList.remove("selected"));
+}
+
+function clearExportPage() {
+    document.getElementById("filterAgent").value = "";
+    document.getElementById("filterExportClient").value = "";
+    document.getElementById("exportResults").innerHTML = '<div class="empty-state"><p>Select an agent and client, then click "Load Boxes"</p></div>';
+    document.getElementById("exportBoxSelection").innerHTML = "";
+    document.getElementById("exportBoxSelection").classList.add("hidden");
+    document.getElementById("exportPreview").innerHTML = "";
+    document.getElementById("exportPreview").classList.add("hidden");
+    selectedExportBox = null;
+}
+
+   </script>
 </body>
 </html>
