@@ -211,13 +211,24 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @media (max-width: 600px) {
             body { padding: 10px; }
-            .content { padding: 20px; }
+            .content { padding: 15px; }
             .button-group { flex-direction: column; }
             .button-group .btn { width: 100%; }
             .current-box-info { flex-direction: column; text-align: center; }
             .box-item-actions { flex-direction: column; }
             .box-item-actions .btn { width: 100%; }
             .sidebar { width: 280px; left: -280px; }
+            
+            /* Mobile-specific export page styles */
+            .export-box-title { font-size: 20px; }
+            .export-box-subtitle { font-size: 13px; }
+            .job-header { font-size: 14px; }
+            .serial-grid { grid-template-columns: 1fr; gap: 10px; }
+            .serial-item { padding: 10px; }
+            .serial-number { font-size: 12px; }
+            .job-section { padding: 15px; margin: 15px 0; }
+            .export-filters h2 { font-size: 18px; }
+            .filter-row { grid-template-columns: 1fr; }
         }
         .hidden { display: none; }
         .jobs-summary { margin-top: 10px; font-size: 14px; font-family: 'Courier New', monospace; }
@@ -342,20 +353,46 @@
             border-radius: 8px;
             border-left: 4px solid #97A681;
             page-break-inside: avoid;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .job-section:hover {
+            background: rgba(151,166,129,0.1);
         }
         .job-header {
             font-weight: 600;
             font-size: 18px;
             color: #5a5a5a;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             font-family: 'Courier New', monospace;
             text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .job-expand-icon {
+            font-size: 20px;
+            color: #97A681;
+            transition: transform 0.3s;
+        }
+        .job-section.expanded .job-expand-icon {
+            transform: rotate(180deg);
+        }
+        .job-date {
+            font-size: 11px;
+            color: #8a8a8a;
+            text-align: center;
+            margin-bottom: 10px;
+            font-family: 'Courier New', monospace;
         }
         .serial-grid {
-            display: grid;
+            display: none;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 20px;
             margin-top: 20px;
+        }
+        .job-section.expanded .serial-grid {
+            display: grid;
         }
         .serial-item {
             background: white;
@@ -410,6 +447,16 @@
             .job-section {
                 page-break-inside: avoid;
                 border-left: 5px solid #000;
+                cursor: default;
+            }
+            .job-section:hover {
+                background: rgba(151,166,129,0.05);
+            }
+            .job-expand-icon {
+                display: none;
+            }
+            .serial-grid {
+                display: grid !important;
             }
             .serial-item {
                 break-inside: avoid;
@@ -1217,7 +1264,7 @@ async function generateExportPreview() {
             .from("jobs")
             .select("*")
             .eq("box_id", selectedExportBox)
-            .order("created_at", { ascending: !0 });
+            .order("created_at", { ascending: !1 });
             
         if (n) throw n;
         
@@ -1239,8 +1286,12 @@ async function generateExportPreview() {
             if (a) throw a;
             
             o += `
-                <div class="job-section">
-                    <div class="job-header">Job: ${e.job_number} | Vendor: ${e.vendor} | Serials: ${t.length}</div>
+                <div class="job-section" onclick="toggleJobExpand(this)">
+                    <div class="job-date">Created: ${new Date(e.created_at).toLocaleString()}</div>
+                    <div class="job-header">
+                        <span>Job: ${e.job_number} | Vendor: ${e.vendor} | Serials: ${t.length}</span>
+                        <span class="job-expand-icon">▼</span>
+                    </div>
                     <div class="serial-grid">
             `;
             
@@ -1256,7 +1307,7 @@ async function generateExportPreview() {
                 `;
             });
             
-            o += "</div></div>";
+            o += `</div></div>`;
         }
         
         o += '</div><div style="text-align: center; margin-top: 30px;"><button class="btn btn-secondary" onclick="window.print()">Generate PDF</button></div>';
@@ -1292,6 +1343,10 @@ async function generateExportPreview() {
     } finally {
         showLoading(!1);
     }
+}
+
+function toggleJobExpand(element) {
+    element.classList.toggle('expanded');
 }
 
 function clearExportPreview() {
