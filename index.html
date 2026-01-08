@@ -153,6 +153,17 @@
                     <div class="loading-spinner" id="loginSpinner"></div>
                 </button>
             </form>
+           <button type="submit" class="btn" id="loginBtn">
+                    <span id="loginText">Sign In</span>
+                    <div class="loading-spinner" id="loginSpinner"></div>
+                </button>
+            </form>
+            
+            <p style="text-align: center; margin-top: 15px;">
+                <a href="#" onclick="resetPassword(event)" style="color: #97A681; text-decoration: none; font-size: 14px;">Forgot password?</a>
+            </p>
+        </div>
+    </div> 
         </div>
     </div>
 
@@ -238,6 +249,24 @@
                 loginSpinner.style.display = 'none';
             }
         });
+                async function resetPassword(e) {
+            e.preventDefault();
+            const email = prompt('Enter your email address:');
+            if (!email) return;
+            
+            try {
+                const { error } = await db.auth.resetPasswordForEmail(email, {
+                    redirectTo: window.location.origin + '/reset-password.html'
+                });
+                
+                if (error) throw error;
+                
+                showAlert('Password reset email sent! Check your inbox.', 'success');
+            } catch (error) {
+                console.error('Password reset error:', error);
+                showAlert('Error: ' + error.message, 'error');
+            }
+        }
     </script>
 </body>
 </html>
