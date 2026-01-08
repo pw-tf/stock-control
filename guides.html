@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guides - Stock Submission</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Playfair Display', serif;
+            background: linear-gradient(135deg, #D9D0C7 0%, #BFB6AE 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #F2E7DC;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #97A681 0%, #8A9975 100%);
+            color: white;
+            padding: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 28px; font-weight: 700; }
+        .btn-danger {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #A68572;
+            color: white;
+            font-family: 'Playfair Display', serif;
+        }
+        .btn-danger:hover {
+            background: #967866;
+        }
+        .content {
+            padding: 40px;
+            text-align: center;
+        }
+        .content h2 {
+            font-size: 24px;
+            color: #5a5a5a;
+            margin-bottom: 20px;
+        }
+        .content p {
+            font-size: 16px;
+            color: #8a8a8a;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Merchant Guides</h1>
+            <button class="btn-danger" onclick="logout()">Logout</button>
+        </div>
+        
+        <div class="content">
+            <h2>Welcome to Merchant Guides</h2>
+            <p>This page is currently under construction.</p>
+            <p>Guides and documentation will be available here soon.</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check auth and require merchant role
+            const user = await initAuth('merchant');
+            if (!user) return;
+        });
+    </script>
+</body>
+</html>
