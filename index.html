@@ -16,28 +16,22 @@
             background: linear-gradient(135deg, #D9D0C7 0%, #BFB6AE 100%);
             min-height: 100vh;
             padding: 20px;
-        }
-        .container { max-width: 800px; margin: 0 auto; background: #F2E7DC; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); overflow: hidden; position: relative; }
-        .header { 
-            background: linear-gradient(135deg, #97A681 0%, #8A9975 100%); 
-            color: white; 
-            padding: 30px; 
-            text-align: center;
             position: relative;
         }
         .hamburger-btn {
-            position: absolute;
+            position: fixed;
             left: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
+            top: 20px;
+            background: linear-gradient(135deg, #97A681 0%, #8A9975 100%);
             border: none;
             cursor: pointer;
-            padding: 10px;
+            padding: 12px;
             display: none;
             flex-direction: column;
             gap: 5px;
             z-index: 1001;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         .hamburger-btn.visible {
             display: flex;
@@ -49,14 +43,17 @@
             border-radius: 2px;
             transition: all 0.3s;
         }
-        .hamburger-btn.active span:nth-child(1) {
-            transform: rotate(45deg) translate(5px, 5px);
+        .hamburger-btn.active{
+            display: none;
         }
-        .hamburger-btn.active span:nth-child(2) {
-            opacity: 0;
-        }
-        .hamburger-btn.active span:nth-child(3) {
-            transform: rotate(-45deg) translate(7px, -7px);
+
+        .container { max-width: 800px; margin: 0 auto; background: #F2E7DC; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); overflow: hidden; position: relative; }
+        .header { 
+            background: linear-gradient(135deg, #97A681 0%, #8A9975 100%); 
+            color: white; 
+            padding: 30px; 
+            text-align: center;
+            position: relative;
         }
         .header h1 { font-size: 28px; font-weight: 700; }
         .sidebar {
@@ -90,11 +87,25 @@
         .sidebar-header {
             background: linear-gradient(135deg, #97A681 0%, #8A9975 100%);
             color: white;
-            padding: 30px 20px;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .sidebar-header h2 {
             font-size: 20px;
             font-weight: 600;
+            margin: 0;
+        }
+        .sidebar-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 28px;
+            cursor: pointer;
+            padding: 5px 10px;
+            line-height: 1;
+            display: block;
         }
         .sidebar-menu {
             padding: 20px 0;
@@ -143,7 +154,7 @@
         .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(151, 166, 129, 0.3); background: #8A9975; }
         .btn-secondary { background: #97A681; color: white; }
         .btn-secondary:hover:not(:disabled) { background: #8A9975; transform: translateY(-2px); }
-        .btn-danger { background: #A68572; color: white; }
+        .btn-danger { background: #cc7358; color: white; }
         .btn-danger:hover:not(:disabled) { background: #967866; }
         .btn-outline { background: white; color: #5a5a5a; border: 2px solid #97A681; }
         .btn-outline:hover:not(:disabled) { background: #97A681; color: white; }
@@ -218,6 +229,17 @@
             .box-item-actions { flex-direction: column; }
             .box-item-actions .btn { width: 100%; }
             .sidebar { width: 280px; left: -280px; }
+            
+            /* Hamburger button on mobile */
+            .hamburger-btn {
+                left: 10px;
+                top: 10px;
+                padding: 10px;
+            }
+            .hamburger-btn span {
+                width: 22px;
+            }
+            
             
             /* Mobile-specific export page styles */
             .export-box-title { font-size: 20px; }
@@ -526,9 +548,17 @@
     <div class="sync-status" id="syncStatus"></div>
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     
+    <button class="hamburger-btn" id="hamburgerBtn">
+        <span></span>
+        <span></span>
+        <span></span>
+    </button>
+
+    
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <h2>Menu</h2>
+            <button class="sidebar-close" id="sidebarClose">×</button>
         </div>
         <div class="sidebar-menu">
             <div class="sidebar-menu-item active" data-page="main" id="menuMain">
@@ -545,8 +575,6 @@
     
     <div class="container">
         <div class="header">
-            <button class="hamburger-btn" id="hamburgerBtn">
-                <span></span>
                 <span></span>
                 <span></span>
             </button>
@@ -582,23 +610,18 @@
                             <p id="currentBoxClient">Select client to start</p>
                             <div class="jobs-summary" id="jobsSummary"></div>
                         </div>
-                        <button class="btn btn-secondary" id="newBoxBtn" disabled>Start New Box</button>
+                        <button class="btn btn-danger" id="newBoxBtn" disabled>Start New Box</button>
                     </div>
                     <div class="form-group">
                         <label for="clientSelect">Client <span class="required">*</span></label>
                         <select id="clientSelect">
-                            <option value="">-- Select Client --</option>
-                            <option value="VERIFONE">VERIFONE</option>
-                            <option value="INGENICO">INGENICO</option>
-                            <option value="OTHER">OTHER</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="vendorSelect">Vendor <span class="required">*</span></label>
                         <select id="vendorSelect">
                             <option value="">-- Select Vendor --</option>
-                            <option value="ANZ">ANZ</option><option value="CBA">CBA</option><option value="FDI">FDI</option><option value="HJK">HJK</option><option value="MCA">MCA</option><option value="NAB">NAB</option><option value="SUN">SUN</option><option value="WPB">WPB</option><option value="OTH">OTH</option>
-                        </select>
+                         </select>
                     </div>
                     <div class="form-group">
                         <label for="jobNumber">Job Number <span class="required">*</span></label>
@@ -679,14 +702,155 @@ const db = window.supabase.createClient(
 let currentAgent, boxes = [], currentBox;
 
 function getClientCode(e) {
-    return "VERIFONE" === e ? "VER" : "INGENICO" === e ? "ING" : "OTH";
+    // Return first 3 letters of client name, uppercase
+    return e ? e.substring(0, 3).toUpperCase() : "OTH";
 }
 
 function formatBoxId(e, t, a) {
     return `${e}-${getClientCode(t)}-${a}`;
 }
 
+async function loadAgents() {
+    try {
+        const { data, error } = await db
+            .from('agents')
+            .select('agent_id')
+            .order('agent_id', { ascending: true });
+        
+        if (error) {
+            console.error('Supabase agents error:', error);
+            throw new Error(error.message || JSON.stringify(error));
+        }
+        
+        if (!data || data.length === 0) {
+            console.warn('No agents found in database');
+            return;
+        }
+        
+        // Main agent select
+        const agentSelect = document.getElementById('agentSelect');
+        if (agentSelect) {
+            agentSelect.innerHTML = '<option value="">-- Select Agent --</option>';
+            data.forEach(agent => {
+                const option = document.createElement('option');
+                option.value = agent.agent_id;
+                option.textContent = `Agent ${agent.agent_id}`;
+                agentSelect.appendChild(option);
+            });
+        }
+        
+        // Export filter agent select
+        const filterAgent = document.getElementById('filterAgent');
+        if (filterAgent) {
+            filterAgent.innerHTML = '<option value="">-- Select Agent --</option>';
+            data.forEach(agent => {
+                const option = document.createElement('option');
+                option.value = agent.agent_id;
+                option.textContent = `Agent ${agent.agent_id}`;
+                filterAgent.appendChild(option);
+            });
+        }
+        
+        console.log('Loaded agents:', data);
+    } catch (error) {
+        console.error('Error loading agents:', error);
+        showAlert('Error loading agents: ' + (error.message || 'Unknown error'), 'error');
+    }
+}
+
+async function loadClients() {
+    try {
+        const { data, error } = await db
+            .from('clients')
+            .select('client_id')
+            .order('client_id', { ascending: true });
+        
+        if (error) {
+            console.error('Supabase clients error:', error);
+            throw new Error(error.message || JSON.stringify(error));
+        }
+        
+        if (!data || data.length === 0) {
+            console.warn('No clients found in database');
+            return;
+        }
+        
+        // Main client select
+        const clientSelect = document.getElementById('clientSelect');
+        if (clientSelect) {
+            clientSelect.innerHTML = '<option value="">-- Select Client --</option>';
+            data.forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.client_id;
+                option.textContent = client.client_id;
+                clientSelect.appendChild(option);
+            });
+        }
+        
+        // Export filter client select
+        const filterClient = document.getElementById('filterExportClient');
+        if (filterClient) {
+            filterClient.innerHTML = '<option value="">-- Select Client --</option>';
+            data.forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.client_id;
+                option.textContent = client.client_id;
+                filterClient.appendChild(option);
+            });
+        }
+        
+        console.log('Loaded clients:', data);
+    } catch (error) {
+        console.error('Error loading clients:', error);
+        showAlert('Error loading clients: ' + (error.message || 'Unknown error'), 'error');
+    }
+}
+
+async function loadVendors() {
+    try {
+        const { data, error } = await db
+            .from('vendors')
+            .select('vendor_id')
+            .order('vendor_id', { ascending: true });
+        
+        if (error) {
+            console.error('Supabase vendors error:', error);
+            throw new Error(error.message || JSON.stringify(error));
+        }
+        
+        if (!data || data.length === 0) {
+            console.warn('No vendors found in database');
+            return;
+        }
+        
+        const vendorSelect = document.getElementById('vendorSelect');
+        if (vendorSelect) {
+            vendorSelect.innerHTML = '<option value="">-- Select Vendor --</option>';
+            data.forEach(vendor => {
+                const option = document.createElement('option');
+                option.value = vendor.vendor_id;
+                option.textContent = vendor.vendor_id;
+                vendorSelect.appendChild(option);
+            });
+        }
+        
+        console.log('Loaded vendors:', data);
+    } catch (error) {
+        console.error('Error loading vendors:', error);
+        showAlert('Error loading vendors: ' + (error.message || 'Unknown error'), 'error');
+    }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
+    // Load dropdown data from database
+    console.log('Loading agents, clients, and vendors from database...');
+    await Promise.all([
+        loadAgents(),
+        loadClients(),
+        loadVendors()
+    ]);
+    console.log('Finished loading dropdown data');
+    
     const e = localStorage.getItem("rememberedAgent");
     if (e) {
         document.getElementById("agentSelect").value = e;
@@ -703,9 +867,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Sidebar controls
     document.getElementById("hamburgerBtn").addEventListener("click", toggleSidebar);
     document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
+    document.getElementById("sidebarClose").addEventListener("click", closeSidebar);
     document.getElementById("menuMain").addEventListener("click", () => switchPage("main"));
     document.getElementById("menuExport").addEventListener("click", () => switchPage("export"));
     document.getElementById("menuChangeAgent").addEventListener("click", changeAgent);
+
 
     // Confirm agent button
     document.getElementById("confirmAgentBtn").addEventListener("click", async () => {
@@ -942,6 +1108,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Export page buttons
     document.getElementById("loadBoxesBtn").addEventListener("click", loadBoxes);
     document.getElementById("clearExportFiltersBtn").addEventListener("click", clearExportPage);
+    
+    // Clear export preview and results when filters change
+    document.getElementById("filterAgent").addEventListener("change", () => {
+        clearExportPreview();
+        document.getElementById("exportResults").innerHTML = '<div class="empty-state"><p>Select an agent and client, then click "Load Boxes"</p></div>';
+    });
+    document.getElementById("filterExportClient").addEventListener("change", () => {
+        clearExportPreview();
+        document.getElementById("exportResults").innerHTML = '<div class="empty-state"><p>Select an agent and client, then click "Load Boxes"</p></div>';
+    });
 });
 
 function toggleSidebar() {
@@ -981,6 +1157,7 @@ function changeAgent() {
         document.getElementById("agentSelection").style.display = "block";
         document.getElementById("mainForm").classList.remove("active");
         document.getElementById("hamburgerBtn").classList.remove("visible");
+        updateCurrentBoxDisplay(); // Clear the box display
         clearForm();
     }
 }
