@@ -11,7 +11,7 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 async function checkAuth() {
     const { data: { session } } = await db.auth.getSession();
     if (!session) {
-        window.location.href = 'login.html';
+        window.location.href = 'index.html';
         return null;
     }
     return session;
@@ -61,7 +61,7 @@ async function logout() {
         sessionStorage.clear();
         
         // Redirect to login
-        window.location.href = 'login.html';
+        window.location.href = 'index.html';
     } catch (error) {
         console.error('Logout error:', error);
         alert('Error logging out. Please try again.');
@@ -90,7 +90,7 @@ async function initAuth(requiredRoles = null) {
     const user = await getCurrentUser();
     
     if (!user) {
-        window.location.href = 'login.html';
+        window.location.href = 'index.html';
         return null;
     }
     
