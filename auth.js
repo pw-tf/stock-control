@@ -29,7 +29,13 @@ async function getCurrentUser() {
             .eq('user_id', session.user.id)
             .single();
         
-        if (error) throw error;
+        if (error) {
+            // User exists in auth but not in user_roles (partial signup)
+            console.error('User role not found:', error);
+            // Sign them out to prevent loop
+            await db.auth.signOut();
+            return null;
+        }
         
         return {
             id: session.user.id,
@@ -39,6 +45,8 @@ async function getCurrentUser() {
         };
     } catch (error) {
         console.error('Error getting user:', error);
+        // Sign them out to prevent loop
+        await db.auth.signOut();
         return null;
     }
 }
@@ -91,6 +99,12 @@ async function initAuth(requiredRoles = null) {
     
     if (!user) {
         window.location.href = 'index.html';
+        return null;
+    }
+    
+    // Check if user has been assigned to an agent
+    if (!user.agent_id) {
+        window.location.href = 'pending.html';
         return null;
     }
     

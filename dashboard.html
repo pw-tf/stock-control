@@ -117,15 +117,6 @@
                                 >
                             </div>
                             
-                            <!-- Bulk Entry Toggle -->
-                            <div class="toggle-container">
-                                <div class="toggle-switch">
-                                    <input type="checkbox" id="bulkToggle">
-                                    <div class="toggle-slider"></div>
-                                </div>
-                                <label class="toggle-label" for="bulkToggle">Bulk Entry Mode</label>
-                            </div>
-                            
                             <!-- Individual Serial Entry -->
                             <div class="form-group individual-entry-area" id="individualEntry">
                                 <label class="form-label">
@@ -136,9 +127,19 @@
                                         <input type="text" class="form-input serial-input" placeholder="Enter serial number">
                                     </div>
                                 </div>
-                                <button class="btn btn-primary" id="addSerialBtn" style="margin-top: 12px;">
-                                    + Add Another Serial
-                                </button>
+                                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;">
+                                    <button class="btn btn-primary" id="addSerialBtn">
+                                        + Add Another Serial
+                                    </button>
+                                    <!-- Bulk Entry Toggle -->
+                                    <div class="toggle-container" style="margin: 0;">
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" id="bulkToggle">
+                                            <div class="toggle-slider"></div>
+                                        </div>
+                                        <label class="toggle-label" for="bulkToggle">Bulk Entry Mode</label>
+                                    </div>
+                                </div>
                             </div>
                             
                             <!-- Bulk Serial Entry -->
@@ -146,13 +147,23 @@
                                 <div class="form-group">
                                     <label class="form-label" for="bulkSerials">
                                         Serial Numbers <span class="required">*</span>
-                                        <span style="font-weight: 400; color: var(--text-muted);"> (one per line)</span>
+                                        <span style="font-weight: 400; color: var(--text-muted);">(one per line)</span>
                                     </label>
                                     <textarea 
                                         id="bulkSerials" 
                                         class="form-textarea" 
                                         placeholder="Enter serial numbers, one per line..."
                                     ></textarea>
+                                    <div style="margin-top: 12px;">
+                                        <!-- Bulk Entry Toggle (for turning off) -->
+                                        <div class="toggle-container" style="margin: 0;">
+                                            <div class="toggle-switch">
+                                                <input type="checkbox" id="bulkToggle2" checked>
+                                                <div class="toggle-slider"></div>
+                                            </div>
+                                            <label class="toggle-label" for="bulkToggle2">Bulk Entry Mode</label>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -208,7 +219,7 @@
     </div>
 
     <script>
-        let currentAgent, boxes = [], currentBox;
+let currentAgent, boxes = [], currentBox;
 
         function getClientCode(client) {
             return client ? client.substring(0, 3).toUpperCase() : "OTH";
@@ -281,28 +292,42 @@
             }
         }
 
-        async function loadVendors() {
+        // Updated function to filter vendors based on the selected client
+        async function updateVendorsByClient(clientId) {
+            const vendorSelect = document.getElementById('vendorSelect');
+            if (!vendorSelect) return;
+
+            if (!clientId) {
+                vendorSelect.innerHTML = '<option value="">Select a client first...</option>';
+                return;
+            }
+
             try {
+                // Fetch vendor IDs from the linking table for the specific client
                 const { data, error } = await db
-                    .from('vendors')
+                    .from('clients_vendors')
                     .select('vendor_id')
-                    .order('vendor_id', { ascending: true });
+                    .eq('client_id', clientId);
                 
                 if (error) throw new Error(error.message);
-                if (!data || data.length === 0) return;
                 
-                const vendorSelect = document.getElementById('vendorSelect');
-                if (vendorSelect) {
-                    vendorSelect.innerHTML = '<option value="">Select a vendor...</option>';
-                    data.forEach(vendor => {
+                vendorSelect.innerHTML = '<option value="">Select a vendor...</option>';
+                
+                if (data && data.length > 0) {
+                    data.forEach(item => {
                         const option = document.createElement('option');
-                        option.value = vendor.vendor_id;
-                        option.textContent = vendor.vendor_id;
+                        option.value = item.vendor_id;
+                        option.textContent = item.vendor_id;
                         vendorSelect.appendChild(option);
                     });
+                } else {
+                    const option = document.createElement('option');
+                    option.textContent = "No vendors linked to this client";
+                    option.disabled = true;
+                    vendorSelect.appendChild(option);
                 }
             } catch (error) {
-                console.error('Error loading vendors:', error);
+                console.error('Error loading filtered vendors:', error);
                 showAlert('Error loading vendors: ' + error.message, 'error');
             }
         }
@@ -319,7 +344,6 @@
             await Promise.all([
                 loadAgents(),
                 loadClients(),
-                loadVendors(),
                 loadBoxesForAgent()
             ]);
 
@@ -332,6 +356,7 @@
 
             document.getElementById("clientSelect").addEventListener("change", handleClientChange);
             document.getElementById("bulkToggle").addEventListener("change", handleBulkToggle);
+            document.getElementById("bulkToggle2").addEventListener("change", handleBulkToggle2);
             document.getElementById("addSerialBtn").addEventListener("click", addSerialRow);
             document.getElementById("addJobBtn").addEventListener("click", handleAddJob);
             document.getElementById("newBoxBtn").addEventListener("click", handleNewBox);
@@ -369,6 +394,16 @@
             const isBulk = document.getElementById("bulkToggle").checked;
             document.getElementById("individualEntry").classList.toggle("hidden", isBulk);
             document.getElementById("bulkEntry").classList.toggle("active", isBulk);
+            // Sync the second toggle
+            document.getElementById("bulkToggle2").checked = isBulk;
+        }
+
+        function handleBulkToggle2() {
+            const isBulk = document.getElementById("bulkToggle2").checked;
+            document.getElementById("individualEntry").classList.toggle("hidden", isBulk);
+            document.getElementById("bulkEntry").classList.toggle("active", isBulk);
+            // Sync the first toggle
+            document.getElementById("bulkToggle").checked = isBulk;
         }
 
         function addSerialRow() {
@@ -383,6 +418,10 @@
 
         async function handleClientChange() {
             const client = document.getElementById("clientSelect").value;
+            
+            // Trigger the vendor update whenever client changes
+            await updateVendorsByClient(client);
+
             if (!client) {
                 currentBox = null;
                 updateCurrentBoxDisplay();
@@ -671,6 +710,7 @@
             document.getElementById("jobNumber").value = "";
             document.getElementById("bulkSerials").value = "";
             document.getElementById("bulkToggle").checked = false;
+            document.getElementById("bulkToggle2").checked = false;
             document.getElementById("serialInputs").innerHTML = `
                 <div class="serial-input-row">
                     <input type="text" class="form-input serial-input" placeholder="Enter serial number">

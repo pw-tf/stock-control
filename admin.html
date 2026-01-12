@@ -73,6 +73,7 @@
                 <div class="tab-content active" id="users-tab">
                     <div class="section-header">
                         <h2>User Management</h2>
+                        <button class="btn btn-primary" onclick="openInviteUserModal()">+ Invite User</button>
                     </div>
                     <div class="table-container">
                         <table>
@@ -89,15 +90,6 @@
                                 <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
                             </tbody>
                         </table>
-                    </div>
-                    <div class="help-box">
-                        <p>
-                            <strong>To add a new user:</strong><br>
-                            1. Go to Supabase → Authentication → Users → Add User<br>
-                            2. Create the user account and copy the user_id<br>
-                            3. Run this SQL command:
-                            <code>INSERT INTO user_roles (user_id, role, agent_id, email) VALUES ('USER_ID', 'technician', '802', 'email@example.com');</code>
-                        </p>
                     </div>
                 </div>
                 
@@ -134,11 +126,12 @@
                             <thead>
                                 <tr>
                                     <th>Client ID</th>
+                                    <th>Linked Vendors</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="clientsTableBody">
-                                <tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                                <tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -225,6 +218,69 @@
         </div>
     </div>
 
+    <!-- Edit Client Vendors Modal -->
+    <div class="modal" id="editClientVendorsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Vendors for <span id="editClientName"></span></h3>
+            </div>
+            <div id="vendorCheckboxes" style="max-height: 400px; overflow-y: auto; padding: 10px 0;">
+                <!-- Vendor checkboxes will be populated here -->
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="closeEditClientVendorsModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveClientVendors()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invite User Modal -->
+    <div class="modal" id="inviteUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Invite New User</h3>
+            </div>
+            <form id="inviteUserForm">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" id="inviteEmail" class="form-input" required placeholder="user@example.com">
+                </div>
+                <div class="help-box" style="margin-top: 16px;">
+                    <p style="margin: 0; font-size: 0.875rem;">
+                        The user will receive an invitation email to create their account. 
+                        They will be assigned the <strong>Technician</strong> role by default. 
+                        You can assign them to an agent after they sign up.
+                    </p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeInviteUserModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Send Invitation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Assign Agent Modal -->
+    <div class="modal" id="assignAgentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Assign Agent to <span id="assignUserEmail"></span></h3>
+            </div>
+            <form id="assignAgentForm">
+                <div class="form-group">
+                    <label class="form-label">Select Agent</label>
+                    <select id="assignAgentSelect" class="form-select" required>
+                        <option value="">Choose an agent...</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeAssignAgentModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Assign Agent</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         let currentUser = null;
         
@@ -253,6 +309,8 @@
             document.getElementById('addAgentForm').addEventListener('submit', handleAddAgent);
             document.getElementById('addClientForm').addEventListener('submit', handleAddClient);
             document.getElementById('addVendorForm').addEventListener('submit', handleAddVendor);
+            document.getElementById('inviteUserForm').addEventListener('submit', handleInviteUser);
+            document.getElementById('assignAgentForm').addEventListener('submit', handleAssignAgent);
             
             // Setup sidebar
             document.getElementById("hamburgerBtn").addEventListener("click", toggleSidebar);
@@ -299,17 +357,26 @@
                     return;
                 }
                 
-                tbody.innerHTML = data.map(user => `
-                    <tr>
-                        <td style="font-family: var(--font-mono);">${user.agent_id || 'N/A'}</td>
-                        <td>${user.email || 'N/A'}</td>
-                        <td><span class="badge badge-${user.role}">${user.role}</span></td>
-                        <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                        <td>
-                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>
-                        </td>
-                    </tr>
-                `).join('');
+                tbody.innerHTML = data.map(user => {
+                    const agentDisplay = user.agent_id 
+                        ? `<span style="font-family: var(--font-mono);">${user.agent_id}</span>` 
+                        : '<span style="color: var(--text-muted); font-style: italic;">Not assigned</span>';
+                    
+                    const actionButtons = user.agent_id
+                        ? `<button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>`
+                        : `<button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8125rem; margin-right: 6px;" onclick="openAssignAgentModal('${user.user_id}', '${user.email}')">Assign Agent</button>
+                           <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>`;
+                    
+                    return `
+                        <tr>
+                            <td>${agentDisplay}</td>
+                            <td>${user.email || 'N/A'}</td>
+                            <td><span class="badge badge-${user.role}">${user.role}</span></td>
+                            <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                            <td>${actionButtons}</td>
+                        </tr>
+                    `;
+                }).join('');
             } catch (error) {
                 console.error('Error loading users:', error);
                 showAlert('Error loading users: ' + error.message, 'error');
@@ -364,14 +431,26 @@
                 
                 const tbody = document.getElementById('clientsTableBody');
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">No clients found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">No clients found</td></tr>';
                     return;
+                }
+                
+                // Get vendor counts for each client
+                const clientVendorCounts = {};
+                for (const client of data) {
+                    const { count } = await db
+                        .from('clients_vendors')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('client_id', client.client_id);
+                    clientVendorCounts[client.client_id] = count || 0;
                 }
                 
                 tbody.innerHTML = data.map(client => `
                     <tr>
                         <td style="font-family: var(--font-mono); font-weight: 600;">${client.client_id}</td>
+                        <td>${clientVendorCounts[client.client_id]} vendor(s)</td>
                         <td>
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8125rem; margin-right: 6px;" onclick="openEditClientVendorsModal('${client.client_id}')">Edit Vendors</button>
                             <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteClient('${client.client_id}')">Delete</button>
                         </td>
                     </tr>
@@ -541,6 +620,224 @@
                 await loadUsers();
             } catch (error) {
                 showAlert('Error deleting user: ' + error.message, 'error');
+            }
+        }
+        
+        // Client-Vendor Management Functions
+        let currentEditingClient = null;
+        
+        async function openEditClientVendorsModal(clientId) {
+            currentEditingClient = clientId;
+            document.getElementById('editClientName').textContent = clientId;
+            
+            try {
+                // Get all vendors
+                const { data: vendors, error: vendorsError } = await db
+                    .from('vendors')
+                    .select('vendor_id')
+                    .order('vendor_id', { ascending: true });
+                
+                if (vendorsError) throw vendorsError;
+                
+                // Get current client-vendor relationships
+                const { data: clientVendors, error: cvError } = await db
+                    .from('clients_vendors')
+                    .select('vendor_id')
+                    .eq('client_id', clientId);
+                
+                if (cvError) throw cvError;
+                
+                const linkedVendorIds = new Set(clientVendors.map(cv => cv.vendor_id));
+                
+                // Build checkboxes
+                const checkboxContainer = document.getElementById('vendorCheckboxes');
+                checkboxContainer.innerHTML = vendors.map(vendor => `
+                    <div style="display: flex; color: black; align-items: center; padding: 12px; margin-bottom: 8px; background: white; border-radius: 8px; border: 2px solid var(--border-color); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--primary-color)'; this.style.background='var(--surface-hover)'; this.style.color='white';" onmouseout="this.style.borderColor='var(--border-color)'; this.style.background='white'; this.style.color='black';">
+                        <input 
+                            type="checkbox" 
+                            id="vendor_${vendor.vendor_id}" 
+                            value="${vendor.vendor_id}"
+                            ${linkedVendorIds.has(vendor.vendor_id) ? 'checked' : ''}
+                            style="width: 20px; height: 20px; margin-right: 12px; cursor: pointer; accent-color: var(--primary-color);"
+                        >
+                        <label for="vendor_${vendor.vendor_id}" style="margin: 0; cursor: pointer; flex: 1; font-family: var(--font-mono);">${vendor.vendor_id}</label>
+                    </div>
+                `).join('');
+                
+                document.getElementById('editClientVendorsModal').classList.add('active');
+            } catch (error) {
+                console.error('Error opening edit modal:', error);
+                showAlert('Error loading vendor data: ' + error.message, 'error');
+            }
+        }
+        
+        function closeEditClientVendorsModal() {
+            document.getElementById('editClientVendorsModal').classList.remove('active');
+            currentEditingClient = null;
+        }
+        
+        async function saveClientVendors() {
+            if (!currentEditingClient) return;
+            
+            try {
+                // Get selected vendors
+                const checkboxes = document.querySelectorAll('#vendorCheckboxes input[type="checkbox"]');
+                const selectedVendors = Array.from(checkboxes)
+                    .filter(cb => cb.checked)
+                    .map(cb => cb.value);
+                
+                // Delete existing relationships for this client
+                const { error: deleteError } = await db
+                    .from('clients_vendors')
+                    .delete()
+                    .eq('client_id', currentEditingClient);
+                
+                if (deleteError) throw deleteError;
+                
+                // Insert new relationships
+                if (selectedVendors.length > 0) {
+                    const relationships = selectedVendors.map(vendorId => ({
+                        client_id: currentEditingClient,
+                        vendor_id: vendorId
+                    }));
+                    
+                    const { error: insertError } = await db
+                        .from('clients_vendors')
+                        .insert(relationships);
+                    
+                    if (insertError) throw insertError;
+                }
+                
+                showAlert(`✓ Vendor associations updated for ${currentEditingClient}`, 'success');
+                closeEditClientVendorsModal();
+                await loadClients();
+            } catch (error) {
+                console.error('Error saving client vendors:', error);
+                showAlert('Error saving vendor associations: ' + error.message, 'error');
+            }
+        }
+        
+        // User Invitation Functions
+        function openInviteUserModal() {
+            document.getElementById('inviteUserModal').classList.add('active');
+        }
+        
+        function closeInviteUserModal() {
+            document.getElementById('inviteUserModal').classList.remove('active');
+            document.getElementById('inviteUserForm').reset();
+        }
+        
+        async function handleInviteUser(e) {
+            e.preventDefault();
+            const email = document.getElementById('inviteEmail').value.trim();
+            
+            try {
+                // Generate a unique token
+                const token = generateToken();
+                
+                // Set expiration to 1 hour from now
+                const expiresAt = new Date();
+                expiresAt.setHours(expiresAt.getHours() + 1);
+                
+                // Store token in database
+                const { error: tokenError } = await db
+                    .from('invitation_tokens')
+                    .insert([{
+                        token: token,
+                        email: email,
+                        expires_at: expiresAt.toISOString(),
+                        created_by: currentUser.id
+                    }]);
+                
+                if (tokenError) throw tokenError;
+                
+                // Generate signup link with token
+                const signupLink = `${window.location.origin}/signup.html?token=${token}`;
+                
+                // Show instructions to manager
+                const message = `Invitation link for ${email}:\n\n` +
+                    `${signupLink}\n\n` +
+                    `⚠️ This link expires in 1 hour and can only be used once.\n` +
+                    `The user's email will be pre-filled - they only need to create a password.\n\n` +
+                    `After signup, assign them to an agent in the Users tab.`;
+                
+                // Copy link to clipboard
+                try {
+                    await navigator.clipboard.writeText(signupLink);
+                    showAlert(`✓ Invitation link created and copied to clipboard!`, 'success');
+                    alert(message + '\n\n✓ Link copied to clipboard!');
+                } catch (err) {
+                    showAlert(`✓ Invitation link created!`, 'success');
+                    alert(message);
+                }
+                
+                closeInviteUserModal();
+            } catch (error) {
+                console.error('Error creating invitation:', error);
+                showAlert('Error creating invitation: ' + error.message, 'error');
+            }
+        }
+        
+        // Generate a secure random token
+        function generateToken() {
+            const array = new Uint8Array(32);
+            crypto.getRandomValues(array);
+            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+        
+        // Agent Assignment Functions
+        let currentAssigningUserId = null;
+        
+        async function openAssignAgentModal(userId, userEmail) {
+            currentAssigningUserId = userId;
+            document.getElementById('assignUserEmail').textContent = userEmail;
+            
+            // Load agents into dropdown
+            try {
+                const { data: agents, error } = await db
+                    .from('agents')
+                    .select('agent_id')
+                    .order('agent_id', { ascending: true });
+                
+                if (error) throw error;
+                
+                const select = document.getElementById('assignAgentSelect');
+                select.innerHTML = '<option value="">Choose an agent...</option>' +
+                    agents.map(a => `<option value="${a.agent_id}">Agent ${a.agent_id}</option>`).join('');
+                
+                document.getElementById('assignAgentModal').classList.add('active');
+            } catch (error) {
+                console.error('Error loading agents:', error);
+                showAlert('Error loading agents: ' + error.message, 'error');
+            }
+        }
+        
+        function closeAssignAgentModal() {
+            document.getElementById('assignAgentModal').classList.remove('active');
+            document.getElementById('assignAgentForm').reset();
+            currentAssigningUserId = null;
+        }
+        
+        async function handleAssignAgent(e) {
+            e.preventDefault();
+            const agentId = document.getElementById('assignAgentSelect').value;
+            
+            if (!agentId || !currentAssigningUserId) return;
+            
+            try {
+                const { error } = await db
+                    .from('user_roles')
+                    .update({ agent_id: agentId })
+                    .eq('user_id', currentAssigningUserId);
+                
+                if (error) throw error;
+                
+                showAlert(`✓ Agent ${agentId} assigned successfully`, 'success');
+                closeAssignAgentModal();
+                await loadUsers();
+            } catch (error) {
+                console.error('Error assigning agent:', error);
+                showAlert('Error assigning agent: ' + error.message, 'error');
             }
         }
     </script>

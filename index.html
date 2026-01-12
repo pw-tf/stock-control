@@ -121,7 +121,11 @@
                     .eq('user_id', authData.user.id)
                     .single();
                 
-                if (roleError) throw new Error('User role not found. Please contact administrator.');
+                if (roleError) {
+                    // Account exists but signup was incomplete
+                    await db.auth.signOut();
+                    throw new Error('Account setup incomplete. Please contact your administrator for a new invitation link.');
+                }
                 
                 // Store role and agent_id in session storage
                 sessionStorage.setItem('userRole', roleData.role);

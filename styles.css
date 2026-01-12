@@ -909,13 +909,13 @@ tr:hover td {
 }
 
 .badge-manager {
-    background: linear-gradient(135deg, var(--accent-secondary), var(--accent-tertiary));
-    color: white;
+    background: var(--info-bg);
+    color: #de6052;
 }
 
 .badge-technician {
     background: var(--info-bg);
-    color: var(--info);
+    color: white;
     border: 1px solid rgba(90, 138, 158, 0.3);
 }
 

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Pending - Stock Submission</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+</head>
+<body>
+    <div class="app-wrapper" style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
+        <div class="container" style="max-width: 600px;">
+            <div class="header">
+                <div class="header-content">
+                    <div class="header-icon">⏳</div>
+                    <div>
+                        <h1>Account Pending</h1>
+                        <div class="header-subtitle">Awaiting Administrator Assignment</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="content">
+                <div class="card">
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 64px; margin-bottom: 20px;">⏳</div>
+                        <h2 style="color: var(--text-primary); margin-bottom: 12px;">Your Account is Being Set Up</h2>
+                        <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;">
+                            Your account has been created successfully, but you need to be assigned to an agent before you can access the system.
+                        </p>
+                        <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 24px;">
+                            Please contact your administrator to complete your account setup. Once assigned, you'll be able to access the dashboard.
+                        </p>
+                        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                            <button class="btn btn-primary" onclick="checkStatus()">
+                                Check Status
+                            </button>
+                            <button class="btn btn-ghost" onclick="logout()">
+                                Sign Out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="help-box" style="margin-top: 20px;">
+                    <p style="margin: 0; text-align: center;">
+                        <strong>Need help?</strong><br>
+                        Contact your system administrator or manager for assistance.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check auth but don't require agent assignment for this page
+        document.addEventListener('DOMContentLoaded', async () => {
+            const session = await db.auth.getSession();
+            if (!session.data.session) {
+                window.location.href = 'index.html';
+                return;
+            }
+            
+            // Check if user actually has agent assigned
+            const user = await getCurrentUser();
+            if (user && user.agent_id) {
+                // User has been assigned, redirect to dashboard
+                window.location.href = 'dashboard.html';
+            }
+        });
+        
+        async function checkStatus() {
+            try {
+                const user = await getCurrentUser();
+                
+                if (user && user.agent_id) {
+                    // User has been assigned!
+                    showAlert('✓ Your account has been activated!', 'success');
+                    setTimeout(() => {
+                        window.location.href = 'dashboard.html';
+                    }, 1000);
+                } else {
+                    showAlert('Your account is still pending. Please check back later.', 'info');
+                }
+            } catch (error) {
+                showAlert('Error checking status: ' + error.message, 'error');
+            }
+        }
+        
+        function showAlert(message, type) {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            
+            const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+            alert.innerHTML = `<span class="alert-icon">${icons[type] || 'ℹ'}</span><span>${message}</span>`;
+            alert.style.position = 'fixed';
+            alert.style.top = '20px';
+            alert.style.left = '50%';
+            alert.style.transform = 'translateX(-50%)';
+            alert.style.zIndex = '10000';
+            alert.style.minWidth = '300px';
+            
+            document.body.appendChild(alert);
+            setTimeout(() => alert.remove(), 4000);
+        }
+    </script>
+</body>
+</html>

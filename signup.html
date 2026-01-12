@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account - Stock Submission</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="app-wrapper" style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
+        <div class="container" style="max-width: 450px;">
+            <div class="header">
+                <div class="header-content" style="text-align: center;">
+                    <div class="header-icon">📦</div>
+                    <div>
+                        <h1>Create Account</h1>
+                        <div class="header-subtitle">Stock Submission System</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="content">
+                <div id="alertContainer"></div>
+                
+                <!-- Loading State -->
+                <div id="loadingState" style="text-align: center; padding: 40px;">
+                    <div class="spinner" style="margin: 0 auto 20px;"></div>
+                    <p style="color: var(--text-muted);">Validating invitation...</p>
+                </div>
+                
+                <!-- Invalid Token State -->
+                <div id="invalidTokenState" style="display: none; text-align: center; padding: 20px;">
+                    <div style="font-size: 64px; margin-bottom: 20px;">🔒</div>
+                    <h2 style="color: var(--text-primary); margin-bottom: 12px;">Invalid or Expired Invitation</h2>
+                    <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;" id="invalidMessage">
+                        This invitation link is invalid or has expired.
+                    </p>
+                    <p style="color: var(--text-muted); line-height: 1.6;">
+                        Please contact your administrator for a new invitation link.
+                    </p>
+                </div>
+                
+                <!-- Signup Form -->
+                <form id="signupForm" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label" for="email">Email Address</label>
+                        <input 
+                            type="email" 
+                            id="email" 
+                            class="form-input" 
+                            readonly 
+                            style="background: var(--surface-secondary); cursor: not-allowed;"
+                        >
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                            Email is pre-filled from your invitation
+                        </p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="password">Create Password</label>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            class="form-input" 
+                            required 
+                            autocomplete="new-password" 
+                            placeholder="Enter password (min 6 characters)"
+                            minlength="6"
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="confirmPassword">Confirm Password</label>
+                        <input 
+                            type="password" 
+                            id="confirmPassword" 
+                            class="form-input" 
+                            required 
+                            autocomplete="new-password" 
+                            placeholder="Confirm your password"
+                            minlength="6"
+                        >
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" id="signupBtn" style="width: 100%;">
+                        <span id="signupText">Create Account</span>
+                        <div class="spinner loading-spinner-inline" id="signupSpinner" style="display: none;"></div>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const db = window.supabase.createClient(
+            "https://lfydtctndrzzdyavmlva.supabase.co",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmeWR0Y3RuZHJ6emR5YXZtbHZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0Nzc5MTksImV4cCI6MjA4MzA1MzkxOX0.O7dL6Gl-Re1yKEixO_BRa-goj67os6riy15hRIE4nqY"
+        );
+
+        let invitationToken = null;
+        let invitationEmail = null;
+
+        function showAlert(message, type) {
+            const container = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            
+            const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+            alert.innerHTML = `<span class="alert-icon">${icons[type] || 'ℹ'}</span><span>${message}</span>`;
+            
+            container.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        function showInvalidToken(message) {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('signupForm').style.display = 'none';
+            document.getElementById('invalidTokenState').style.display = 'block';
+            if (message) {
+                document.getElementById('invalidMessage').textContent = message;
+            }
+        }
+
+        function showSignupForm(email) {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('invalidTokenState').style.display = 'none';
+            document.getElementById('signupForm').style.display = 'block';
+            document.getElementById('email').value = email;
+            invitationEmail = email;
+        }
+
+        // Validate invitation token on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check if user is already logged in
+            const { data: { session } } = await db.auth.getSession();
+            if (session) {
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            // Get token from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+
+            if (!token) {
+                showInvalidToken('No invitation token provided.');
+                return;
+            }
+
+            invitationToken = token;
+
+            try {
+                // Validate token
+                const { data, error } = await db
+                    .from('invitation_tokens')
+                    .select('*')
+                    .eq('token', token)
+                    .single();
+
+                if (error || !data) {
+                    showInvalidToken('This invitation link is invalid.');
+                    return;
+                }
+
+                // Check if already used
+                if (data.used) {
+                    showInvalidToken('This invitation link has already been used.');
+                    return;
+                }
+
+                // Check if expired
+                const expiresAt = new Date(data.expires_at);
+                if (expiresAt < new Date()) {
+                    showInvalidToken('This invitation link has expired. Please request a new one.');
+                    return;
+                }
+
+                // Valid token - show signup form
+                showSignupForm(data.email);
+
+            } catch (error) {
+                console.error('Token validation error:', error);
+                showInvalidToken('Error validating invitation. Please try again or contact support.');
+            }
+        });
+
+        document.getElementById('signupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const signupBtn = document.getElementById('signupBtn');
+            const signupText = document.getElementById('signupText');
+            const signupSpinner = document.getElementById('signupSpinner');
+            
+            // Validation
+            if (password !== confirmPassword) {
+                showAlert('Passwords do not match', 'error');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showAlert('Password must be at least 6 characters', 'error');
+                return;
+            }
+            
+            // Show loading state
+            signupBtn.disabled = true;
+            signupText.style.display = 'none';
+            signupSpinner.style.display = 'inline-block';
+            
+            try {
+                // Create account with Supabase Auth
+                const { data: authData, error: authError } = await db.auth.signUp({
+                    email: invitationEmail,
+                    password: password
+                });
+                
+                if (authError) throw authError;
+                
+                // Create user role entry
+                const { error: roleError } = await db
+                    .from('user_roles')
+                    .insert([{
+                        user_id: authData.user.id,
+                        email: invitationEmail,
+                        role: 'technician',
+                        agent_id: null
+                    }]);
+                
+                if (roleError) throw roleError;
+                
+                // Mark token as used
+                const { error: tokenError } = await db
+                    .from('invitation_tokens')
+                    .update({ 
+                        used: true,
+                        used_at: new Date().toISOString()
+                    })
+                    .eq('token', invitationToken);
+                
+                if (tokenError) {
+                    console.error('Error marking token as used:', tokenError);
+                }
+                
+                showAlert('✓ Account created successfully! Redirecting...', 'success');
+                
+                // Redirect to pending page
+                setTimeout(() => {
+                    window.location.href = 'pending.html';
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Signup error:', error);
+                showAlert(error.message || 'Error creating account', 'error');
+                
+                // Reset button state
+                signupBtn.disabled = false;
+                signupText.style.display = 'inline';
+                signupSpinner.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
