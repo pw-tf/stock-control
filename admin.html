@@ -4,498 +4,169 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Stock Submission</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auth.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Playfair Display', serif;
-            background: linear-gradient(135deg, #D9D0C7 0%, #BFB6AE 100%);
-            min-height: 100vh;
-            padding: 20px;
-            position: relative;
-        }
-        .hamburger-btn {
-            position: fixed;
-            left: 20px;
-            top: 20px;
-            background: linear-gradient(135deg, #97A681 0%, #8A9975 100%);
-            border: none;
-            cursor: pointer;
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            z-index: 1001;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-        .hamburger-btn span {
-            width: 25px;
-            height: 3px;
-            background: white;
-            border-radius: 2px;
-            transition: all 0.3s;
-        }
-        .hamburger-btn.active span:nth-child(1) {
-            transform: rotate(45deg) translate(5px, 5px);
-        }
-        .hamburger-btn.active span:nth-child(2) {
-            opacity: 0;
-        }
-        .hamburger-btn.active span:nth-child(3) {
-            transform: rotate(-45deg) translate(7px, -7px);
-        }
-        .hamburger-btn.active {
-            display: none;
-        }
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: -300px;
-            width: 300px;
-            height: 100vh;
-            background: #F2E7DC;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-            transition: left 0.3s ease;
-            z-index: 1000;
-            overflow-y: auto;
-        }
-        .sidebar.active {
-            left: 0;
-        }
-        .sidebar-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 999;
-            display: none;
-        }
-        .sidebar-overlay.active {
-            display: block;
-        }
-        .sidebar-header {
-            background: linear-gradient(135deg, #97A681 0%, #8A9975 100%);
-            color: white;
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .sidebar-header h2 {
-            font-size: 20px;
-            font-weight: 600;
-            margin: 0;
-        }
-        .sidebar-close {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 28px;
-            cursor: pointer;
-            padding: 5px 10px;
-            line-height: 1;
-            display: none;
-        }
-        .sidebar-menu {
-            padding: 20px 0;
-        }
-        .sidebar-menu-item {
-            padding: 15px 20px;
-            cursor: pointer;
-            transition: background 0.2s;
-            border-left: 4px solid transparent;
-            font-weight: 500;
-            color: #5a5a5a;
-        }
-        .sidebar-menu-item:hover {
-            background: rgba(151,166,129,0.1);
-            border-left-color: #97A681;
-        }
-        .sidebar-menu-item.active {
-            background: rgba(151,166,129,0.15);
-            border-left-color: #97A681;
-            color: #97A681;
-        }
-        @media (max-width: 600px) {
-            .hamburger-btn {
-                left: 10px;
-                top: 10px;
-                padding: 10px;
-            }
-            .hamburger-btn span {
-                width: 22px;
-            }
-            .sidebar-close {
-                display: block;
-            }
-            .sidebar { width: 280px; left: -280px; }
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: #F2E7DC;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-            overflow: hidden;
-        }
-        .header {
-            background: linear-gradient(135deg, #97A681 0%, #8A9975 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-        .header h1 { font-size: 28px; font-weight: 700; }
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-family: 'Playfair Display', serif;
-        }
-        .btn-primary {
-            background: white;
-            color: #97A681;
-        }
-        .btn-primary:hover {
-            background: #f0f0f0;
-        }
-        .btn-secondary {
-            background: #97A681;
-            color: white;
-        }
-        .btn-secondary:hover {
-            background: #8A9975;
-        }
-        .btn-danger {
-            background: #A68572;
-            color: white;
-        }
-        .btn-danger:hover {
-            background: #967866;
-        }
-        .content {
-            padding: 30px;
-        }
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #D9D0C7;
-        }
-        .tab {
-            padding: 12px 24px;
-            cursor: pointer;
-            border: none;
-            background: none;
-            font-size: 16px;
-            font-weight: 600;
-            color: #8a8a8a;
-            font-family: 'Playfair Display', serif;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s;
-        }
-        .tab.active {
-            color: #97A681;
-            border-bottom-color: #97A681;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .section-header h2 {
-            font-size: 22px;
-            color: #5a5a5a;
-        }
-        .table-container {
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th {
-            background: #97A681;
-            color: white;
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-        }
-        td {
-            padding: 15px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        tr:hover {
-            background: rgba(151,166,129,0.05);
-        }
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        .badge-manager {
-            background: #97A681;
-            color: white;
-        }
-        .badge-technician {
-            background: #4299e1;
-            color: white;
-        }
-        .badge-merchant {
-            background: #A68572;
-            color: white;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-        .modal.active {
-            display: flex;
-        }
-        .modal-content {
-            background: #F2E7DC;
-            border-radius: 16px;
-            padding: 30px;
-            max-width: 500px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        .modal-header {
-            margin-bottom: 20px;
-        }
-        .modal-header h3 {
-            font-size: 20px;
-            color: #5a5a5a;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #5a5a5a;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        input, select {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #D9D0C7;
-            border-radius: 8px;
-            font-size: 16px;
-            font-family: 'Courier New', monospace;
-            background: white;
-        }
-        input:focus, select:focus {
-            outline: none;
-            border-color: #97A681;
-        }
-        .modal-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-            margin-top: 30px;
-        }
-        .alert {
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-        .alert-success {
-            background: #e8f4e8;
-            color: #2d5a2d;
-            border: 1px solid #97A681;
-        }
-        .alert-error {
-            background: #f7e6e6;
-            color: #7a3a3a;
-            border: 1px solid #A68572;
-        }
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #8a8a8a;
-        }
-    </style>
 </head>
 <body>
-    <button class="hamburger-btn" id="hamburgerBtn">
+    <!-- Hamburger Button -->
+    <button class="hamburger-btn visible" id="hamburgerBtn">
         <span></span>
         <span></span>
         <span></span>
     </button>
     
+    <!-- Sidebar Overlay -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     
+    <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h2>Menu</h2>
+            <h2>Navigation</h2>
             <button class="sidebar-close" id="sidebarClose">×</button>
         </div>
         <div class="sidebar-menu">
             <div class="sidebar-menu-item" onclick="window.location.href='dashboard.html'">
-                <span>📋 Stock Entry</span>
+                <span>📋</span>
+                <span>Stock Entry</span>
             </div>
             <div class="sidebar-menu-item" onclick="window.location.href='dashboard.html#export'">
-                <span>📊 View Boxes</span>
+                <span>📊</span>
+                <span>View Boxes</span>
             </div>
             <div class="sidebar-menu-item active">
-                <span>⚙️ Admin Panel</span>
+                <span>⚙️</span>
+                <span>Admin Panel</span>
             </div>
             <div class="sidebar-menu-item" onclick="logout()">
-                <span>🚪 Logout</span>
+                <span>🚪</span>
+                <span>Sign Out</span>
             </div>
         </div>
     </div>
     
-    <div class="container">
-        <div class="header">
-            <h1>Admin Panel</h1>
-        </div>
-        
-        <div class="content">
-            <div id="alertContainer"></div>
-            
-            <div class="tabs">
-                <button class="tab active" data-tab="users">Users</button>
-                <button class="tab" data-tab="agents">Agents</button>
-                <button class="tab" data-tab="clients">Clients</button>
-                <button class="tab" data-tab="vendors">Vendors</button>
-            </div>
-            
-            <!-- Users Tab -->
-            <div class="tab-content active" id="users-tab">
-                <div class="section-header">
-                    <h2>User Management</h2>
-                </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Agent ID</th>
-                                <th>Created</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="usersTableBody">
-                            <tr><td colspan="5" class="loading">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div style="margin-top: 20px; padding: 15px; background: rgba(151,166,129,0.1); border-radius: 8px; border-left: 4px solid #97A681;">
-                    <p style="margin: 0; color: #5a5a5a; font-size: 14px;">
-                        <strong>To add a new user:</strong><br>
-                        1. Go to Supabase → Authentication → Users → Add User<br>
-                        2. Create the user account<br>
-                        3. Copy the user_id<br>
-                        4. Go to SQL Editor and run:<br>
-                        <code style="background: white; padding: 2px 6px; border-radius: 4px; font-family: 'Courier New', monospace; display: inline-block; margin-top: 5px;">
-                            INSERT INTO user_roles (user_id, role, agent_id, email) VALUES ('USER_ID', 'technician', '802', 'email@example.com');
-                        </code>
-                    </p>
+    <!-- Main Container -->
+    <div class="app-wrapper">
+        <div class="container container-wide">
+            <div class="header">
+                <div class="header-content">
+                    <div class="header-icon">⚙️</div>
+                    <div>
+                        <h1>Admin Panel</h1>
+                        <div class="header-subtitle">Manage users, agents, clients & vendors</div>
+                    </div>
                 </div>
             </div>
             
-            <!-- Agents Tab -->
-            <div class="tab-content" id="agents-tab">
-                <div class="section-header">
-                    <h2>Agent Management</h2>
-                    <button class="btn btn-secondary" onclick="openAddAgentModal()">+ Add Agent</button>
+            <div class="content">
+                <div id="alertContainer"></div>
+                
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab active" data-tab="users">Users</button>
+                    <button class="tab" data-tab="agents">Agents</button>
+                    <button class="tab" data-tab="clients">Clients</button>
+                    <button class="tab" data-tab="vendors">Vendors</button>
                 </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Agent ID</th>
-                                <th>Assigned Users</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="agentsTableBody">
-                            <tr><td colspan="3" class="loading">Loading...</td></tr>
-                        </tbody>
-                    </table>
+                
+                <!-- Users Tab -->
+                <div class="tab-content active" id="users-tab">
+                    <div class="section-header">
+                        <h2>User Management</h2>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Agent ID</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="help-box">
+                        <p>
+                            <strong>To add a new user:</strong><br>
+                            1. Go to Supabase → Authentication → Users → Add User<br>
+                            2. Create the user account and copy the user_id<br>
+                            3. Run this SQL command:
+                            <code>INSERT INTO user_roles (user_id, role, agent_id, email) VALUES ('USER_ID', 'technician', '802', 'email@example.com');</code>
+                        </p>
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Clients Tab -->
-            <div class="tab-content" id="clients-tab">
-                <div class="section-header">
-                    <h2>Client Management</h2>
-                    <button class="btn btn-secondary" onclick="openAddClientModal()">+ Add Client</button>
+                
+                <!-- Agents Tab -->
+                <div class="tab-content" id="agents-tab">
+                    <div class="section-header">
+                        <h2>Agent Management</h2>
+                        <button class="btn btn-primary" onclick="openAddAgentModal()">+ Add Agent</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Agent ID</th>
+                                    <th>Assigned Users</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="agentsTableBody">
+                                <tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Client ID</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="clientsTableBody">
-                            <tr><td colspan="2" class="loading">Loading...</td></tr>
-                        </tbody>
-                    </table>
+                
+                <!-- Clients Tab -->
+                <div class="tab-content" id="clients-tab">
+                    <div class="section-header">
+                        <h2>Client Management</h2>
+                        <button class="btn btn-primary" onclick="openAddClientModal()">+ Add Client</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Client ID</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clientsTableBody">
+                                <tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Vendors Tab -->
-            <div class="tab-content" id="vendors-tab">
-                <div class="section-header">
-                    <h2>Vendor Management</h2>
-                    <button class="btn btn-secondary" onclick="openAddVendorModal()">+ Add Vendor</button>
-                </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Vendor ID</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="vendorsTableBody">
-                            <tr><td colspan="2" class="loading">Loading...</td></tr>
-                        </tbody>
-                    </table>
+                
+                <!-- Vendors Tab -->
+                <div class="tab-content" id="vendors-tab">
+                    <div class="section-header">
+                        <h2>Vendor Management</h2>
+                        <button class="btn btn-primary" onclick="openAddVendorModal()">+ Add Vendor</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Vendor ID</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vendorsTableBody">
+                                <tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    
     
     <!-- Add Agent Modal -->
     <div class="modal" id="addAgentModal">
@@ -505,12 +176,12 @@
             </div>
             <form id="addAgentForm">
                 <div class="form-group">
-                    <label>Agent ID</label>
-                    <input type="text" id="agentId" required placeholder="e.g., 804">
+                    <label class="form-label">Agent ID</label>
+                    <input type="text" id="agentId" class="form-input" required placeholder="e.g., 804">
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-primary" onclick="closeAddAgentModal()">Cancel</button>
-                    <button type="submit" class="btn btn-secondary">Add Agent</button>
+                    <button type="button" class="btn btn-ghost" onclick="closeAddAgentModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Agent</button>
                 </div>
             </form>
         </div>
@@ -524,12 +195,12 @@
             </div>
             <form id="addClientForm">
                 <div class="form-group">
-                    <label>Client ID</label>
-                    <input type="text" id="clientId" required placeholder="e.g., AMTEK">
+                    <label class="form-label">Client ID</label>
+                    <input type="text" id="clientId" class="form-input" required placeholder="e.g., AMTEK">
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-primary" onclick="closeAddClientModal()">Cancel</button>
-                    <button type="submit" class="btn btn-secondary">Add Client</button>
+                    <button type="button" class="btn btn-ghost" onclick="closeAddClientModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Client</button>
                 </div>
             </form>
         </div>
@@ -543,12 +214,12 @@
             </div>
             <form id="addVendorForm">
                 <div class="form-group">
-                    <label>Vendor ID</label>
-                    <input type="text" id="vendorId" required placeholder="e.g., XYZ">
+                    <label class="form-label">Vendor ID</label>
+                    <input type="text" id="vendorId" class="form-input" required placeholder="e.g., XYZ">
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-primary" onclick="closeAddVendorModal()">Cancel</button>
-                    <button type="submit" class="btn btn-secondary">Add Vendor</button>
+                    <button type="button" class="btn btn-ghost" onclick="closeAddVendorModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Vendor</button>
                 </div>
             </form>
         </div>
@@ -558,11 +229,9 @@
         let currentUser = null;
         
         document.addEventListener('DOMContentLoaded', async () => {
-            // Check auth and require manager role
             currentUser = await initAuth('manager');
             if (!currentUser) return;
             
-            // Load all data
             await Promise.all([
                 loadUsers(),
                 loadAgents(),
@@ -607,7 +276,10 @@
             const container = document.getElementById('alertContainer');
             const alert = document.createElement('div');
             alert.className = `alert alert-${type}`;
-            alert.textContent = message;
+            
+            const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+            alert.innerHTML = `<span class="alert-icon">${icons[type] || 'ℹ'}</span><span>${message}</span>`;
+            
             container.appendChild(alert);
             setTimeout(() => alert.remove(), 5000);
         }
@@ -617,24 +289,24 @@
                 const { data, error } = await db
                     .from('user_roles')
                     .select('*')
-                    .order('created_at', { ascending: false });
+                    .order('agent_id', { ascending: true });
                 
                 if (error) throw error;
                 
                 const tbody = document.getElementById('usersTableBody');
-                if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #8a8a8a;">No users found</td></tr>';
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">No users found</td></tr>';
                     return;
                 }
                 
                 tbody.innerHTML = data.map(user => `
                     <tr>
+                        <td style="font-family: var(--font-mono);">${user.agent_id || 'N/A'}</td>
                         <td>${user.email || 'N/A'}</td>
                         <td><span class="badge badge-${user.role}">${user.role}</span></td>
-                        <td>${user.agent_id || 'N/A'}</td>
                         <td>${new Date(user.created_at).toLocaleDateString()}</td>
                         <td>
-                            <button class="btn btn-danger" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>
                         </td>
                     </tr>
                 `).join('');
@@ -653,39 +325,28 @@
                 
                 if (error) throw error;
                 
-                // Count users per agent
-                const { data: userCounts } = await db
-                    .from('user_roles')
-                    .select('agent_id');
+                const { data: userCounts } = await db.from('user_roles').select('agent_id');
                 
                 const counts = {};
                 userCounts?.forEach(u => {
-                    if (u.agent_id) {
-                        counts[u.agent_id] = (counts[u.agent_id] || 0) + 1;
-                    }
+                    if (u.agent_id) counts[u.agent_id] = (counts[u.agent_id] || 0) + 1;
                 });
                 
                 const tbody = document.getElementById('agentsTableBody');
-                if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #8a8a8a;">No agents found</td></tr>';
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">No agents found</td></tr>';
                     return;
                 }
                 
                 tbody.innerHTML = data.map(agent => `
                     <tr>
-                        <td>${agent.agent_id}</td>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${agent.agent_id}</td>
                         <td>${counts[agent.agent_id] || 0} user(s)</td>
                         <td>
-                            <button class="btn btn-danger" onclick="deleteAgent('${agent.agent_id}')">Delete</button>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteAgent('${agent.agent_id}')">Delete</button>
                         </td>
                     </tr>
                 `).join('');
-                
-                // Update agent dropdown in user modal
-                const agentSelect = document.getElementById('userAgent');
-                agentSelect.innerHTML = '<option value="">-- Select Agent --</option>' +
-                    data.map(a => `<option value="${a.agent_id}">Agent ${a.agent_id}</option>`).join('');
-                    
             } catch (error) {
                 console.error('Error loading agents:', error);
                 showAlert('Error loading agents: ' + error.message, 'error');
@@ -702,16 +363,16 @@
                 if (error) throw error;
                 
                 const tbody = document.getElementById('clientsTableBody');
-                if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: #8a8a8a;">No clients found</td></tr>';
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">No clients found</td></tr>';
                     return;
                 }
                 
                 tbody.innerHTML = data.map(client => `
                     <tr>
-                        <td>${client.client_id}</td>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${client.client_id}</td>
                         <td>
-                            <button class="btn btn-danger" onclick="deleteClient('${client.client_id}')">Delete</button>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteClient('${client.client_id}')">Delete</button>
                         </td>
                     </tr>
                 `).join('');
@@ -731,16 +392,16 @@
                 if (error) throw error;
                 
                 const tbody = document.getElementById('vendorsTableBody');
-                if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: #8a8a8a;">No vendors found</td></tr>';
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">No vendors found</td></tr>';
                     return;
                 }
                 
                 tbody.innerHTML = data.map(vendor => `
                     <tr>
-                        <td>${vendor.vendor_id}</td>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${vendor.vendor_id}</td>
                         <td>
-                            <button class="btn btn-danger" onclick="deleteVendor('${vendor.vendor_id}')">Delete</button>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteVendor('${vendor.vendor_id}')">Delete</button>
                         </td>
                     </tr>
                 `).join('');
@@ -751,7 +412,6 @@
         }
         
         // Modal functions
-        
         function openAddAgentModal() {
             document.getElementById('addAgentModal').classList.add('active');
         }
@@ -785,10 +445,7 @@
             const agentId = document.getElementById('agentId').value;
             
             try {
-                const { error } = await db
-                    .from('agents')
-                    .insert([{ agent_id: agentId }]);
-                
+                const { error } = await db.from('agents').insert([{ agent_id: agentId }]);
                 if (error) throw error;
                 
                 showAlert('Agent added successfully!', 'success');
@@ -804,10 +461,7 @@
             const clientId = document.getElementById('clientId').value.toUpperCase();
             
             try {
-                const { error } = await db
-                    .from('clients')
-                    .insert([{ client_id: clientId }]);
-                
+                const { error } = await db.from('clients').insert([{ client_id: clientId }]);
                 if (error) throw error;
                 
                 showAlert('Client added successfully!', 'success');
@@ -823,10 +477,7 @@
             const vendorId = document.getElementById('vendorId').value.toUpperCase();
             
             try {
-                const { error } = await db
-                    .from('vendors')
-                    .insert([{ vendor_id: vendorId }]);
-                
+                const { error } = await db.from('vendors').insert([{ vendor_id: vendorId }]);
                 if (error) throw error;
                 
                 showAlert('Vendor added successfully!', 'success');
@@ -841,11 +492,7 @@
             if (!confirm(`Delete agent ${agentId}? This will also delete all associated boxes, jobs, and serials.`)) return;
             
             try {
-                const { error } = await db
-                    .from('agents')
-                    .delete()
-                    .eq('agent_id', agentId);
-                
+                const { error } = await db.from('agents').delete().eq('agent_id', agentId);
                 if (error) throw error;
                 
                 showAlert('Agent deleted successfully!', 'success');
@@ -856,14 +503,10 @@
         }
         
         async function deleteClient(clientId) {
-            if (!confirm(`Delete client ${clientId}? This will remove it from dropdowns but keep historical records.`)) return;
+            if (!confirm(`Delete client ${clientId}?`)) return;
             
             try {
-                const { error } = await db
-                    .from('clients')
-                    .delete()
-                    .eq('client_id', clientId);
-                
+                const { error } = await db.from('clients').delete().eq('client_id', clientId);
                 if (error) throw error;
                 
                 showAlert('Client deleted successfully!', 'success');
@@ -874,14 +517,10 @@
         }
         
         async function deleteVendor(vendorId) {
-            if (!confirm(`Delete vendor ${vendorId}? This will remove it from dropdowns but keep historical records.`)) return;
+            if (!confirm(`Delete vendor ${vendorId}?`)) return;
             
             try {
-                const { error } = await db
-                    .from('vendors')
-                    .delete()
-                    .eq('vendor_id', vendorId);
-                
+                const { error } = await db.from('vendors').delete().eq('vendor_id', vendorId);
                 if (error) throw error;
                 
                 showAlert('Vendor deleted successfully!', 'success');
@@ -892,18 +531,13 @@
         }
         
         async function deleteUser(userId, email) {
-            if (!confirm(`Delete user ${email}?\n\nThis will remove their role and access, but their auth account will remain. They won't be able to login to the system.`)) return;
+            if (!confirm(`Delete user ${email}? They will lose access to the system.`)) return;
             
             try {
-                // Delete user role (user loses all access)
-                const { error } = await db
-                    .from('user_roles')
-                    .delete()
-                    .eq('user_id', userId);
-                
+                const { error } = await db.from('user_roles').delete().eq('user_id', userId);
                 if (error) throw error;
                 
-                showAlert(`✓ User ${email} access removed. They can no longer login to this system.`, 'success');
+                showAlert(`✓ User ${email} removed.`, 'success');
                 await loadUsers();
             } catch (error) {
                 showAlert('Error deleting user: ' + error.message, 'error');
