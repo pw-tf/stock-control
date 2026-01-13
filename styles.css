@@ -698,6 +698,11 @@ body::before {
     padding: 0;
 }
 
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 0.875rem;
+}
+
 .button-group {
     display: flex;
     gap: var(--spacing-md);
@@ -1257,6 +1262,20 @@ tr:hover td {
 }
 
 /* ============================================
+   JOB EDIT ACTIONS
+   ============================================ */
+.job-edit-actions {
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border-primary);
+    display: none;
+}
+
+.job-section.expanded .job-edit-actions {
+    display: block;
+}
+
+/* ============================================
    LOGIN PAGE
    ============================================ */
 .login-wrapper {
@@ -1501,7 +1520,9 @@ tr:hover td {
 	.card,
 	.btn,
 	.job-date,
-	.export-box-subtitle
+	.export-box-subtitle,
+    .job-edit-actions,
+    .modal
 	{
         display: none !important;
     }

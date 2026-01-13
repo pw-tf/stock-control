@@ -218,8 +218,54 @@
         </div>
     </div>
 
+    <!-- Edit Job Modal -->
+    <div class="modal" id="editJobModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Job</h3>
+            </div>
+            <div id="editJobAlertContainer"></div>
+            <div class="form-group">
+                <label class="form-label" for="editJobNumber">
+                    Job Number <span class="required">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    id="editJobNumber" 
+                    class="form-input" 
+                    placeholder="Enter job number"
+                >
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="editVendorSelect">
+                    Vendor <span class="required">*</span>
+                </label>
+                <select id="editVendorSelect" class="form-select">
+                    <option value="">Loading vendors...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="editSerials">
+                    Serial Numbers <span class="required">*</span>
+                    <span style="font-weight: 400; color: var(--text-muted);">(one per line)</span>
+                </label>
+                <textarea 
+                    id="editSerials" 
+                    class="form-textarea" 
+                    placeholder="Enter serial numbers, one per line..."
+                    style="min-height: 200px;"
+                ></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" onclick="closeEditJobModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveJobEdit()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
     <script>
 let currentAgent, boxes = [], currentBox;
+let editingJob = null; // Store the job being edited
 
         function getClientCode(client) {
             return client ? client.substring(0, 3).toUpperCase() : "OTH";
@@ -719,8 +765,8 @@ let currentAgent, boxes = [], currentBox;
             handleBulkToggle();
         }
 
-        function showAlert(message, type) {
-            const container = document.getElementById("alertContainer");
+        function showAlert(message, type, containerId = "alertContainer") {
+            const container = document.getElementById(containerId);
             const alert = document.createElement("div");
             alert.className = `alert alert-${type}`;
             
@@ -898,7 +944,15 @@ let currentAgent, boxes = [], currentBox;
                         `;
                     });
                     
-                    html += `</div></div>`;
+                    html += `
+                            </div>
+                            <div class="job-edit-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); openEditJobModal(${job.id}, '${box.client}')">
+                                    ✏️ Edit
+                                </button>
+                            </div>
+                        </div>
+                    `;
                 }
                 
                 html += `
@@ -958,6 +1012,151 @@ let currentAgent, boxes = [], currentBox;
             document.getElementById("filterExportClient").value = "";
             resetExportResults();
             clearExportPreview();
+        }
+
+        // Edit Job Functions
+        async function openEditJobModal(jobId, clientId) {
+            try {
+                // Load the job data
+                const { data: job, error: jobError } = await db
+                    .from("jobs")
+                    .select("*")
+                    .eq("id", jobId)
+                    .single();
+                
+                if (jobError) throw jobError;
+                
+                // Load the serials for this job
+                const { data: serials, error: serialsError } = await db
+                    .from("serials")
+                    .select("serial_number")
+                    .eq("job_id", jobId)
+                    .order("created_at", { ascending: true });
+                
+                if (serialsError) throw serialsError;
+                
+                // Load vendors for this client
+                const { data: vendors, error: vendorsError } = await db
+                    .from('clients_vendors')
+                    .select('vendor_id')
+                    .eq('client_id', clientId);
+                
+                if (vendorsError) throw vendorsError;
+                
+                // Populate the modal
+                document.getElementById("editJobNumber").value = job.job_number;
+                
+                const vendorSelect = document.getElementById("editVendorSelect");
+                vendorSelect.innerHTML = '<option value="">Select a vendor...</option>';
+                vendors.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.vendor_id;
+                    option.textContent = item.vendor_id;
+                    if (item.vendor_id === job.vendor) {
+                        option.selected = true;
+                    }
+                    vendorSelect.appendChild(option);
+                });
+                
+                document.getElementById("editSerials").value = serials.map(s => s.serial_number).join("\n");
+                
+                // Store the job being edited
+                editingJob = {
+                    id: jobId,
+                    boxId: job.box_id,
+                    originalSerials: serials.map(s => s.serial_number)
+                };
+                
+                // Clear any previous alerts
+                document.getElementById("editJobAlertContainer").innerHTML = "";
+                
+                // Show the modal
+                document.getElementById("editJobModal").classList.add("active");
+            } catch (error) {
+                showAlert("Error loading job data: " + error.message, "error");
+            }
+        }
+
+        function closeEditJobModal() {
+            document.getElementById("editJobModal").classList.remove("active");
+            editingJob = null;
+        }
+
+        async function saveJobEdit() {
+            if (!editingJob) return;
+            
+            const jobNumber = document.getElementById("editJobNumber").value.trim();
+            const vendor = document.getElementById("editVendorSelect").value;
+            const serialsText = document.getElementById("editSerials").value.trim();
+            
+            if (!jobNumber || !vendor || !serialsText) {
+                showAlert("Please fill in all required fields", "error", "editJobAlertContainer");
+                return;
+            }
+            
+            const newSerials = serialsText.split("\n").map(s => s.trim()).filter(s => s.length > 0);
+            
+            if (newSerials.length === 0) {
+                showAlert("Please enter at least one serial", "error", "editJobAlertContainer");
+                return;
+            }
+            
+            // Check for duplicates (excluding serials that were already in this job)
+            const serialsToCheck = newSerials.filter(s => !editingJob.originalSerials.includes(s));
+            if (serialsToCheck.length > 0) {
+                const duplicates = await checkDuplicates(serialsToCheck);
+                if (duplicates.length > 0) {
+                    showAlert(`Duplicate serials found: ${duplicates.join(", ")}`, "warning", "editJobAlertContainer");
+                    return;
+                }
+            }
+            
+            showLoading(true);
+            
+            try {
+                // Update job number and vendor
+                const { error: jobError } = await db
+                    .from("jobs")
+                    .update({
+                        job_number: jobNumber,
+                        vendor: vendor
+                    })
+                    .eq("id", editingJob.id);
+                
+                if (jobError) throw jobError;
+                
+                // Delete all old serials
+                const { error: deleteError } = await db
+                    .from("serials")
+                    .delete()
+                    .eq("job_id", editingJob.id);
+                
+                if (deleteError) throw deleteError;
+                
+                // Insert new serials
+                const serialRecords = newSerials.map(serial => ({
+                    job_id: editingJob.id,
+                    box_id: editingJob.boxId,
+                    serial_number: serial,
+                    created_at: new Date().toISOString()
+                }));
+                
+                const { error: serialError } = await db
+                    .from("serials")
+                    .insert(serialRecords);
+                
+                if (serialError) throw serialError;
+                
+                showAlert("✓ Job updated successfully", "success");
+                closeEditJobModal();
+                
+                // Refresh the export preview
+                await generateExportPreview();
+            } catch (error) {
+                showAlert("Error updating job: " + error.message, "error", "editJobAlertContainer");
+            } finally {
+                showLoading(false);
+            }
         }
     </script>
 </body>
