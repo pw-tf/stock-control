@@ -1117,6 +1117,30 @@ tr:hover td {
     margin-top: var(--spacing-xl);
 }
 
+/* Modal Close Button */
+.modal-close-btn {
+    width: 32px;
+    height: 32px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-secondary);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-base);
+    flex-shrink: 0;
+}
+
+.modal-close-btn:hover {
+    background: var(--error-bg);
+    border-color: var(--error);
+    color: var(--error);
+}
+
 /* ============================================
    BOX LIST & ITEMS
    ============================================ */

@@ -362,16 +362,16 @@
     <!-- Shift Report Modal -->
     <div class="modal" id="shiftReportModal">
         <div class="modal-content" style="max-width: 560px;">
-            <div class="modal-header">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <h3>📊 Shift Report</h3>
+                <button type="button" class="modal-close-btn" onclick="closeShiftReportModal()" aria-label="Close">×</button>
             </div>
             <div class="shift-report-content" id="shiftReportContent">
                 <!-- Report will be generated here -->
             </div>
-            <div class="modal-actions">
-                <button type="button" class="btn btn-ghost" onclick="closeShiftReportModal()">Close</button>
-                <button type="button" class="btn btn-secondary" onclick="copyShiftReport()">📋 Copy as Text</button>
-                <button type="button" class="btn btn-primary" onclick="downloadShiftReportCSV()">📥 Download CSV</button>
+            <div class="modal-actions" style="flex-direction: column; gap: 12px;">
+                <button type="button" class="btn btn-secondary" onclick="copyShiftReport()" style="width: 100%;">📋 Copy as Text</button>
+                <button type="button" class="btn btn-primary" onclick="downloadShiftReportCSV()" style="width: 100%;">📥 Download CSV</button>
             </div>
         </div>
     </div>
