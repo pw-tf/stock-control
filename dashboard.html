@@ -265,6 +265,7 @@
 
     <script>
 let currentAgent, boxes = [], currentBox;
+let currentUserRole = null; // Store the current user's role
 let editingJob = null; // Store the job being edited
 
         function getClientCode(client) {
@@ -383,6 +384,7 @@ let editingJob = null; // Store the job being edited
             if (!user) return;
             
             currentAgent = user.agent_id;
+            currentUserRole = user.role; // Store the user's role
             
             document.getElementById("hamburgerBtn").classList.add("visible");
             document.getElementById("mainForm").classList.add("active");
@@ -947,9 +949,9 @@ let editingJob = null; // Store the job being edited
                     html += `
                             </div>
                             <div class="job-edit-actions">
-                                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); openEditJobModal(${job.id}, '${box.client}')">
-                                    ✏️ Edit
-                                </button>
+                                ${canEditJob(box.agent) ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); openEditJobModal(${job.id}, '${box.client}', '${box.agent}')">
+                                    ✏️ Edit Job
+                                </button>` : ''}
                             </div>
                         </div>
                     `;
@@ -1015,7 +1017,27 @@ let editingJob = null; // Store the job being edited
         }
 
         // Edit Job Functions
-        async function openEditJobModal(jobId, clientId) {
+        
+        // Check if current user can edit jobs for a given agent
+        function canEditJob(boxAgent) {
+            // Managers can edit any job
+            if (currentUserRole === 'manager') {
+                return true;
+            }
+            // Technicians can only edit jobs from their assigned agent
+            if (currentUserRole === 'technician') {
+                return boxAgent === currentAgent;
+            }
+            return false;
+        }
+        
+        async function openEditJobModal(jobId, clientId, boxAgent) {
+            // Authorization check
+            if (!canEditJob(boxAgent)) {
+                showAlert("You don't have permission to edit this job", "error");
+                return;
+            }
+            
             try {
                 // Load the job data
                 const { data: job, error: jobError } = await db
@@ -1084,6 +1106,26 @@ let editingJob = null; // Store the job being edited
 
         async function saveJobEdit() {
             if (!editingJob) return;
+            
+            // Re-verify permission (extra security layer)
+            const { data: job } = await db
+                .from("jobs")
+                .select("box_id")
+                .eq("id", editingJob.id)
+                .single();
+            
+            if (job) {
+                const { data: box } = await db
+                    .from("boxes")
+                    .select("agent")
+                    .eq("id", job.box_id)
+                    .single();
+                
+                if (box && !canEditJob(box.agent)) {
+                    showAlert("You don't have permission to edit this job", "error", "editJobAlertContainer");
+                    return;
+                }
+            }
             
             const jobNumber = document.getElementById("editJobNumber").value.trim();
             const vendor = document.getElementById("editVendorSelect").value;
