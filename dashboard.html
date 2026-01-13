@@ -43,6 +43,10 @@
                 <span>📊</span>
                 <span>View Boxes</span>
             </div>
+            <div class="sidebar-menu-item" id="menuUser" onclick="window.location.href='user.html'">
+                <span>👤</span>
+                <span>User</span>
+            </div>
             <div class="sidebar-menu-item" data-role="manager" onclick="window.location.href='admin.html'">
                 <span>⚙️</span>
                 <span>Admin Panel</span>
@@ -62,7 +66,13 @@
                     <div class="header-icon">📦</div>
                     <div>
                         <h1>Stock Submission</h1>
-                        <div class="header-subtitle">Inventory Management System</div>
+                        <!-- Dynamic Shift Status -->
+                        <div class="header-subtitle" id="shiftStatusContainer">
+                            <span id="shiftStatusText">Loading...</span>
+                            <button class="btn btn-sm shift-header-btn" id="shiftHeaderBtn" style="display: none;">
+                                Start Shift
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -218,6 +228,193 @@
         </div>
     </div>
 
+    <!-- Start Shift Modal -->
+    <div class="modal" id="startShiftModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🚗 Start New Shift</h3>
+            </div>
+            <div id="startShiftAlertContainer"></div>
+            <form id="startShiftForm">
+                <div class="form-group">
+                    <label class="form-label" for="startShiftTime">
+                        Start Time <span class="required">*</span>
+                    </label>
+                    <input 
+                        type="datetime-local" 
+                        id="startShiftTime" 
+                        class="form-input" 
+                        required
+                    >
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                        Auto-filled with current time. Adjust if needed.
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="startShiftKms">
+                        Starting Kilometres (Odometer) <span class="required">*</span>
+                    </label>
+                    <input 
+                        type="number" 
+                        id="startShiftKms" 
+                        class="form-input" 
+                        required 
+                        placeholder="e.g., 45230"
+                        min="0"
+                    >
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeStartShiftModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Start Shift</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- End Shift Modal -->
+    <div class="modal" id="endShiftModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🏁 End Shift</h3>
+            </div>
+            <div id="endShiftAlertContainer"></div>
+            <form id="endShiftForm">
+                <div class="form-group">
+                    <label class="form-label" for="endShiftTime">
+                        End Time <span class="required">*</span>
+                    </label>
+                    <input 
+                        type="datetime-local" 
+                        id="endShiftTime" 
+                        class="form-input" 
+                        required
+                    >
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                        Auto-filled with current time. Adjust if needed.
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="endShiftKms">
+                        Ending Kilometres (Odometer) <span class="required">*</span>
+                    </label>
+                    <input 
+                        type="number" 
+                        id="endShiftKms" 
+                        class="form-input" 
+                        required 
+                        placeholder="e.g., 45310"
+                        min="0"
+                    >
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="extraJobs">
+                        Extra Jobs (not logged in system)
+                    </label>
+                    <input 
+                        type="number" 
+                        id="extraJobs" 
+                        class="form-input" 
+                        placeholder="0"
+                        min="0"
+                        value="0"
+                    >
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                        Jobs completed without serial logging (e.g., on-site repairs)
+                    </p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeEndShiftModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">End Shift</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Stale Shift Recovery Modal -->
+    <div class="modal" id="staleShiftModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚠️ Incomplete Shift Found</h3>
+            </div>
+            <div class="help-box" style="margin-bottom: 20px; border-left-color: var(--warning);">
+                <p style="margin: 0;">
+                    You have an unfinished shift from <strong id="staleShiftDate"></strong>. 
+                    Please enter your end details to close it before starting a new shift.
+                </p>
+            </div>
+            <div id="staleShiftAlertContainer"></div>
+            <form id="staleShiftForm">
+                <div class="form-group">
+                    <label class="form-label">Shift Started</label>
+                    <input 
+                        type="text" 
+                        id="staleShiftStartInfo" 
+                        class="form-input" 
+                        readonly 
+                        style="background: var(--bg-primary); cursor: not-allowed;"
+                    >
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="staleShiftEndTime">
+                        End Time <span class="required">*</span>
+                    </label>
+                    <input 
+                        type="datetime-local" 
+                        id="staleShiftEndTime" 
+                        class="form-input" 
+                        required
+                    >
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="staleShiftEndKms">
+                        Ending Kilometres (Odometer) <span class="required">*</span>
+                    </label>
+                    <input 
+                        type="number" 
+                        id="staleShiftEndKms" 
+                        class="form-input" 
+                        required 
+                        placeholder="e.g., 45310"
+                        min="0"
+                    >
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="staleExtraJobs">
+                        Extra Jobs (not logged in system)
+                    </label>
+                    <input 
+                        type="number" 
+                        id="staleExtraJobs" 
+                        class="form-input" 
+                        placeholder="0"
+                        min="0"
+                        value="0"
+                    >
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Close Shift</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Shift Report Modal -->
+    <div class="modal" id="shiftReportModal">
+        <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header">
+                <h3>📊 Shift Report</h3>
+            </div>
+            <div class="shift-report-content" id="shiftReportContent">
+                <!-- Report will be generated here -->
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="closeShiftReportModal()">Close</button>
+                <button type="button" class="btn btn-secondary" onclick="copyShiftReport()">📋 Copy as Text</button>
+                <button type="button" class="btn btn-primary" onclick="downloadShiftReportCSV()">📥 Download CSV</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit Job Modal -->
     <div class="modal" id="editJobModal">
         <div class="modal-content">
@@ -265,8 +462,13 @@
 
     <script>
 let currentAgent, boxes = [], currentBox;
-let currentUserRole = null; // Store the current user's role
-let editingJob = null; // Store the job being edited
+let currentUserRole = null;
+let currentUserId = null;
+let shiftsEnabled = false;
+let activeShift = null;
+let staleShift = null;
+let lastShiftReport = null;
+let editingJob = null;
 
         function getClientCode(client) {
             return client ? client.substring(0, 3).toUpperCase() : "OTH";
@@ -275,6 +477,458 @@ let editingJob = null; // Store the job being edited
         function formatBoxId(agent, client, boxNumber) {
             return `${agent}-${getClientCode(client)}-${boxNumber}`;
         }
+
+        // ============================================
+        // SHIFT MANAGEMENT FUNCTIONS
+        // ============================================
+        
+        function formatDateTime(date) {
+            return new Date(date).toLocaleString('en-AU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+        
+        function formatDateTimeLocal(date) {
+            const d = new Date(date);
+            const offset = d.getTimezoneOffset();
+            const localDate = new Date(d.getTime() - offset * 60 * 1000);
+            return localDate.toISOString().slice(0, 16);
+        }
+        
+        function getTodayMidnight() {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return today;
+        }
+        
+        async function checkShiftStatus() {
+            if (!shiftsEnabled) {
+                document.getElementById('shiftStatusText').textContent = 'Stock Entry System';
+                document.getElementById('shiftHeaderBtn').style.display = 'none';
+                return;
+            }
+            
+            try {
+                // Check for active shift
+                const { data: shifts, error } = await db
+                    .from('shifts')
+                    .select('*')
+                    .eq('user_id', currentUserId)
+                    .eq('status', 'active')
+                    .order('start_time', { ascending: false })
+                    .limit(1);
+                
+                if (error) throw error;
+                
+                if (shifts && shifts.length > 0) {
+                    const shift = shifts[0];
+                    const shiftStart = new Date(shift.start_time);
+                    const todayMidnight = getTodayMidnight();
+                    
+                    // Check if shift is stale (started before today's midnight)
+                    if (shiftStart < todayMidnight) {
+                        staleShift = shift;
+                        activeShift = null;
+                        showStaleShiftModal();
+                    } else {
+                        activeShift = shift;
+                        staleShift = null;
+                        updateShiftDisplay();
+                    }
+                } else {
+                    activeShift = null;
+                    staleShift = null;
+                    updateShiftDisplay();
+                }
+            } catch (error) {
+                console.error('Error checking shift status:', error);
+                document.getElementById('shiftStatusText').textContent = 'Error loading shift';
+            }
+        }
+        
+        function updateShiftDisplay() {
+            const statusText = document.getElementById('shiftStatusText');
+            const headerBtn = document.getElementById('shiftHeaderBtn');
+            
+            if (!shiftsEnabled) {
+                statusText.textContent = 'Stock Entry System';
+                headerBtn.style.display = 'none';
+                return;
+            }
+            
+            if (activeShift) {
+                const startTime = new Date(activeShift.start_time);
+                const timeStr = startTime.toLocaleTimeString('en-AU', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                });
+                statusText.innerHTML = `<span class="shift-active-indicator"></span> Active Shift • Started ${timeStr}`;
+                headerBtn.textContent = 'End Shift';
+                headerBtn.className = 'btn btn-sm btn-danger shift-header-btn';
+                headerBtn.style.display = 'inline-flex';
+                headerBtn.onclick = openEndShiftModal;
+            } else {
+                statusText.textContent = 'No Active Shift';
+                headerBtn.textContent = 'Start Shift';
+                headerBtn.className = 'btn btn-sm btn-primary shift-header-btn';
+                headerBtn.style.display = 'inline-flex';
+                headerBtn.onclick = openStartShiftModal;
+            }
+        }
+        
+        // Start Shift Modal
+        function openStartShiftModal() {
+            document.getElementById('startShiftTime').value = formatDateTimeLocal(new Date());
+            document.getElementById('startShiftKms').value = '';
+            document.getElementById('startShiftAlertContainer').innerHTML = '';
+            document.getElementById('startShiftModal').classList.add('active');
+        }
+        
+        function closeStartShiftModal() {
+            document.getElementById('startShiftModal').classList.remove('active');
+        }
+        
+        async function handleStartShift(e) {
+            e.preventDefault();
+            
+            const startTime = document.getElementById('startShiftTime').value;
+            const startKms = parseInt(document.getElementById('startShiftKms').value);
+            
+            if (!startTime || isNaN(startKms)) {
+                showAlert('Please fill in all required fields', 'error', 'startShiftAlertContainer');
+                return;
+            }
+            
+            showLoading(true);
+            
+            try {
+                const { data, error } = await db
+                    .from('shifts')
+                    .insert([{
+                        user_id: currentUserId,
+                        agent_id: currentAgent,
+                        start_time: new Date(startTime).toISOString(),
+                        start_kms: startKms,
+                        status: 'active'
+                    }])
+                    .select()
+                    .single();
+                
+                if (error) throw error;
+                
+                activeShift = data;
+                closeStartShiftModal();
+                updateShiftDisplay();
+                showAlert('✓ Shift started successfully', 'success');
+                showSyncStatus('✓ Synced', 'synced');
+            } catch (error) {
+                console.error('Error starting shift:', error);
+                showAlert('Error starting shift: ' + error.message, 'error', 'startShiftAlertContainer');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // End Shift Modal
+        function openEndShiftModal() {
+            document.getElementById('endShiftTime').value = formatDateTimeLocal(new Date());
+            document.getElementById('endShiftKms').value = '';
+            document.getElementById('extraJobs').value = '0';
+            document.getElementById('endShiftAlertContainer').innerHTML = '';
+            document.getElementById('endShiftModal').classList.add('active');
+        }
+        
+        function closeEndShiftModal() {
+            document.getElementById('endShiftModal').classList.remove('active');
+        }
+        
+        async function handleEndShift(e) {
+            e.preventDefault();
+            
+            const endTime = document.getElementById('endShiftTime').value;
+            const endKms = parseInt(document.getElementById('endShiftKms').value);
+            const extraJobs = parseInt(document.getElementById('extraJobs').value) || 0;
+            
+            if (!endTime || isNaN(endKms)) {
+                showAlert('Please fill in all required fields', 'error', 'endShiftAlertContainer');
+                return;
+            }
+            
+            if (endKms < activeShift.start_kms) {
+                showAlert('End kilometres cannot be less than start kilometres', 'error', 'endShiftAlertContainer');
+                return;
+            }
+            
+            showLoading(true);
+            
+            try {
+                const { data, error } = await db
+                    .from('shifts')
+                    .update({
+                        end_time: new Date(endTime).toISOString(),
+                        end_kms: endKms,
+                        extra_jobs: extraJobs,
+                        status: 'completed'
+                    })
+                    .eq('id', activeShift.id)
+                    .select()
+                    .single();
+                
+                if (error) throw error;
+                
+                // Generate report
+                await generateShiftReport(data);
+                
+                activeShift = null;
+                closeEndShiftModal();
+                updateShiftDisplay();
+                showSyncStatus('✓ Synced', 'synced');
+            } catch (error) {
+                console.error('Error ending shift:', error);
+                showAlert('Error ending shift: ' + error.message, 'error', 'endShiftAlertContainer');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Stale Shift Modal
+        function showStaleShiftModal() {
+            const shift = staleShift;
+            const startDate = new Date(shift.start_time);
+            
+            document.getElementById('staleShiftDate').textContent = startDate.toLocaleDateString('en-AU', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+            
+            document.getElementById('staleShiftStartInfo').value = `${formatDateTime(shift.start_time)} • ${shift.start_kms.toLocaleString()} km`;
+            
+            // Default end time to 11:59 PM of the shift start date
+            const defaultEndTime = new Date(startDate);
+            defaultEndTime.setHours(23, 59, 0, 0);
+            document.getElementById('staleShiftEndTime').value = formatDateTimeLocal(defaultEndTime);
+            
+            document.getElementById('staleShiftEndKms').value = '';
+            document.getElementById('staleExtraJobs').value = '0';
+            document.getElementById('staleShiftAlertContainer').innerHTML = '';
+            document.getElementById('staleShiftModal').classList.add('active');
+        }
+        
+        async function handleStaleShift(e) {
+            e.preventDefault();
+            
+            const endTime = document.getElementById('staleShiftEndTime').value;
+            const endKms = parseInt(document.getElementById('staleShiftEndKms').value);
+            const extraJobs = parseInt(document.getElementById('staleExtraJobs').value) || 0;
+            
+            if (!endTime || isNaN(endKms)) {
+                showAlert('Please fill in all required fields', 'error', 'staleShiftAlertContainer');
+                return;
+            }
+            
+            if (endKms < staleShift.start_kms) {
+                showAlert('End kilometres cannot be less than start kilometres', 'error', 'staleShiftAlertContainer');
+                return;
+            }
+            
+            showLoading(true);
+            
+            try {
+                const { data, error } = await db
+                    .from('shifts')
+                    .update({
+                        end_time: new Date(endTime).toISOString(),
+                        end_kms: endKms,
+                        extra_jobs: extraJobs,
+                        status: 'completed'
+                    })
+                    .eq('id', staleShift.id)
+                    .select()
+                    .single();
+                
+                if (error) throw error;
+                
+                // Generate report for the stale shift
+                await generateShiftReport(data);
+                
+                staleShift = null;
+                document.getElementById('staleShiftModal').classList.remove('active');
+                
+                // Re-check shift status (now should show no active shift)
+                await checkShiftStatus();
+                showSyncStatus('✓ Synced', 'synced');
+            } catch (error) {
+                console.error('Error closing stale shift:', error);
+                showAlert('Error closing shift: ' + error.message, 'error', 'staleShiftAlertContainer');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Shift Report
+        async function generateShiftReport(shift) {
+            const startTime = new Date(shift.start_time);
+            const endTime = new Date(shift.end_time);
+            
+            // Calculate hours
+            const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
+            const hours = Math.floor(hoursWorked);
+            const minutes = Math.round((hoursWorked - hours) * 60);
+            
+            // Calculate kilometres
+            const kmsTravelled = shift.end_kms - shift.start_kms;
+            
+            // Count jobs from database during shift timeframe
+            let systemJobs = 0;
+            try {
+                const { count, error } = await db
+                    .from('jobs')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('box_id', db.raw(`(SELECT id FROM boxes WHERE agent = '${currentAgent}')`));
+                
+                // Actually need to join - let's do a different approach
+                const { data: boxes } = await db
+                    .from('boxes')
+                    .select('id')
+                    .eq('agent', currentAgent);
+                
+                if (boxes && boxes.length > 0) {
+                    const boxIds = boxes.map(b => b.id);
+                    const { count: jobCount } = await db
+                        .from('jobs')
+                        .select('*', { count: 'exact', head: true })
+                        .in('box_id', boxIds)
+                        .gte('created_at', shift.start_time)
+                        .lte('created_at', shift.end_time);
+                    
+                    systemJobs = jobCount || 0;
+                }
+            } catch (error) {
+                console.error('Error counting jobs:', error);
+            }
+            
+            const totalJobs = systemJobs + (shift.extra_jobs || 0);
+            
+            lastShiftReport = {
+                date: startTime.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+                startTime: formatDateTime(shift.start_time),
+                endTime: formatDateTime(shift.end_time),
+                hoursWorked: `${hours}h ${minutes}m`,
+                hoursDecimal: hoursWorked.toFixed(2),
+                startKms: shift.start_kms,
+                endKms: shift.end_kms,
+                kmsTravelled: kmsTravelled,
+                systemJobs: systemJobs,
+                extraJobs: shift.extra_jobs || 0,
+                totalJobs: totalJobs,
+                agentId: currentAgent
+            };
+            
+            showShiftReportModal();
+        }
+        
+        function showShiftReportModal() {
+            const report = lastShiftReport;
+            
+            const html = `
+                <div class="shift-report-card">
+                    <div class="shift-report-header">
+                        <div class="shift-report-date">${report.date}</div>
+                        <div class="shift-report-agent">Agent ${report.agentId}</div>
+                    </div>
+                    
+                    <div class="shift-report-grid">
+                        <div class="shift-report-stat">
+                            <div class="shift-report-stat-value">${report.hoursWorked}</div>
+                            <div class="shift-report-stat-label">Hours Worked</div>
+                            <div class="shift-report-stat-detail">${report.startTime} → ${report.endTime}</div>
+                        </div>
+                        
+                        <div class="shift-report-stat">
+                            <div class="shift-report-stat-value">${report.kmsTravelled.toLocaleString()} km</div>
+                            <div class="shift-report-stat-label">Distance Travelled</div>
+                            <div class="shift-report-stat-detail">${report.startKms.toLocaleString()} → ${report.endKms.toLocaleString()} km</div>
+                        </div>
+                        
+                        <div class="shift-report-stat">
+                            <div class="shift-report-stat-value">${report.totalJobs}</div>
+                            <div class="shift-report-stat-label">Total Jobs</div>
+                            <div class="shift-report-stat-detail">${report.systemJobs} logged + ${report.extraJobs} extra</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('shiftReportContent').innerHTML = html;
+            document.getElementById('shiftReportModal').classList.add('active');
+        }
+        
+        function closeShiftReportModal() {
+            document.getElementById('shiftReportModal').classList.remove('active');
+        }
+        
+        function copyShiftReport() {
+            const report = lastShiftReport;
+            
+            const text = `SHIFT REPORT - ${report.date}
+Agent: ${report.agentId}
+
+TIME
+Start: ${report.startTime}
+End: ${report.endTime}
+Duration: ${report.hoursWorked} (${report.hoursDecimal} hours)
+
+KILOMETRES
+Start: ${report.startKms.toLocaleString()} km
+End: ${report.endKms.toLocaleString()} km
+Travelled: ${report.kmsTravelled.toLocaleString()} km
+
+JOBS
+System Logged: ${report.systemJobs}
+Extra Jobs: ${report.extraJobs}
+Total: ${report.totalJobs}`;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showAlert('✓ Report copied to clipboard', 'success');
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                showAlert('Failed to copy report', 'error');
+            });
+        }
+        
+        function downloadShiftReportCSV() {
+            const report = lastShiftReport;
+            
+            const csvContent = `Date,Agent,Start Time,End Time,Hours (Decimal),Start KM,End KM,KM Travelled,System Jobs,Extra Jobs,Total Jobs
+"${report.date}","${report.agentId}","${report.startTime}","${report.endTime}",${report.hoursDecimal},${report.startKms},${report.endKms},${report.kmsTravelled},${report.systemJobs},${report.extraJobs},${report.totalJobs}`;
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            const filename = `shift-report-${report.date.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.csv`;
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showAlert('✓ CSV downloaded', 'success');
+        }
+
+        // ============================================
+        // ORIGINAL DASHBOARD FUNCTIONS
+        // ============================================
 
         async function loadAgents() {
             try {
@@ -339,7 +993,6 @@ let editingJob = null; // Store the job being edited
             }
         }
 
-        // Updated function to filter vendors based on the selected client
         async function updateVendorsByClient(clientId) {
             const vendorSelect = document.getElementById('vendorSelect');
             if (!vendorSelect) return;
@@ -350,7 +1003,6 @@ let editingJob = null; // Store the job being edited
             }
 
             try {
-                // Fetch vendor IDs from the linking table for the specific client
                 const { data, error } = await db
                     .from('clients_vendors')
                     .select('vendor_id')
@@ -384,7 +1036,23 @@ let editingJob = null; // Store the job being edited
             if (!user) return;
             
             currentAgent = user.agent_id;
-            currentUserRole = user.role; // Store the user's role
+            currentUserRole = user.role;
+            currentUserId = user.id;
+            
+            // Check if shifts are enabled for this user
+            try {
+                const { data: userData, error } = await db
+                    .from('user_roles')
+                    .select('shifts_enabled')
+                    .eq('user_id', currentUserId)
+                    .single();
+                
+                if (!error && userData) {
+                    shiftsEnabled = userData.shifts_enabled || false;
+                }
+            } catch (error) {
+                console.error('Error checking shift settings:', error);
+            }
             
             document.getElementById("hamburgerBtn").classList.add("visible");
             document.getElementById("mainForm").classList.add("active");
@@ -392,7 +1060,8 @@ let editingJob = null; // Store the job being edited
             await Promise.all([
                 loadAgents(),
                 loadClients(),
-                loadBoxesForAgent()
+                loadBoxesForAgent(),
+                checkShiftStatus()
             ]);
 
             // Event Listeners
@@ -414,6 +1083,11 @@ let editingJob = null; // Store the job being edited
             
             document.getElementById("filterAgent").addEventListener("change", resetExportResults);
             document.getElementById("filterExportClient").addEventListener("change", resetExportResults);
+            
+            // Shift form listeners
+            document.getElementById("startShiftForm").addEventListener("submit", handleStartShift);
+            document.getElementById("endShiftForm").addEventListener("submit", handleEndShift);
+            document.getElementById("staleShiftForm").addEventListener("submit", handleStaleShift);
         });
 
         function toggleSidebar() {
@@ -442,7 +1116,6 @@ let editingJob = null; // Store the job being edited
             const isBulk = document.getElementById("bulkToggle").checked;
             document.getElementById("individualEntry").classList.toggle("hidden", isBulk);
             document.getElementById("bulkEntry").classList.toggle("active", isBulk);
-            // Sync the second toggle
             document.getElementById("bulkToggle2").checked = isBulk;
         }
 
@@ -450,7 +1123,6 @@ let editingJob = null; // Store the job being edited
             const isBulk = document.getElementById("bulkToggle2").checked;
             document.getElementById("individualEntry").classList.toggle("hidden", isBulk);
             document.getElementById("bulkEntry").classList.toggle("active", isBulk);
-            // Sync the first toggle
             document.getElementById("bulkToggle").checked = isBulk;
         }
 
@@ -467,7 +1139,6 @@ let editingJob = null; // Store the job being edited
         async function handleClientChange() {
             const client = document.getElementById("clientSelect").value;
             
-            // Trigger the vendor update whenever client changes
             await updateVendorsByClient(client);
 
             if (!client) {
@@ -1017,14 +1688,10 @@ let editingJob = null; // Store the job being edited
         }
 
         // Edit Job Functions
-        
-        // Check if current user can edit jobs for a given agent
         function canEditJob(boxAgent) {
-            // Managers can edit any job
             if (currentUserRole === 'manager') {
                 return true;
             }
-            // Technicians can only edit jobs from their assigned agent
             if (currentUserRole === 'technician') {
                 return boxAgent === currentAgent;
             }
@@ -1032,14 +1699,12 @@ let editingJob = null; // Store the job being edited
         }
         
         async function openEditJobModal(jobId, clientId, boxAgent) {
-            // Authorization check
             if (!canEditJob(boxAgent)) {
                 showAlert("You don't have permission to edit this job", "error");
                 return;
             }
             
             try {
-                // Load the job data
                 const { data: job, error: jobError } = await db
                     .from("jobs")
                     .select("*")
@@ -1048,7 +1713,6 @@ let editingJob = null; // Store the job being edited
                 
                 if (jobError) throw jobError;
                 
-                // Load the serials for this job
                 const { data: serials, error: serialsError } = await db
                     .from("serials")
                     .select("serial_number")
@@ -1057,7 +1721,6 @@ let editingJob = null; // Store the job being edited
                 
                 if (serialsError) throw serialsError;
                 
-                // Load vendors for this client
                 const { data: vendors, error: vendorsError } = await db
                     .from('clients_vendors')
                     .select('vendor_id')
@@ -1065,7 +1728,6 @@ let editingJob = null; // Store the job being edited
                 
                 if (vendorsError) throw vendorsError;
                 
-                // Populate the modal
                 document.getElementById("editJobNumber").value = job.job_number;
                 
                 const vendorSelect = document.getElementById("editVendorSelect");
@@ -1082,17 +1744,13 @@ let editingJob = null; // Store the job being edited
                 
                 document.getElementById("editSerials").value = serials.map(s => s.serial_number).join("\n");
                 
-                // Store the job being edited
                 editingJob = {
                     id: jobId,
                     boxId: job.box_id,
                     originalSerials: serials.map(s => s.serial_number)
                 };
                 
-                // Clear any previous alerts
                 document.getElementById("editJobAlertContainer").innerHTML = "";
-                
-                // Show the modal
                 document.getElementById("editJobModal").classList.add("active");
             } catch (error) {
                 showAlert("Error loading job data: " + error.message, "error");
@@ -1107,7 +1765,6 @@ let editingJob = null; // Store the job being edited
         async function saveJobEdit() {
             if (!editingJob) return;
             
-            // Re-verify permission (extra security layer)
             const { data: job } = await db
                 .from("jobs")
                 .select("box_id")
@@ -1143,7 +1800,6 @@ let editingJob = null; // Store the job being edited
                 return;
             }
             
-            // Check for duplicates (excluding serials that were already in this job)
             const serialsToCheck = newSerials.filter(s => !editingJob.originalSerials.includes(s));
             if (serialsToCheck.length > 0) {
                 const duplicates = await checkDuplicates(serialsToCheck);
@@ -1156,7 +1812,6 @@ let editingJob = null; // Store the job being edited
             showLoading(true);
             
             try {
-                // Update job number and vendor
                 const { error: jobError } = await db
                     .from("jobs")
                     .update({
@@ -1167,7 +1822,6 @@ let editingJob = null; // Store the job being edited
                 
                 if (jobError) throw jobError;
                 
-                // Delete all old serials
                 const { error: deleteError } = await db
                     .from("serials")
                     .delete()
@@ -1175,7 +1829,6 @@ let editingJob = null; // Store the job being edited
                 
                 if (deleteError) throw deleteError;
                 
-                // Insert new serials
                 const serialRecords = newSerials.map(serial => ({
                     job_id: editingJob.id,
                     box_id: editingJob.boxId,
@@ -1192,7 +1845,6 @@ let editingJob = null; // Store the job being edited
                 showAlert("✓ Job updated successfully", "success");
                 closeEditJobModal();
                 
-                // Refresh the export preview
                 await generateExportPreview();
             } catch (error) {
                 showAlert("Error updating job: " + error.message, "error", "editJobAlertContainer");

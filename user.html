@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User - Stock Submission</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+    </div>
+    
+    <!-- Hamburger Button -->
+    <button class="hamburger-btn visible" id="hamburgerBtn">
+        <span></span>
+        <span></span>
+        <span></span>
+    </button>
+    
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>Navigation</h2>
+            <button class="sidebar-close" id="sidebarClose">×</button>
+        </div>
+        <div class="sidebar-menu">
+            <div class="sidebar-menu-item" onclick="window.location.href='dashboard.html'">
+                <span>📋</span>
+                <span>Stock Entry</span>
+            </div>
+            <div class="sidebar-menu-item" onclick="window.location.href='dashboard.html#export'">
+                <span>📊</span>
+                <span>View Boxes</span>
+            </div>
+            <div class="sidebar-menu-item active">
+                <span>👤</span>
+                <span>User</span>
+            </div>
+            <div class="sidebar-menu-item" data-role="manager" onclick="window.location.href='admin.html'">
+                <span>⚙️</span>
+                <span>Admin Panel</span>
+            </div>
+            <div class="sidebar-menu-item" onclick="logout()">
+                <span>🚪</span>
+                <span>Sign Out</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Container -->
+    <div class="app-wrapper">
+        <div class="container container-wide">
+            <div class="header">
+                <div class="header-content">
+                    <div class="header-icon">👤</div>
+                    <div>
+                        <h1>User</h1>
+                        <div class="header-subtitle">Shift Reports & Settings</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="content">
+                <div id="alertContainer"></div>
+                
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab active" data-tab="shifts">Shift Reports</button>
+                    <button class="tab" data-tab="settings">Settings</button>
+                </div>
+                
+                <!-- Shifts Tab -->
+                <div class="tab-content active" id="shifts-tab">
+                    <!-- Manager Filter (only visible to managers) -->
+                    <div class="card" id="managerFilter" style="display: none; margin-bottom: 24px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">View Shifts For</label>
+                            <select id="technicianFilter" class="form-select">
+                                <option value="">Loading technicians...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Date Range Filter -->
+                    <div class="card" style="margin-bottom: 24px;">
+                        <div class="filter-row">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label">From Date</label>
+                                <input type="date" id="dateFrom" class="form-input">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label">To Date</label>
+                                <input type="date" id="dateTo" class="form-input">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0; display: flex; align-items: flex-end;">
+                                <button class="btn btn-primary" id="loadShiftsBtn" style="width: 100%;">Load Shifts</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Shift Summary -->
+                    <div class="card" id="shiftSummary" style="display: none; margin-bottom: 24px;">
+                        <h3 style="margin-bottom: 16px; color: var(--text-primary);">Period Summary</h3>
+                        <div class="shift-summary-grid">
+                            <div class="shift-summary-stat">
+                                <div class="shift-summary-value" id="summaryShifts">0</div>
+                                <div class="shift-summary-label">Total Shifts</div>
+                            </div>
+                            <div class="shift-summary-stat">
+                                <div class="shift-summary-value" id="summaryHours">0h</div>
+                                <div class="shift-summary-label">Hours Worked</div>
+                            </div>
+                            <div class="shift-summary-stat">
+                                <div class="shift-summary-value" id="summaryKms">0 km</div>
+                                <div class="shift-summary-label">Distance Travelled</div>
+                            </div>
+                            <div class="shift-summary-stat">
+                                <div class="shift-summary-value" id="summaryJobs">0</div>
+                                <div class="shift-summary-label">Total Jobs</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 16px; display: flex; gap: 12px; justify-content: flex-end;">
+                            <button class="btn btn-secondary" onclick="copyPeriodSummary()">📋 Copy Summary</button>
+                            <button class="btn btn-primary" onclick="downloadShiftsCSV()">📥 Download CSV</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Shifts List -->
+                    <div id="shiftsContainer">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📊</div>
+                            <p>Select a date range and click "Load Shifts" to view your shift reports</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Settings Tab -->
+                <div class="tab-content" id="settings-tab">
+                    <div class="card">
+                        <h3 style="margin-bottom: 16px; color: var(--text-primary);">Account Information</h3>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Email</span>
+                            <span class="settings-value" id="userEmail">Loading...</span>
+                        </div>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Role</span>
+                            <span class="settings-value" id="userRole">Loading...</span>
+                        </div>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Agent ID</span>
+                            <span class="settings-value" id="userAgent">Loading...</span>
+                        </div>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Shifts Enabled</span>
+                            <span class="settings-value" id="userShiftsEnabled">Loading...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="margin-top: 24px;">
+                        <h3 style="margin-bottom: 16px; color: var(--text-primary);">Actions</h3>
+                        <button class="btn btn-ghost" onclick="logout()">🚪 Sign Out</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shift Detail Modal -->
+    <div class="modal" id="shiftDetailModal">
+        <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header">
+                <h3>📊 Shift Details</h3>
+            </div>
+            <div id="shiftDetailContent">
+                <!-- Details will be generated here -->
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="closeShiftDetailModal()">Close</button>
+                <button type="button" class="btn btn-secondary" onclick="copyShiftDetail()">📋 Copy</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let allShifts = [];
+        let selectedShiftDetail = null;
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await initAuth(['manager', 'technician']);
+            if (!currentUser) return;
+            
+            // Set default date range (last 30 days)
+            const today = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            
+            document.getElementById('dateTo').value = today.toISOString().split('T')[0];
+            document.getElementById('dateFrom').value = thirtyDaysAgo.toISOString().split('T')[0];
+            
+            // Load user info
+            await loadUserInfo();
+            
+            // Setup manager filter if applicable
+            if (currentUser.role === 'manager') {
+                document.getElementById('managerFilter').style.display = 'block';
+                await loadTechnicians();
+            }
+            
+            // Setup tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+                });
+            });
+            
+            // Setup sidebar
+            document.getElementById("hamburgerBtn").addEventListener("click", toggleSidebar);
+            document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
+            document.getElementById("sidebarClose").addEventListener("click", closeSidebar);
+            
+            // Setup load button
+            document.getElementById('loadShiftsBtn').addEventListener('click', loadShifts);
+            
+            // Apply role-based restrictions
+            restrictByRole(currentUser.role);
+        });
+        
+        function toggleSidebar() {
+            document.getElementById("sidebar").classList.toggle("active");
+            document.getElementById("sidebarOverlay").classList.toggle("active");
+            document.getElementById("hamburgerBtn").classList.toggle("active");
+        }
+        
+        function closeSidebar() {
+            document.getElementById("sidebar").classList.remove("active");
+            document.getElementById("sidebarOverlay").classList.remove("active");
+            document.getElementById("hamburgerBtn").classList.remove("active");
+        }
+        
+        function showLoading(show) {
+            document.getElementById("loading").classList.toggle("active", show);
+        }
+        
+        function showAlert(message, type) {
+            const container = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            
+            const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+            alert.innerHTML = `<span class="alert-icon">${icons[type] || 'ℹ'}</span><span>${message}</span>`;
+            
+            container.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+        
+        async function loadUserInfo() {
+            try {
+                const { data, error } = await db
+                    .from('user_roles')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .single();
+                
+                if (error) throw error;
+                
+                document.getElementById('userEmail').textContent = data.email || currentUser.email;
+                document.getElementById('userRole').innerHTML = `<span class="badge badge-${data.role}">${data.role}</span>`;
+                document.getElementById('userAgent').textContent = data.agent_id || 'Not assigned';
+                document.getElementById('userShiftsEnabled').innerHTML = data.shifts_enabled 
+                    ? '<span style="color: var(--success);">✓ Enabled</span>' 
+                    : '<span style="color: var(--text-muted);">Disabled</span>';
+            } catch (error) {
+                console.error('Error loading user info:', error);
+            }
+        }
+        
+        async function loadTechnicians() {
+            try {
+                const { data, error } = await db
+                    .from('user_roles')
+                    .select('user_id, email, agent_id')
+                    .eq('shifts_enabled', true)
+                    .order('agent_id', { ascending: true });
+                
+                if (error) throw error;
+                
+                const select = document.getElementById('technicianFilter');
+                select.innerHTML = '<option value="">All Technicians</option>';
+                
+                if (data && data.length > 0) {
+                    data.forEach(tech => {
+                        const option = document.createElement('option');
+                        option.value = tech.user_id;
+                        option.textContent = `Agent ${tech.agent_id} - ${tech.email}`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading technicians:', error);
+            }
+        }
+        
+        async function loadShifts() {
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            if (!dateFrom || !dateTo) {
+                showAlert('Please select both from and to dates', 'error');
+                return;
+            }
+            
+            showLoading(true);
+            
+            try {
+                // Build query
+                let query = db
+                    .from('shifts')
+                    .select('*')
+                    .eq('status', 'completed')
+                    .gte('start_time', new Date(dateFrom).toISOString())
+                    .lte('start_time', new Date(dateTo + 'T23:59:59').toISOString())
+                    .order('start_time', { ascending: false });
+                
+                // Filter by user if not manager or if specific technician selected
+                if (currentUser.role === 'manager') {
+                    const techFilter = document.getElementById('technicianFilter').value;
+                    if (techFilter) {
+                        query = query.eq('user_id', techFilter);
+                    }
+                } else {
+                    query = query.eq('user_id', currentUser.id);
+                }
+                
+                const { data: shifts, error } = await query;
+                
+                if (error) throw error;
+                
+                allShifts = shifts || [];
+                
+                // Calculate jobs for each shift
+                for (let shift of allShifts) {
+                    const { data: boxes } = await db
+                        .from('boxes')
+                        .select('id')
+                        .eq('agent', shift.agent_id);
+                    
+                    if (boxes && boxes.length > 0) {
+                        const boxIds = boxes.map(b => b.id);
+                        const { count } = await db
+                            .from('jobs')
+                            .select('*', { count: 'exact', head: true })
+                            .in('box_id', boxIds)
+                            .gte('created_at', shift.start_time)
+                            .lte('created_at', shift.end_time);
+                        
+                        shift.systemJobs = count || 0;
+                    } else {
+                        shift.systemJobs = 0;
+                    }
+                    shift.totalJobs = shift.systemJobs + (shift.extra_jobs || 0);
+                }
+                
+                renderShifts();
+                renderSummary();
+                
+            } catch (error) {
+                console.error('Error loading shifts:', error);
+                showAlert('Error loading shifts: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function renderShifts() {
+            const container = document.getElementById('shiftsContainer');
+            
+            if (!allShifts || allShifts.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>No completed shifts found for the selected date range</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div class="shifts-list">';
+            
+            allShifts.forEach(shift => {
+                const startTime = new Date(shift.start_time);
+                const endTime = new Date(shift.end_time);
+                const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
+                const hours = Math.floor(hoursWorked);
+                const minutes = Math.round((hoursWorked - hours) * 60);
+                const kmsTravelled = shift.end_kms - shift.start_kms;
+                
+                const dateStr = startTime.toLocaleDateString('en-AU', {
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                });
+                
+                const timeStr = `${startTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })} - ${endTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+                
+                html += `
+                    <div class="shift-card" onclick="showShiftDetail(${shift.id})">
+                        <div class="shift-card-header">
+                            <div class="shift-card-date">${dateStr}</div>
+                            <div class="shift-card-agent">Agent ${shift.agent_id}</div>
+                        </div>
+                        <div class="shift-card-time">${timeStr}</div>
+                        <div class="shift-card-stats">
+                            <div class="shift-card-stat">
+                                <span class="shift-card-stat-value">${hours}h ${minutes}m</span>
+                                <span class="shift-card-stat-label">Duration</span>
+                            </div>
+                            <div class="shift-card-stat">
+                                <span class="shift-card-stat-value">${kmsTravelled.toLocaleString()} km</span>
+                                <span class="shift-card-stat-label">Distance</span>
+                            </div>
+                            <div class="shift-card-stat">
+                                <span class="shift-card-stat-value">${shift.totalJobs}</span>
+                                <span class="shift-card-stat-label">Jobs</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        function renderSummary() {
+            if (!allShifts || allShifts.length === 0) {
+                document.getElementById('shiftSummary').style.display = 'none';
+                return;
+            }
+            
+            let totalHours = 0;
+            let totalKms = 0;
+            let totalJobs = 0;
+            
+            allShifts.forEach(shift => {
+                const startTime = new Date(shift.start_time);
+                const endTime = new Date(shift.end_time);
+                totalHours += (endTime - startTime) / (1000 * 60 * 60);
+                totalKms += shift.end_kms - shift.start_kms;
+                totalJobs += shift.totalJobs;
+            });
+            
+            const hours = Math.floor(totalHours);
+            const minutes = Math.round((totalHours - hours) * 60);
+            
+            document.getElementById('summaryShifts').textContent = allShifts.length;
+            document.getElementById('summaryHours').textContent = `${hours}h ${minutes}m`;
+            document.getElementById('summaryKms').textContent = `${totalKms.toLocaleString()} km`;
+            document.getElementById('summaryJobs').textContent = totalJobs;
+            
+            document.getElementById('shiftSummary').style.display = 'block';
+        }
+        
+        function showShiftDetail(shiftId) {
+            const shift = allShifts.find(s => s.id === shiftId);
+            if (!shift) return;
+            
+            selectedShiftDetail = shift;
+            
+            const startTime = new Date(shift.start_time);
+            const endTime = new Date(shift.end_time);
+            const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
+            const hours = Math.floor(hoursWorked);
+            const minutes = Math.round((hoursWorked - hours) * 60);
+            const kmsTravelled = shift.end_kms - shift.start_kms;
+            
+            const dateStr = startTime.toLocaleDateString('en-AU', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+            
+            const html = `
+                <div class="shift-report-card">
+                    <div class="shift-report-header">
+                        <div class="shift-report-date">${dateStr}</div>
+                        <div class="shift-report-agent">Agent ${shift.agent_id}</div>
+                    </div>
+                    
+                    <div class="shift-report-grid">
+                        <div class="shift-report-stat">
+                            <div class="shift-report-stat-value">${hours}h ${minutes}m</div>
+                            <div class="shift-report-stat-label">Hours Worked</div>
+                            <div class="shift-report-stat-detail">${formatDateTime(shift.start_time)} → ${formatDateTime(shift.end_time)}</div>
+                        </div>
+                        
+                        <div class="shift-report-stat">
+                            <div class="shift-report-stat-value">${kmsTravelled.toLocaleString()} km</div>
+                            <div class="shift-report-stat-label">Distance Travelled</div>
+                            <div class="shift-report-stat-detail">${shift.start_kms.toLocaleString()} → ${shift.end_kms.toLocaleString()} km</div>
+                        </div>
+                        
+                        <div class="shift-report-stat">
+                            <div class="shift-report-stat-value">${shift.totalJobs}</div>
+                            <div class="shift-report-stat-label">Total Jobs</div>
+                            <div class="shift-report-stat-detail">${shift.systemJobs} logged + ${shift.extra_jobs || 0} extra</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('shiftDetailContent').innerHTML = html;
+            document.getElementById('shiftDetailModal').classList.add('active');
+        }
+        
+        function closeShiftDetailModal() {
+            document.getElementById('shiftDetailModal').classList.remove('active');
+            selectedShiftDetail = null;
+        }
+        
+        function formatDateTime(date) {
+            return new Date(date).toLocaleString('en-AU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+        
+        function copyShiftDetail() {
+            if (!selectedShiftDetail) return;
+            
+            const shift = selectedShiftDetail;
+            const startTime = new Date(shift.start_time);
+            const endTime = new Date(shift.end_time);
+            const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
+            const hours = Math.floor(hoursWorked);
+            const minutes = Math.round((hoursWorked - hours) * 60);
+            const kmsTravelled = shift.end_kms - shift.start_kms;
+            
+            const dateStr = startTime.toLocaleDateString('en-AU', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+            
+            const text = `SHIFT REPORT - ${dateStr}
+Agent: ${shift.agent_id}
+
+TIME
+Start: ${formatDateTime(shift.start_time)}
+End: ${formatDateTime(shift.end_time)}
+Duration: ${hours}h ${minutes}m (${hoursWorked.toFixed(2)} hours)
+
+KILOMETRES
+Start: ${shift.start_kms.toLocaleString()} km
+End: ${shift.end_kms.toLocaleString()} km
+Travelled: ${kmsTravelled.toLocaleString()} km
+
+JOBS
+System Logged: ${shift.systemJobs}
+Extra Jobs: ${shift.extra_jobs || 0}
+Total: ${shift.totalJobs}`;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showAlert('✓ Report copied to clipboard', 'success');
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                showAlert('Failed to copy report', 'error');
+            });
+        }
+        
+        function copyPeriodSummary() {
+            if (!allShifts || allShifts.length === 0) return;
+            
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            let totalHours = 0;
+            let totalKms = 0;
+            let totalJobs = 0;
+            
+            allShifts.forEach(shift => {
+                const startTime = new Date(shift.start_time);
+                const endTime = new Date(shift.end_time);
+                totalHours += (endTime - startTime) / (1000 * 60 * 60);
+                totalKms += shift.end_kms - shift.start_kms;
+                totalJobs += shift.totalJobs;
+            });
+            
+            const hours = Math.floor(totalHours);
+            const minutes = Math.round((totalHours - hours) * 60);
+            
+            const text = `SHIFT SUMMARY
+Period: ${dateFrom} to ${dateTo}
+
+Total Shifts: ${allShifts.length}
+Total Hours: ${hours}h ${minutes}m (${totalHours.toFixed(2)} hours)
+Total Distance: ${totalKms.toLocaleString()} km
+Total Jobs: ${totalJobs}`;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showAlert('✓ Summary copied to clipboard', 'success');
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                showAlert('Failed to copy summary', 'error');
+            });
+        }
+        
+        function downloadShiftsCSV() {
+            if (!allShifts || allShifts.length === 0) {
+                showAlert('No shifts to export', 'warning');
+                return;
+            }
+            
+            let csvContent = 'Date,Agent,Start Time,End Time,Hours (Decimal),Start KM,End KM,KM Travelled,System Jobs,Extra Jobs,Total Jobs\n';
+            
+            allShifts.forEach(shift => {
+                const startTime = new Date(shift.start_time);
+                const endTime = new Date(shift.end_time);
+                const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
+                const kmsTravelled = shift.end_kms - shift.start_kms;
+                
+                const dateStr = startTime.toLocaleDateString('en-AU');
+                
+                csvContent += `"${dateStr}","${shift.agent_id}","${formatDateTime(shift.start_time)}","${formatDateTime(shift.end_time)}",${hoursWorked.toFixed(2)},${shift.start_kms},${shift.end_kms},${kmsTravelled},${shift.systemJobs},${shift.extra_jobs || 0},${shift.totalJobs}\n`;
+            });
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            const filename = `shifts-${dateFrom}-to-${dateTo}.csv`;
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showAlert('✓ CSV downloaded', 'success');
+        }
+    </script>
+</body>
+</html>

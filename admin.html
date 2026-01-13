@@ -9,6 +9,11 @@
     <script src="auth.js"></script>
 </head>
 <body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+    </div>
+    
     <!-- Hamburger Button -->
     <button class="hamburger-btn visible" id="hamburgerBtn">
         <span></span>
@@ -33,6 +38,10 @@
             <div class="sidebar-menu-item" onclick="window.location.href='dashboard.html#export'">
                 <span>📊</span>
                 <span>View Boxes</span>
+            </div>
+            <div class="sidebar-menu-item" onclick="window.location.href='user.html'">
+                <span>👤</span>
+                <span>User</span>
             </div>
             <div class="sidebar-menu-item active">
                 <span>⚙️</span>
@@ -82,12 +91,13 @@
                                     <th>Agent ID</th>
                                     <th>Email</th>
                                     <th>Role</th>
+                                    <th>Shifts</th>
                                     <th>Created</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -281,8 +291,24 @@
         </div>
     </div>
 
+    <!-- View User Modal -->
+    <div class="modal" id="viewUserModal">
+        <div class="modal-content" style="max-width: 640px;">
+            <div class="modal-header">
+                <h3>👤 User Details</h3>
+            </div>
+            <div id="viewUserContent">
+                <!-- User details will be populated here -->
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="closeViewUserModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentUser = null;
+        let viewingUserId = null;
         
         document.addEventListener('DOMContentLoaded', async () => {
             currentUser = await initAuth('manager');
@@ -330,6 +356,10 @@
             document.getElementById("hamburgerBtn").classList.remove("active");
         }
         
+        function showLoading(show) {
+            document.getElementById("loading").classList.toggle("active", show);
+        }
+        
         function showAlert(message, type) {
             const container = document.getElementById('alertContainer');
             const alert = document.createElement('div');
@@ -353,7 +383,7 @@
                 
                 const tbody = document.getElementById('usersTableBody');
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">No users found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">No users found</td></tr>';
                     return;
                 }
                 
@@ -362,18 +392,26 @@
                         ? `<span style="font-family: var(--font-mono);">${user.agent_id}</span>` 
                         : '<span style="color: var(--text-muted); font-style: italic;">Not assigned</span>';
                     
-                    const actionButtons = user.agent_id
-                        ? `<button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>`
-                        : `<button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8125rem; margin-right: 6px;" onclick="openAssignAgentModal('${user.user_id}', '${user.email}')">Assign Agent</button>
-                           <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>`;
+                    const shiftsDisplay = user.shifts_enabled 
+                        ? '<span style="color: var(--success);">✓</span>' 
+                        : '<span style="color: var(--text-muted);">—</span>';
+                    
+                    const assignBtn = !user.agent_id
+                        ? `<button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8125rem; margin-right: 6px;" onclick="openAssignAgentModal('${user.user_id}', '${user.email}')">Assign</button>`
+                        : '';
                     
                     return `
                         <tr>
                             <td>${agentDisplay}</td>
                             <td>${user.email || 'N/A'}</td>
                             <td><span class="badge badge-${user.role}">${user.role}</span></td>
+                            <td>${shiftsDisplay}</td>
                             <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                            <td>${actionButtons}</td>
+                            <td>
+                                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8125rem; margin-right: 6px;" onclick="openViewUserModal('${user.user_id}')">View</button>
+                                ${assignBtn}
+                                <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>
+                            </td>
                         </tr>
                     `;
                 }).join('');
@@ -435,7 +473,6 @@
                     return;
                 }
                 
-                // Get vendor counts for each client
                 const clientVendorCounts = {};
                 for (const client of data) {
                     const { count } = await db
@@ -631,7 +668,6 @@
             document.getElementById('editClientName').textContent = clientId;
             
             try {
-                // Get all vendors
                 const { data: vendors, error: vendorsError } = await db
                     .from('vendors')
                     .select('vendor_id')
@@ -639,7 +675,6 @@
                 
                 if (vendorsError) throw vendorsError;
                 
-                // Get current client-vendor relationships
                 const { data: clientVendors, error: cvError } = await db
                     .from('clients_vendors')
                     .select('vendor_id')
@@ -649,16 +684,15 @@
                 
                 const linkedVendorIds = new Set(clientVendors.map(cv => cv.vendor_id));
                 
-                // Build checkboxes
                 const checkboxContainer = document.getElementById('vendorCheckboxes');
                 checkboxContainer.innerHTML = vendors.map(vendor => `
-                    <div style="display: flex; color: black; align-items: center; padding: 12px; margin-bottom: 8px; background: white; border-radius: 8px; border: 2px solid var(--border-color); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--primary-color)'; this.style.background='var(--surface-hover)'; this.style.color='white';" onmouseout="this.style.borderColor='var(--border-color)'; this.style.background='white'; this.style.color='black';">
+                    <div style="display: flex; color: var(--text-primary); align-items: center; padding: 12px; margin-bottom: 8px; background: var(--bg-tertiary); border-radius: 8px; border: 2px solid var(--border-primary); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-hover)';" onmouseout="this.style.borderColor='var(--border-primary)'; this.style.background='var(--bg-tertiary)';">
                         <input 
                             type="checkbox" 
                             id="vendor_${vendor.vendor_id}" 
                             value="${vendor.vendor_id}"
                             ${linkedVendorIds.has(vendor.vendor_id) ? 'checked' : ''}
-                            style="width: 20px; height: 20px; margin-right: 12px; cursor: pointer; accent-color: var(--primary-color);"
+                            style="width: 20px; height: 20px; margin-right: 12px; cursor: pointer; accent-color: var(--accent-primary);"
                         >
                         <label for="vendor_${vendor.vendor_id}" style="margin: 0; cursor: pointer; flex: 1; font-family: var(--font-mono);">${vendor.vendor_id}</label>
                     </div>
@@ -680,13 +714,11 @@
             if (!currentEditingClient) return;
             
             try {
-                // Get selected vendors
                 const checkboxes = document.querySelectorAll('#vendorCheckboxes input[type="checkbox"]');
                 const selectedVendors = Array.from(checkboxes)
                     .filter(cb => cb.checked)
                     .map(cb => cb.value);
                 
-                // Delete existing relationships for this client
                 const { error: deleteError } = await db
                     .from('clients_vendors')
                     .delete()
@@ -694,7 +726,6 @@
                 
                 if (deleteError) throw deleteError;
                 
-                // Insert new relationships
                 if (selectedVendors.length > 0) {
                     const relationships = selectedVendors.map(vendorId => ({
                         client_id: currentEditingClient,
@@ -732,14 +763,11 @@
             const email = document.getElementById('inviteEmail').value.trim();
             
             try {
-                // Generate a unique token
                 const token = generateToken();
                 
-                // Set expiration to 1 hour from now
                 const expiresAt = new Date();
                 expiresAt.setHours(expiresAt.getHours() + 1);
                 
-                // Store token in database
                 const { error: tokenError } = await db
                     .from('invitation_tokens')
                     .insert([{
@@ -751,17 +779,14 @@
                 
                 if (tokenError) throw tokenError;
                 
-                // Generate signup link with token
                 const signupLink = `${window.location.origin}/signup.html?token=${token}`;
                 
-                // Show instructions to manager
                 const message = `Invitation link for ${email}:\n\n` +
                     `${signupLink}\n\n` +
                     `⚠️ This link expires in 1 hour and can only be used once.\n` +
                     `The user's email will be pre-filled - they only need to create a password.\n\n` +
                     `After signup, assign them to an agent in the Users tab.`;
                 
-                // Copy link to clipboard
                 try {
                     await navigator.clipboard.writeText(signupLink);
                     showAlert(`✓ Invitation link created and copied to clipboard!`, 'success');
@@ -778,7 +803,6 @@
             }
         }
         
-        // Generate a secure random token
         function generateToken() {
             const array = new Uint8Array(32);
             crypto.getRandomValues(array);
@@ -792,7 +816,6 @@
             currentAssigningUserId = userId;
             document.getElementById('assignUserEmail').textContent = userEmail;
             
-            // Load agents into dropdown
             try {
                 const { data: agents, error } = await db
                     .from('agents')
@@ -838,6 +861,186 @@
             } catch (error) {
                 console.error('Error assigning agent:', error);
                 showAlert('Error assigning agent: ' + error.message, 'error');
+            }
+        }
+        
+        // View User Modal Functions
+        async function openViewUserModal(userId) {
+            viewingUserId = userId;
+            showLoading(true);
+            
+            try {
+                // Get user details
+                const { data: user, error: userError } = await db
+                    .from('user_roles')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .single();
+                
+                if (userError) throw userError;
+                
+                // Get shift stats
+                const { data: shifts, error: shiftsError } = await db
+                    .from('shifts')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .eq('status', 'completed')
+                    .order('start_time', { ascending: false })
+                    .limit(5);
+                
+                let totalShifts = 0;
+                let totalHours = 0;
+                let totalKms = 0;
+                
+                if (!shiftsError && shifts) {
+                    // Get full count
+                    const { count } = await db
+                        .from('shifts')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('user_id', userId)
+                        .eq('status', 'completed');
+                    
+                    totalShifts = count || 0;
+                    
+                    // Get totals from all shifts
+                    const { data: allShifts } = await db
+                        .from('shifts')
+                        .select('start_time, end_time, start_kms, end_kms')
+                        .eq('user_id', userId)
+                        .eq('status', 'completed');
+                    
+                    if (allShifts) {
+                        allShifts.forEach(s => {
+                            totalHours += (new Date(s.end_time) - new Date(s.start_time)) / (1000 * 60 * 60);
+                            totalKms += s.end_kms - s.start_kms;
+                        });
+                    }
+                }
+                
+                const hours = Math.floor(totalHours);
+                const minutes = Math.round((totalHours - hours) * 60);
+                
+                // Build modal content
+                let html = `
+                    <div class="user-detail-section">
+                        <h4 style="margin-bottom: 16px; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">Account Information</h4>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Email</span>
+                            <span class="settings-value">${user.email}</span>
+                        </div>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Role</span>
+                            <span class="settings-value"><span class="badge badge-${user.role}">${user.role}</span></span>
+                        </div>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Agent ID</span>
+                            <span class="settings-value">${user.agent_id || '<span style="color: var(--text-muted);">Not assigned</span>'}</span>
+                        </div>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Created</span>
+                            <span class="settings-value">${new Date(user.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="user-detail-section" style="margin-top: 24px;">
+                        <h4 style="margin-bottom: 16px; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">Shift Settings</h4>
+                        <div class="toggle-container" style="margin-bottom: 0;">
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="shiftsEnabledToggle" ${user.shifts_enabled ? 'checked' : ''} onchange="toggleShiftsEnabled('${userId}', this.checked)">
+                                <div class="toggle-slider"></div>
+                            </div>
+                            <label class="toggle-label" for="shiftsEnabledToggle">Shifts Enabled</label>
+                        </div>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+                            When enabled, this user will be prompted to start/end shifts on the dashboard.
+                        </p>
+                    </div>
+                `;
+                
+                // Only show shift stats if shifts are enabled or user has shifts
+                if (user.shifts_enabled || totalShifts > 0) {
+                    html += `
+                        <div class="user-detail-section" style="margin-top: 24px;">
+                            <h4 style="margin-bottom: 16px; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">Shift Statistics (All Time)</h4>
+                            <div class="shift-summary-grid" style="grid-template-columns: repeat(3, 1fr);">
+                                <div class="shift-summary-stat">
+                                    <div class="shift-summary-value">${totalShifts}</div>
+                                    <div class="shift-summary-label">Total Shifts</div>
+                                </div>
+                                <div class="shift-summary-stat">
+                                    <div class="shift-summary-value">${hours}h ${minutes}m</div>
+                                    <div class="shift-summary-label">Hours Worked</div>
+                                </div>
+                                <div class="shift-summary-stat">
+                                    <div class="shift-summary-value">${totalKms.toLocaleString()} km</div>
+                                    <div class="shift-summary-label">Distance</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Recent shifts
+                    if (shifts && shifts.length > 0) {
+                        html += `
+                            <div class="user-detail-section" style="margin-top: 24px;">
+                                <h4 style="margin-bottom: 16px; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">Recent Shifts</h4>
+                                <div class="recent-shifts-list">
+                        `;
+                        
+                        shifts.forEach(shift => {
+                            const startTime = new Date(shift.start_time);
+                            const endTime = new Date(shift.end_time);
+                            const shiftHours = (endTime - startTime) / (1000 * 60 * 60);
+                            const shiftKms = shift.end_kms - shift.start_kms;
+                            
+                            html += `
+                                <div class="recent-shift-item">
+                                    <div class="recent-shift-date">${startTime.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}</div>
+                                    <div class="recent-shift-stats">${shiftHours.toFixed(1)}h • ${shiftKms} km</div>
+                                </div>
+                            `;
+                        });
+                        
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                document.getElementById('viewUserContent').innerHTML = html;
+                document.getElementById('viewUserModal').classList.add('active');
+                
+            } catch (error) {
+                console.error('Error loading user details:', error);
+                showAlert('Error loading user details: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function closeViewUserModal() {
+            document.getElementById('viewUserModal').classList.remove('active');
+            viewingUserId = null;
+        }
+        
+        async function toggleShiftsEnabled(userId, enabled) {
+            try {
+                const { error } = await db
+                    .from('user_roles')
+                    .update({ shifts_enabled: enabled })
+                    .eq('user_id', userId);
+                
+                if (error) throw error;
+                
+                showAlert(`✓ Shifts ${enabled ? 'enabled' : 'disabled'} for user`, 'success');
+                await loadUsers(); // Refresh the table
+            } catch (error) {
+                console.error('Error updating shift settings:', error);
+                showAlert('Error updating settings: ' + error.message, 'error');
+                
+                // Revert toggle
+                document.getElementById('shiftsEnabledToggle').checked = !enabled;
             }
         }
     </script>

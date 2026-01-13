@@ -1362,6 +1362,297 @@ tr:hover td {
 }
 
 /* ============================================
+   SHIFT TRACKING MODULE
+   ============================================ */
+
+/* Shift Status in Header */
+.header-subtitle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.shift-header-btn {
+    padding: 6px 14px !important;
+    font-size: 0.8125rem !important;
+}
+
+.shift-active-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--success);
+    border-radius: 50%;
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    }
+    50% {
+        opacity: 0.8;
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+    }
+}
+
+/* Shift Report Card */
+.shift-report-card {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.shift-report-header {
+    background: var(--bg-elevated);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-primary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.shift-report-date {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.shift-report-agent {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.shift-report-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border-primary);
+}
+
+.shift-report-stat {
+    background: var(--bg-tertiary);
+    padding: 20px;
+    text-align: center;
+}
+
+.shift-report-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-tertiary);
+    margin-bottom: 4px;
+}
+
+.shift-report-stat-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 8px;
+}
+
+.shift-report-stat-detail {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+/* Shift Summary Grid (User Page) */
+.shift-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.shift-summary-stat {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+}
+
+.shift-summary-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-tertiary);
+    margin-bottom: 4px;
+}
+
+.shift-summary-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* Shifts List */
+.shifts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.shift-card {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.shift-card:hover {
+    border-color: var(--border-accent);
+    background: var(--bg-elevated);
+    transform: translateY(-2px);
+}
+
+.shift-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.shift-card-date {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.shift-card-agent {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.shift-card-time {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.shift-card-stats {
+    display: flex;
+    gap: 24px;
+}
+
+.shift-card-stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.shift-card-stat-value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--accent-tertiary);
+}
+
+.shift-card-stat-label {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* Settings Page Styles */
+.settings-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.settings-info-row:last-child {
+    border-bottom: none;
+}
+
+.settings-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.settings-value {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+/* User Detail Section (Admin Modal) */
+.user-detail-section {
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.user-detail-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+/* Recent Shifts List (Admin Modal) */
+.recent-shifts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.recent-shift-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-primary);
+}
+
+.recent-shift-date {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+}
+
+.recent-shift-stats {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .shift-report-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .shift-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .shift-card-stats {
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+    
+    .header-subtitle {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .shift-summary-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* ============================================
    PAGE STATES
    ============================================ */
 .main-form,
@@ -1423,6 +1714,9 @@ tr:hover td {
     color: var(--accent-secondary);
     margin-top: var(--spacing-sm);
 }
+
+
+
 
 /* ============================================
    RESPONSIVE DESIGN
