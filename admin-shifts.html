@@ -54,29 +54,29 @@
                         </div>
                     </div>
                     <div class="button-group" style="margin-top: 16px;">
-                        <button class="btn btn-primary" id="loadShiftsBtn" onclick="loadShiftsAdmin()">Load Shifts</button>
-                        <button class="btn btn-secondary" id="downloadShiftsBtn" onclick="downloadShiftsAdmin()" disabled>Download CSV</button>
+                        <button class="btn btn-primary" id="loadShiftsBtn">Load Shifts</button>
+                        <button class="btn btn-secondary" id="downloadShiftsBtn" onclick="downloadShiftsCSV()" disabled>Download CSV</button>
                     </div>
                 </div>
                 
                 <!-- Shift Summary -->
-                <div class="card" id="shiftAdminSummary" style="display: none; margin-bottom: 24px;">
+                <div class="card" id="shiftSummary" style="display: none; margin-bottom: 24px;">
                     <h3 style="margin-bottom: 16px;">Summary</h3>
                     <div class="shift-summary-grid">
                         <div class="shift-summary-stat">
-                            <div class="shift-summary-value" id="adminSummaryShifts">0</div>
+                            <div class="shift-summary-value" id="summaryShifts">0</div>
                             <div class="shift-summary-label">Total Shifts</div>
                         </div>
                         <div class="shift-summary-stat">
-                            <div class="shift-summary-value" id="adminSummaryHours">0h</div>
+                            <div class="shift-summary-value" id="summaryHours">0h</div>
                             <div class="shift-summary-label">Hours Worked</div>
                         </div>
                         <div class="shift-summary-stat">
-                            <div class="shift-summary-value" id="adminSummaryKms">0 km</div>
+                            <div class="shift-summary-value" id="summaryKms">0 km</div>
                             <div class="shift-summary-label">Distance Travelled</div>
                         </div>
                         <div class="shift-summary-stat">
-                            <div class="shift-summary-value" id="adminSummaryJobs">0</div>
+                            <div class="shift-summary-value" id="summaryJobs">0</div>
                             <div class="shift-summary-label">Total Jobs</div>
                         </div>
                     </div>
@@ -84,7 +84,7 @@
                 
                 <!-- Shifts List -->
                 <div class="card">
-                    <div id="shiftsAdminContainer">
+                    <div id="shiftsContainer">
                         <div class="empty-state">
                             <div class="empty-state-icon">📊</div>
                             <p>Select a date range and click "Load Shifts" to view shift reports</p>
@@ -96,36 +96,54 @@
     </div>
 
     <!-- Shift Detail Modal -->
-    <div class="modal" id="shiftDetailAdminModal">
+    <div class="modal" id="shiftDetailModal">
         <div class="modal-content" style="max-width: 560px;">
             <div class="modal-header">
                 <h3>📊 Shift Details</h3>
             </div>
-            <div id="shiftDetailAdminContent">
+            <div id="shiftDetailContent">
             </div>
             <div class="modal-actions">
-                <button type="button" class="btn btn-ghost" onclick="closeShiftDetailAdminModal()">Close</button>
-                <button type="button" class="btn btn-secondary" onclick="copyShiftDetailAdmin()">📋 Copy</button>
+                <button type="button" class="btn btn-ghost" onclick="closeShiftDetailModal()">Close</button>
+                <button type="button" class="btn btn-secondary" onclick="copyShiftDetail()">📋 Copy</button>
             </div>
         </div>
     </div>
 
     <script>
         let currentUser = null;
-        let allShiftsAdmin = [];
-        let selectedShiftDetailAdmin = null;
+        let allShifts = [];
+        let allClients = [];
+        let selectedShiftDetail = null;
+        
+        // Helper function to format date for input fields (avoids UTC timezone issues)
+        function formatLocalDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        
+        // Helper function to format datetime for display
+        function formatDateTime(date) {
+            return new Date(date).toLocaleString('en-AU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
         
         document.addEventListener('DOMContentLoaded', async () => {
             currentUser = await initAuth('manager');
             if (!currentUser) return;
             
-            // Set default date range (last 30 days)
+            // Set default date range (today)
             const today = new Date();
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            
-            document.getElementById('shiftDateTo').value = today.toISOString().split('T')[0];
-            document.getElementById('shiftDateFrom').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('shiftDateTo').value = formatLocalDate(today);
+            document.getElementById('shiftDateFrom').value = formatLocalDate(today);
             
             await loadTechniciansForFilter();
             
@@ -134,11 +152,12 @@
             const userIdParam = urlParams.get('user');
             
             if (userIdParam) {
-                // Set the technician filter to the specified user
                 document.getElementById('shiftTechnicianFilter').value = userIdParam;
-                // Auto-load their shifts
-                await loadShiftsAdmin();
+                await loadShifts();
             }
+            
+            // Setup load button
+            document.getElementById('loadShiftsBtn').addEventListener('click', loadShifts);
             
             // Initialize sidebar
             initSidebar(currentUser);
@@ -188,7 +207,7 @@
             }
         }
         
-        async function loadShiftsAdmin() {
+        async function loadShifts() {
             const dateFrom = document.getElementById('shiftDateFrom').value;
             const dateTo = document.getElementById('shiftDateTo').value;
             const techFilter = document.getElementById('shiftTechnicianFilter').value;
@@ -205,10 +224,11 @@
                     .from('shifts')
                     .select('*')
                     .eq('status', 'completed')
-                    .gte('start_time', new Date(dateFrom).toISOString())
+                    .gte('start_time', new Date(dateFrom + 'T00:00:00').toISOString())
                     .lte('start_time', new Date(dateTo + 'T23:59:59').toISOString())
                     .order('start_time', { ascending: false });
                 
+                // Filter by specific technician if selected
                 if (techFilter) {
                     query = query.eq('user_id', techFilter);
                 }
@@ -217,37 +237,81 @@
                 
                 if (error) throw error;
                 
-                allShiftsAdmin = shifts || [];
+                allShifts = shifts || [];
+                
+                // Load all clients for dynamic columns
+                const { data: clientsData } = await db
+                    .from('clients')
+                    .select('client_id')
+                    .order('client_id', { ascending: true });
+                
+                allClients = clientsData ? clientsData.map(c => c.client_id) : [];
                 
                 // Get user emails for display
-                const userIds = [...new Set(allShiftsAdmin.map(s => s.user_id))];
-                const { data: users } = await db
-                    .from('user_roles')
-                    .select('user_id, email, agent_id')
-                    .in('user_id', userIds);
+                const userIds = [...new Set(allShifts.map(s => s.user_id))];
+                let userMap = {};
                 
-                const userMap = {};
-                users?.forEach(u => {
-                    userMap[u.user_id] = { email: u.email, agent_id: u.agent_id };
-                });
+                if (userIds.length > 0) {
+                    const { data: users } = await db
+                        .from('user_roles')
+                        .select('user_id, email, agent_id')
+                        .in('user_id', userIds);
+                    
+                    users?.forEach(u => {
+                        userMap[u.user_id] = { email: u.email, agent_id: u.agent_id };
+                    });
+                }
                 
-                // Calculate jobs for each shift
-                for (let shift of allShiftsAdmin) {
+                // Calculate jobs for each shift (broken down by client)
+                for (let shift of allShifts) {
                     shift.userInfo = userMap[shift.user_id] || { email: 'Unknown', agent_id: 'N/A' };
                     
-                    const { count } = await db
-                        .from('jobs')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('shift_id', shift.id);
+                    const { data: boxes } = await db
+                        .from('boxes')
+                        .select('id, client')
+                        .eq('agent', shift.agent_id);
                     
-                    shift.systemJobs = count || 0;
+                    // Initialize job counts per client
+                    shift.jobsByClient = {};
+                    allClients.forEach(client => {
+                        shift.jobsByClient[client] = 0;
+                    });
+                    
+                    if (boxes && boxes.length > 0) {
+                        // Group boxes by client
+                        const boxesByClient = {};
+                        boxes.forEach(box => {
+                            if (!boxesByClient[box.client]) {
+                                boxesByClient[box.client] = [];
+                            }
+                            boxesByClient[box.client].push(box.id);
+                        });
+                        
+                        // Count jobs per client
+                        let totalSystemJobs = 0;
+                        for (const client of Object.keys(boxesByClient)) {
+                            const clientBoxIds = boxesByClient[client];
+                            const { count } = await db
+                                .from('jobs')
+                                .select('*', { count: 'exact', head: true })
+                                .in('box_id', clientBoxIds)
+                                .gte('created_at', shift.start_time)
+                                .lte('created_at', shift.end_time);
+                            
+                            shift.jobsByClient[client] = count || 0;
+                            totalSystemJobs += count || 0;
+                        }
+                        shift.systemJobs = totalSystemJobs;
+                    } else {
+                        shift.systemJobs = 0;
+                    }
                     shift.totalJobs = shift.systemJobs + (shift.extra_jobs || 0);
                 }
                 
-                renderShiftsAdmin();
-                renderSummaryAdmin();
+                renderShifts();
+                renderSummary();
                 
-                document.getElementById('downloadShiftsBtn').disabled = allShiftsAdmin.length === 0;
+                document.getElementById('downloadShiftsBtn').disabled = allShifts.length === 0;
                 
             } catch (error) {
                 console.error('Error loading shifts:', error);
@@ -257,10 +321,10 @@
             }
         }
         
-        function renderShiftsAdmin() {
-            const container = document.getElementById('shiftsAdminContainer');
+        function renderShifts() {
+            const container = document.getElementById('shiftsContainer');
             
-            if (!allShiftsAdmin || allShiftsAdmin.length === 0) {
+            if (!allShifts || allShifts.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">📭</div>
@@ -272,7 +336,7 @@
             
             let html = '<div class="shifts-list">';
             
-            allShiftsAdmin.forEach(shift => {
+            allShifts.forEach(shift => {
                 const startTime = new Date(shift.start_time);
                 const endTime = new Date(shift.end_time);
                 const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
@@ -290,7 +354,7 @@
                 const timeStr = `${startTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })} - ${endTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
                 
                 html += `
-                    <div class="shift-card" onclick="showShiftDetailAdmin(${shift.id})">
+                    <div class="shift-card" onclick="showShiftDetail(${shift.id})">
                         <div class="shift-card-header">
                             <div class="shift-card-date">${dateStr}</div>
                             <div class="shift-card-agent">Agent ${shift.userInfo.agent_id}</div>
@@ -319,9 +383,9 @@
             container.innerHTML = html;
         }
         
-        function renderSummaryAdmin() {
-            if (!allShiftsAdmin || allShiftsAdmin.length === 0) {
-                document.getElementById('shiftAdminSummary').style.display = 'none';
+        function renderSummary() {
+            if (!allShifts || allShifts.length === 0) {
+                document.getElementById('shiftSummary').style.display = 'none';
                 return;
             }
             
@@ -329,7 +393,7 @@
             let totalKms = 0;
             let totalJobs = 0;
             
-            allShiftsAdmin.forEach(shift => {
+            allShifts.forEach(shift => {
                 const startTime = new Date(shift.start_time);
                 const endTime = new Date(shift.end_time);
                 totalHours += (endTime - startTime) / (1000 * 60 * 60);
@@ -340,19 +404,19 @@
             const hours = Math.floor(totalHours);
             const minutes = Math.round((totalHours - hours) * 60);
             
-            document.getElementById('adminSummaryShifts').textContent = allShiftsAdmin.length;
-            document.getElementById('adminSummaryHours').textContent = `${hours}h ${minutes}m`;
-            document.getElementById('adminSummaryKms').textContent = `${totalKms.toLocaleString()} km`;
-            document.getElementById('adminSummaryJobs').textContent = totalJobs;
+            document.getElementById('summaryShifts').textContent = allShifts.length;
+            document.getElementById('summaryHours').textContent = `${hours}h ${minutes}m`;
+            document.getElementById('summaryKms').textContent = `${totalKms.toLocaleString()} km`;
+            document.getElementById('summaryJobs').textContent = totalJobs;
             
-            document.getElementById('shiftAdminSummary').style.display = 'block';
+            document.getElementById('shiftSummary').style.display = 'block';
         }
         
-        function showShiftDetailAdmin(shiftId) {
-            const shift = allShiftsAdmin.find(s => s.id === shiftId);
+        function showShiftDetail(shiftId) {
+            const shift = allShifts.find(s => s.id === shiftId);
             if (!shift) return;
             
-            selectedShiftDetailAdmin = shift;
+            selectedShiftDetail = shift;
             
             const startTime = new Date(shift.start_time);
             const endTime = new Date(shift.end_time);
@@ -398,30 +462,19 @@
                 </div>
             `;
             
-            document.getElementById('shiftDetailAdminContent').innerHTML = html;
-            document.getElementById('shiftDetailAdminModal').classList.add('active');
+            document.getElementById('shiftDetailContent').innerHTML = html;
+            document.getElementById('shiftDetailModal').classList.add('active');
         }
         
-        function closeShiftDetailAdminModal() {
-            document.getElementById('shiftDetailAdminModal').classList.remove('active');
-            selectedShiftDetailAdmin = null;
+        function closeShiftDetailModal() {
+            document.getElementById('shiftDetailModal').classList.remove('active');
+            selectedShiftDetail = null;
         }
         
-        function formatDateTime(date) {
-            return new Date(date).toLocaleString('en-AU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-            });
-        }
-        
-        function copyShiftDetailAdmin() {
-            if (!selectedShiftDetailAdmin) return;
+        function copyShiftDetail() {
+            if (!selectedShiftDetail) return;
             
-            const shift = selectedShiftDetailAdmin;
+            const shift = selectedShiftDetail;
             const startTime = new Date(shift.start_time);
             const endTime = new Date(shift.end_time);
             const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
@@ -463,23 +516,105 @@ Total: ${shift.totalJobs}`;
             });
         }
         
-        function downloadShiftsAdmin() {
-            if (!allShiftsAdmin || allShiftsAdmin.length === 0) {
+        function getTimeMultiplier(date) {
+            const dayOfWeek = new Date(date).getDay();
+            if (dayOfWeek === 0) return 2.0;   // Sunday
+            if (dayOfWeek === 6) return 1.5;   // Saturday
+            return 1.0;                         // Monday-Friday
+        }
+        
+        function getTimeMultiplierLabel(date) {
+            const dayOfWeek = new Date(date).getDay();
+            if (dayOfWeek === 0) return '2x (Sun)';
+            if (dayOfWeek === 6) return '1.5x (Sat)';
+            return '1x';
+        }
+        
+        function formatTimeHMM(decimalHours) {
+            const hours = Math.floor(decimalHours);
+            const minutes = Math.round((decimalHours - hours) * 60);
+            return `${hours}:${String(minutes).padStart(2, '0')}`;
+        }
+        
+        function escapeCSV(value) {
+            if (value === null || value === undefined) return '';
+            const str = String(value);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        }
+        
+        function downloadShiftsCSV() {
+            if (!allShifts || allShifts.length === 0) {
                 showAlert('No shifts to export', 'warning');
                 return;
             }
             
-            let csvContent = 'Date,Agent,Email,Start Time,End Time,Hours (Decimal),Start KM,End KM,KM Travelled,System Jobs,Extra Jobs,Total Jobs\n';
+            // Build header row with dynamic client columns
+            let headers = [
+                'Date',
+                'Start Time',
+                'End Time',
+                'Agent',
+                'Email',
+                'Total Time (h:mm)',
+                'Total Time (decimal)',
+                'Time Multiplier',
+                'Adjusted Time (decimal)',
+                'Start Km',
+                'End Km',
+                'Km Travelled'
+            ];
             
-            allShiftsAdmin.forEach(shift => {
+            // Add dynamic client columns
+            allClients.forEach(client => {
+                headers.push(`Jobs - ${client}`);
+            });
+            
+            // Add remaining columns
+            headers.push('Extra Jobs');
+            headers.push('Total Jobs');
+            headers.push('Shift Notes');
+            
+            let csvContent = headers.join(',') + '\n';
+            
+            allShifts.forEach(shift => {
                 const startTime = new Date(shift.start_time);
                 const endTime = new Date(shift.end_time);
                 const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
                 const kmsTravelled = shift.end_kms - shift.start_kms;
+                const multiplier = getTimeMultiplier(shift.start_time);
+                const adjustedTime = hoursWorked * multiplier;
                 
                 const dateStr = startTime.toLocaleDateString('en-AU');
                 
-                csvContent += `"${dateStr}","${shift.agent_id}","${shift.userInfo.email}","${formatDateTime(shift.start_time)}","${formatDateTime(shift.end_time)}",${hoursWorked.toFixed(2)},${shift.start_kms},${shift.end_kms},${kmsTravelled},${shift.systemJobs},${shift.extra_jobs || 0},${shift.totalJobs}\n`;
+                let row = [
+                    dateStr,
+                    formatDateTime(shift.start_time),
+                    formatDateTime(shift.end_time),
+                    shift.agent_id,
+                    shift.userInfo?.email || '',
+                    formatTimeHMM(hoursWorked),
+                    hoursWorked.toFixed(2),
+                    getTimeMultiplierLabel(shift.start_time),
+                    adjustedTime.toFixed(2),
+                    shift.start_kms,
+                    shift.end_kms,
+                    kmsTravelled
+                ];
+                
+                // Add job counts for each client
+                allClients.forEach(client => {
+                    row.push(shift.jobsByClient?.[client] || 0);
+                });
+                
+                // Add remaining data
+                row.push(shift.extra_jobs || 0);
+                row.push(shift.totalJobs);
+                row.push(escapeCSV(shift.shift_notes || ''));
+                
+                csvContent += row.map(val => escapeCSV(val)).join(',') + '\n';
             });
             
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -488,7 +623,7 @@ Total: ${shift.totalJobs}`;
             
             const dateFrom = document.getElementById('shiftDateFrom').value;
             const dateTo = document.getElementById('shiftDateTo').value;
-            const filename = `all-shifts-${dateFrom}-to-${dateTo}.csv`;
+            const filename = `shifts-${dateFrom}-to-${dateTo}.csv`;
             
             link.setAttribute('href', url);
             link.setAttribute('download', filename);

@@ -283,6 +283,17 @@
                         Jobs completed without serial logging (e.g., on-site repairs)
                     </p>
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="shiftNotes">
+                        Shift Notes
+                    </label>
+                    <textarea 
+                        id="shiftNotes" 
+                        class="form-textarea" 
+                        placeholder="Any additional notes about this shift..."
+                        style="min-height: 80px;"
+                    ></textarea>
+                </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-ghost" onclick="closeEndShiftModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">End Shift</button>
@@ -351,6 +362,17 @@
                         min="0"
                         value="0"
                     >
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="staleShiftNotes">
+                        Shift Notes
+                    </label>
+                    <textarea 
+                        id="staleShiftNotes" 
+                        class="form-textarea" 
+                        placeholder="Any additional notes about this shift..."
+                        style="min-height: 80px;"
+                    ></textarea>
                 </div>
                 <div class="modal-actions">
                     <button type="submit" class="btn btn-primary">Close Shift</button>
@@ -467,6 +489,82 @@ let editingJob = null;
             return today;
         }
         
+        // Get midnight of the previous day (for stale shift detection)
+        function getYesterdayMidnight() {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            yesterday.setHours(0, 0, 0, 0);
+            return yesterday;
+        }
+        
+        // Check if two dates are on the same calendar day
+        function isSameDay(date1, date2) {
+            const d1 = new Date(date1);
+            const d2 = new Date(date2);
+            return d1.getFullYear() === d2.getFullYear() &&
+                   d1.getMonth() === d2.getMonth() &&
+                   d1.getDate() === d2.getDate();
+        }
+        
+        // Get the last job entry time for the current shift
+        async function getLastJobEntryTime() {
+            if (!activeShift) return null;
+            
+            try {
+                // Get boxes for current agent
+                const { data: boxes } = await db
+                    .from('boxes')
+                    .select('id')
+                    .eq('agent', currentAgent);
+                
+                if (!boxes || boxes.length === 0) return null;
+                
+                const boxIds = boxes.map(b => b.id);
+                
+                // Get the most recent job created during this shift
+                const { data: jobs, error } = await db
+                    .from('jobs')
+                    .select('created_at')
+                    .in('box_id', boxIds)
+                    .gte('created_at', activeShift.start_time)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                
+                if (error) throw error;
+                
+                if (jobs && jobs.length > 0) {
+                    return new Date(jobs[0].created_at);
+                }
+                return null;
+            } catch (error) {
+                console.error('Error getting last job entry time:', error);
+                return null;
+            }
+        }
+        
+        // Get the last shift close time for the current user
+        async function getLastShiftCloseTime() {
+            try {
+                const { data: shifts, error } = await db
+                    .from('shifts')
+                    .select('end_time')
+                    .eq('user_id', currentUserId)
+                    .eq('status', 'completed')
+                    .order('end_time', { ascending: false })
+                    .limit(1);
+                
+                if (error) throw error;
+                
+                if (shifts && shifts.length > 0) {
+                    return new Date(shifts[0].end_time);
+                }
+                return null;
+            } catch (error) {
+                console.error('Error getting last shift close time:', error);
+                return null;
+            }
+        }
+        
         async function checkShiftStatus() {
             if (!shiftsEnabled) {
                 document.getElementById('shiftStatusText').textContent = 'Stock Entry System';
@@ -492,6 +590,8 @@ let editingJob = null;
                     const todayMidnight = getTodayMidnight();
                     
                     // Check if shift is stale (started before today's midnight)
+                    // A shift is stale if it was started before midnight of TODAY
+                    // (i.e., it's from a previous day and wasn't closed)
                     if (shiftStart < todayMidnight) {
                         staleShift = shift;
                         activeShift = null;
@@ -566,6 +666,15 @@ let editingJob = null;
                 return;
             }
             
+            const startDateTime = new Date(startTime);
+            
+            // VALIDATION: Open shift time must be greater than last shift close time
+            const lastCloseTime = await getLastShiftCloseTime();
+            if (lastCloseTime && startDateTime <= lastCloseTime) {
+                showAlert(`Start time must be after your last shift ended (${formatDateTime(lastCloseTime)})`, 'error', 'startShiftAlertContainer');
+                return;
+            }
+            
             showLoading(true);
             
             try {
@@ -574,7 +683,7 @@ let editingJob = null;
                     .insert([{
                         user_id: currentUserId,
                         agent_id: currentAgent,
-                        start_time: new Date(startTime).toISOString(),
+                        start_time: startDateTime.toISOString(),
                         start_kms: startKms,
                         status: 'active'
                     }])
@@ -601,6 +710,7 @@ let editingJob = null;
             document.getElementById('endShiftTime').value = formatDateTimeLocal(new Date());
             document.getElementById('endShiftKms').value = '';
             document.getElementById('extraJobs').value = '0';
+            document.getElementById('shiftNotes').value = '';
             document.getElementById('endShiftAlertContainer').innerHTML = '';
             document.getElementById('endShiftModal').classList.add('active');
         }
@@ -615,6 +725,7 @@ let editingJob = null;
             const endTime = document.getElementById('endShiftTime').value;
             const endKms = parseInt(document.getElementById('endShiftKms').value);
             const extraJobs = parseInt(document.getElementById('extraJobs').value) || 0;
+            const shiftNotes = document.getElementById('shiftNotes').value.trim();
             
             if (!endTime || isNaN(endKms)) {
                 showAlert('Please fill in all required fields', 'error', 'endShiftAlertContainer');
@@ -626,15 +737,38 @@ let editingJob = null;
                 return;
             }
             
+            const endDateTime = new Date(endTime);
+            const startDateTime = new Date(activeShift.start_time);
+            
+            // VALIDATION: Close shift time must be same date as open shift time
+            if (!isSameDay(startDateTime, endDateTime)) {
+                showAlert('End time must be on the same day as the shift started. Use the stale shift recovery if you forgot to close yesterday\'s shift.', 'error', 'endShiftAlertContainer');
+                return;
+            }
+            
+            // VALIDATION: Close shift time must be greater than last box entry time
+            const lastJobTime = await getLastJobEntryTime();
+            if (lastJobTime && endDateTime < lastJobTime) {
+                showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error', 'endShiftAlertContainer');
+                return;
+            }
+            
+            // VALIDATION: End time must be after start time
+            if (endDateTime <= startDateTime) {
+                showAlert('End time must be after the shift start time', 'error', 'endShiftAlertContainer');
+                return;
+            }
+            
             showLoading(true);
             
             try {
                 const { data, error } = await db
                     .from('shifts')
                     .update({
-                        end_time: new Date(endTime).toISOString(),
+                        end_time: endDateTime.toISOString(),
                         end_kms: endKms,
                         extra_jobs: extraJobs,
+                        shift_notes: shiftNotes,
                         status: 'completed'
                     })
                     .eq('id', activeShift.id)
@@ -679,6 +813,7 @@ let editingJob = null;
             
             document.getElementById('staleShiftEndKms').value = '';
             document.getElementById('staleExtraJobs').value = '0';
+            document.getElementById('staleShiftNotes').value = '';
             document.getElementById('staleShiftAlertContainer').innerHTML = '';
             document.getElementById('staleShiftModal').classList.add('active');
         }
@@ -689,6 +824,7 @@ let editingJob = null;
             const endTime = document.getElementById('staleShiftEndTime').value;
             const endKms = parseInt(document.getElementById('staleShiftEndKms').value);
             const extraJobs = parseInt(document.getElementById('staleExtraJobs').value) || 0;
+            const shiftNotes = document.getElementById('staleShiftNotes').value.trim();
             
             if (!endTime || isNaN(endKms)) {
                 showAlert('Please fill in all required fields', 'error', 'staleShiftAlertContainer');
@@ -700,15 +836,44 @@ let editingJob = null;
                 return;
             }
             
+            const endDateTime = new Date(endTime);
+            const startDateTime = new Date(staleShift.start_time);
+            
+            // VALIDATION: For stale shifts, end time must be on the same day as start time
+            if (!isSameDay(startDateTime, endDateTime)) {
+                showAlert('End time must be on the same day as the shift started (' + startDateTime.toLocaleDateString('en-AU') + ')', 'error', 'staleShiftAlertContainer');
+                return;
+            }
+            
+            // VALIDATION: End time must be after start time
+            if (endDateTime <= startDateTime) {
+                showAlert('End time must be after the shift start time', 'error', 'staleShiftAlertContainer');
+                return;
+            }
+            
+            // Get last job time for the stale shift period
+            // Temporarily set activeShift to staleShift to use the helper function
+            const tempActiveShift = activeShift;
+            activeShift = staleShift;
+            const lastJobTime = await getLastJobEntryTime();
+            activeShift = tempActiveShift;
+            
+            // VALIDATION: Close shift time must be greater than last box entry time
+            if (lastJobTime && endDateTime < lastJobTime) {
+                showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error', 'staleShiftAlertContainer');
+                return;
+            }
+            
             showLoading(true);
             
             try {
                 const { data, error } = await db
                     .from('shifts')
                     .update({
-                        end_time: new Date(endTime).toISOString(),
+                        end_time: endDateTime.toISOString(),
                         end_kms: endKms,
                         extra_jobs: extraJobs,
+                        shift_notes: shiftNotes,
                         status: 'completed'
                     })
                     .eq('id', staleShift.id)
@@ -747,24 +912,72 @@ let editingJob = null;
             // Calculate kilometres
             const kmsTravelled = shift.end_kms - shift.start_kms;
             
-            // Count jobs from database during shift timeframe
+            // Get time multiplier based on day of week
+            const dayOfWeek = startTime.getDay();
+            let timeMultiplier = 1.0;
+            let timeMultiplierLabel = '1x';
+            if (dayOfWeek === 0) { // Sunday
+                timeMultiplier = 2.0;
+                timeMultiplierLabel = '2x (Sun)';
+            } else if (dayOfWeek === 6) { // Saturday
+                timeMultiplier = 1.5;
+                timeMultiplierLabel = '1.5x (Sat)';
+            }
+            const adjustedTime = hoursWorked * timeMultiplier;
+            
+            // Load all clients for dynamic columns
+            const { data: clientsData } = await db
+                .from('clients')
+                .select('client_id')
+                .order('client_id', { ascending: true });
+            
+            const allClients = clientsData ? clientsData.map(c => c.client_id) : [];
+            
+            // Get user info
+            const { data: userData } = await db
+                .from('user_roles')
+                .select('email')
+                .eq('user_id', currentUserId)
+                .single();
+            
+            const userEmail = userData?.email || '';
+            
+            // Count jobs from database during shift timeframe, broken down by client
             let systemJobs = 0;
+            let jobsByClient = {};
+            allClients.forEach(client => {
+                jobsByClient[client] = 0;
+            });
+            
             try {
                 const { data: boxes } = await db
                     .from('boxes')
-                    .select('id')
+                    .select('id, client')
                     .eq('agent', currentAgent);
                 
                 if (boxes && boxes.length > 0) {
-                    const boxIds = boxes.map(b => b.id);
-                    const { count: jobCount } = await db
-                        .from('jobs')
-                        .select('*', { count: 'exact', head: true })
-                        .in('box_id', boxIds)
-                        .gte('created_at', shift.start_time)
-                        .lte('created_at', shift.end_time);
+                    // Group boxes by client
+                    const boxesByClient = {};
+                    boxes.forEach(box => {
+                        if (!boxesByClient[box.client]) {
+                            boxesByClient[box.client] = [];
+                        }
+                        boxesByClient[box.client].push(box.id);
+                    });
                     
-                    systemJobs = jobCount || 0;
+                    // Count jobs per client
+                    for (const client of Object.keys(boxesByClient)) {
+                        const clientBoxIds = boxesByClient[client];
+                        const { count } = await db
+                            .from('jobs')
+                            .select('*', { count: 'exact', head: true })
+                            .in('box_id', clientBoxIds)
+                            .gte('created_at', shift.start_time)
+                            .lte('created_at', shift.end_time);
+                        
+                        jobsByClient[client] = count || 0;
+                        systemJobs += count || 0;
+                    }
                 }
             } catch (error) {
                 console.error('Error counting jobs:', error);
@@ -774,17 +987,25 @@ let editingJob = null;
             
             lastShiftReport = {
                 date: startTime.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+                dateShort: startTime.toLocaleDateString('en-AU'),
                 startTime: formatDateTime(shift.start_time),
                 endTime: formatDateTime(shift.end_time),
                 hoursWorked: `${hours}h ${minutes}m`,
                 hoursDecimal: hoursWorked.toFixed(2),
+                timeMultiplier: timeMultiplier,
+                timeMultiplierLabel: timeMultiplierLabel,
+                adjustedTime: adjustedTime.toFixed(2),
                 startKms: shift.start_kms,
                 endKms: shift.end_kms,
                 kmsTravelled: kmsTravelled,
                 systemJobs: systemJobs,
                 extraJobs: shift.extra_jobs || 0,
                 totalJobs: totalJobs,
-                agentId: currentAgent
+                agentId: currentAgent,
+                email: userEmail,
+                jobsByClient: jobsByClient,
+                allClients: allClients,
+                shiftNotes: shift.shift_notes || ''
             };
             
             showShiftReportModal();
@@ -862,8 +1083,71 @@ Total: ${report.totalJobs}`;
         function downloadShiftReportCSV() {
             const report = lastShiftReport;
             
-            const csvContent = `Date,Agent,Start Time,End Time,Hours (Decimal),Start KM,End KM,KM Travelled,System Jobs,Extra Jobs,Total Jobs
-"${report.date}","${report.agentId}","${report.startTime}","${report.endTime}",${report.hoursDecimal},${report.startKms},${report.endKms},${report.kmsTravelled},${report.systemJobs},${report.extraJobs},${report.totalJobs}`;
+            // Helper function to escape CSV values
+            function escapeCSV(value) {
+                if (value === null || value === undefined) return '';
+                const str = String(value);
+                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            }
+            
+            // Build header row with dynamic client columns
+            let headers = [
+                'Date',
+                'Start Time',
+                'End Time',
+                'Agent',
+                'Email',
+                'Total Time (h:mm)',
+                'Total Time (decimal)',
+                'Time Multiplier',
+                'Adjusted Time (decimal)',
+                'Start Km',
+                'End Km',
+                'Km Travelled'
+            ];
+            
+            // Add dynamic client columns
+            report.allClients.forEach(client => {
+                headers.push(`Jobs - ${client}`);
+            });
+            
+            // Add remaining columns
+            headers.push('Extra Jobs');
+            headers.push('Total Jobs');
+            headers.push('Shift Notes');
+            
+            let csvContent = headers.join(',') + '\n';
+            
+            // Build data row
+            let row = [
+                report.dateShort,
+                report.startTime,
+                report.endTime,
+                report.agentId,
+                report.email,
+                report.hoursWorked,
+                report.hoursDecimal,
+                report.timeMultiplierLabel,
+                report.adjustedTime,
+                report.startKms,
+                report.endKms,
+                report.kmsTravelled
+            ];
+            
+            // Add job counts for each client
+            report.allClients.forEach(client => {
+                row.push(report.jobsByClient?.[client] || 0);
+            });
+            
+            // Add remaining data
+            row.push(report.extraJobs);
+            row.push(report.totalJobs);
+            row.push(escapeCSV(report.shiftNotes));
+            
+            csvContent += row.map(val => escapeCSV(val)).join(',') + '\n';
             
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
@@ -1150,6 +1434,12 @@ Total: ${report.totalJobs}`;
         async function handleAddJob() {
             if (!currentBox) {
                 showAlert("Please select a client first", "error");
+                return;
+            }
+            
+            // VALIDATION: Don't allow new jobs if shift is enabled but not active
+            if (shiftsEnabled && !activeShift) {
+                showAlert("Cannot add jobs without an active shift. Please start a shift first.", "error");
                 return;
             }
             

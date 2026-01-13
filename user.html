@@ -44,21 +44,22 @@
                         <div class="filter-row">
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label class="form-label">From Date</label>
-                                <input type="date" id="dateFrom" class="form-input">
+                                <input type="date" id="shiftDateFrom" class="form-input">
                             </div>
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label class="form-label">To Date</label>
-                                <input type="date" id="dateTo" class="form-input">
+                                <input type="date" id="shiftDateTo" class="form-input">
                             </div>
-                            <div class="form-group" style="margin-bottom: 0; display: flex; align-items: flex-end;">
-                                <button class="btn btn-primary" id="loadShiftsBtn" style="width: 100%;">Load Shifts</button>
-                            </div>
+                        </div>
+                        <div class="button-group" style="margin-top: 16px;">
+                            <button class="btn btn-primary" id="loadShiftsBtn">Load Shifts</button>
+                            <button class="btn btn-secondary" id="downloadShiftsBtn" onclick="downloadShiftsCSV()" disabled>Download CSV</button>
                         </div>
                     </div>
                     
                     <!-- Shift Summary -->
                     <div class="card" id="shiftSummary" style="display: none; margin-bottom: 24px;">
-                        <h3 style="margin-bottom: 16px; color: var(--text-primary);">Period Summary</h3>
+                        <h3 style="margin-bottom: 16px;">Summary</h3>
                         <div class="shift-summary-grid">
                             <div class="shift-summary-stat">
                                 <div class="shift-summary-value" id="summaryShifts">0</div>
@@ -77,17 +78,15 @@
                                 <div class="shift-summary-label">Total Jobs</div>
                             </div>
                         </div>
-                        <div style="margin-top: 16px; display: flex; gap: 12px; justify-content: flex-end;">
-                            <button class="btn btn-secondary" onclick="copyPeriodSummary()">📋 Copy Summary</button>
-                            <button class="btn btn-primary" onclick="downloadShiftsCSV()">📥 Download CSV</button>
-                        </div>
                     </div>
                     
                     <!-- Shifts List -->
-                    <div id="shiftsContainer">
-                        <div class="empty-state">
-                            <div class="empty-state-icon">📊</div>
-                            <p>Select a date range and click "Load Shifts" to view your shift reports</p>
+                    <div class="card">
+                        <div id="shiftsContainer">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📊</div>
+                                <p>Select a date range and click "Load Shifts" to view your shift reports</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -130,7 +129,6 @@
                 <h3>📊 Shift Details</h3>
             </div>
             <div id="shiftDetailContent">
-                <!-- Details will be generated here -->
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-ghost" onclick="closeShiftDetailModal()">Close</button>
@@ -142,19 +140,37 @@
     <script>
         let currentUser = null;
         let allShifts = [];
+        let allClients = [];
         let selectedShiftDetail = null;
+        
+        // Helper function to format date for input fields (avoids UTC timezone issues)
+        function formatLocalDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        
+        // Helper function to format datetime for display
+        function formatDateTime(date) {
+            return new Date(date).toLocaleString('en-AU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
         
         document.addEventListener('DOMContentLoaded', async () => {
             currentUser = await initAuth(['manager', 'technician']);
             if (!currentUser) return;
             
-            // Set default date range (last 30 days)
+            // Set default date range (today)
             const today = new Date();
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            
-            document.getElementById('dateTo').value = today.toISOString().split('T')[0];
-            document.getElementById('dateFrom').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('shiftDateTo').value = formatLocalDate(today);
+            document.getElementById('shiftDateFrom').value = formatLocalDate(today);
             
             // Load user info
             await loadUserInfo();
@@ -217,8 +233,8 @@
         }
         
         async function loadShifts() {
-            const dateFrom = document.getElementById('dateFrom').value;
-            const dateTo = document.getElementById('dateTo').value;
+            const dateFrom = document.getElementById('shiftDateFrom').value;
+            const dateTo = document.getElementById('shiftDateTo').value;
             
             if (!dateFrom || !dateTo) {
                 showAlert('Please select both from and to dates', 'error');
@@ -228,41 +244,75 @@
             showLoading(true);
             
             try {
-                // Build query
-                let query = db
+                // Query shifts - users only see their own shifts
+                const { data: shifts, error } = await db
                     .from('shifts')
                     .select('*')
+                    .eq('user_id', currentUser.id)
                     .eq('status', 'completed')
-                    .gte('start_time', new Date(dateFrom).toISOString())
+                    .gte('start_time', new Date(dateFrom + 'T00:00:00').toISOString())
                     .lte('start_time', new Date(dateTo + 'T23:59:59').toISOString())
                     .order('start_time', { ascending: false });
-                
-                // Always filter by current user - users only see their own shifts
-                query = query.eq('user_id', currentUser.id);
-                
-                const { data: shifts, error } = await query;
                 
                 if (error) throw error;
                 
                 allShifts = shifts || [];
                 
-                // Calculate jobs for each shift
+                // Load all clients for dynamic columns
+                const { data: clientsData } = await db
+                    .from('clients')
+                    .select('client_id')
+                    .order('client_id', { ascending: true });
+                
+                allClients = clientsData ? clientsData.map(c => c.client_id) : [];
+                
+                // Get user info
+                const { data: userData } = await db
+                    .from('user_roles')
+                    .select('email, agent_id')
+                    .eq('user_id', currentUser.id)
+                    .single();
+                
+                // Calculate jobs for each shift (broken down by client)
                 for (let shift of allShifts) {
+                    shift.userInfo = userData || { email: currentUser.email, agent_id: shift.agent_id };
+                    
                     const { data: boxes } = await db
                         .from('boxes')
-                        .select('id')
+                        .select('id, client')
                         .eq('agent', shift.agent_id);
                     
+                    // Initialize job counts per client
+                    shift.jobsByClient = {};
+                    allClients.forEach(client => {
+                        shift.jobsByClient[client] = 0;
+                    });
+                    
                     if (boxes && boxes.length > 0) {
-                        const boxIds = boxes.map(b => b.id);
-                        const { count } = await db
-                            .from('jobs')
-                            .select('*', { count: 'exact', head: true })
-                            .in('box_id', boxIds)
-                            .gte('created_at', shift.start_time)
-                            .lte('created_at', shift.end_time);
+                        // Group boxes by client
+                        const boxesByClient = {};
+                        boxes.forEach(box => {
+                            if (!boxesByClient[box.client]) {
+                                boxesByClient[box.client] = [];
+                            }
+                            boxesByClient[box.client].push(box.id);
+                        });
                         
-                        shift.systemJobs = count || 0;
+                        // Count jobs per client
+                        let totalSystemJobs = 0;
+                        for (const client of Object.keys(boxesByClient)) {
+                            const clientBoxIds = boxesByClient[client];
+                            const { count } = await db
+                                .from('jobs')
+                                .select('*', { count: 'exact', head: true })
+                                .in('box_id', clientBoxIds)
+                                .gte('created_at', shift.start_time)
+                                .lte('created_at', shift.end_time);
+                            
+                            shift.jobsByClient[client] = count || 0;
+                            totalSystemJobs += count || 0;
+                        }
+                        shift.systemJobs = totalSystemJobs;
                     } else {
                         shift.systemJobs = 0;
                     }
@@ -271,6 +321,8 @@
                 
                 renderShifts();
                 renderSummary();
+                
+                document.getElementById('downloadShiftsBtn').disabled = allShifts.length === 0;
                 
             } catch (error) {
                 console.error('Error loading shifts:', error);
@@ -428,17 +480,6 @@
             selectedShiftDetail = null;
         }
         
-        function formatDateTime(date) {
-            return new Date(date).toLocaleString('en-AU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-            });
-        }
-        
         function copyShiftDetail() {
             if (!selectedShiftDetail) return;
             
@@ -483,41 +524,33 @@ Total: ${shift.totalJobs}`;
             });
         }
         
-        function copyPeriodSummary() {
-            if (!allShifts || allShifts.length === 0) return;
-            
-            const dateFrom = document.getElementById('dateFrom').value;
-            const dateTo = document.getElementById('dateTo').value;
-            
-            let totalHours = 0;
-            let totalKms = 0;
-            let totalJobs = 0;
-            
-            allShifts.forEach(shift => {
-                const startTime = new Date(shift.start_time);
-                const endTime = new Date(shift.end_time);
-                totalHours += (endTime - startTime) / (1000 * 60 * 60);
-                totalKms += shift.end_kms - shift.start_kms;
-                totalJobs += shift.totalJobs;
-            });
-            
-            const hours = Math.floor(totalHours);
-            const minutes = Math.round((totalHours - hours) * 60);
-            
-            const text = `SHIFT SUMMARY
-Period: ${dateFrom} to ${dateTo}
-
-Total Shifts: ${allShifts.length}
-Total Hours: ${hours}h ${minutes}m (${totalHours.toFixed(2)} hours)
-Total Distance: ${totalKms.toLocaleString()} km
-Total Jobs: ${totalJobs}`;
-            
-            navigator.clipboard.writeText(text).then(() => {
-                showAlert('✓ Summary copied to clipboard', 'success');
-            }).catch(err => {
-                console.error('Copy failed:', err);
-                showAlert('Failed to copy summary', 'error');
-            });
+        function getTimeMultiplier(date) {
+            const dayOfWeek = new Date(date).getDay();
+            if (dayOfWeek === 0) return 2.0;   // Sunday
+            if (dayOfWeek === 6) return 1.5;   // Saturday
+            return 1.0;                         // Monday-Friday
+        }
+        
+        function getTimeMultiplierLabel(date) {
+            const dayOfWeek = new Date(date).getDay();
+            if (dayOfWeek === 0) return '2x (Sun)';
+            if (dayOfWeek === 6) return '1.5x (Sat)';
+            return '1x';
+        }
+        
+        function formatTimeHMM(decimalHours) {
+            const hours = Math.floor(decimalHours);
+            const minutes = Math.round((decimalHours - hours) * 60);
+            return `${hours}:${String(minutes).padStart(2, '0')}`;
+        }
+        
+        function escapeCSV(value) {
+            if (value === null || value === undefined) return '';
+            const str = String(value);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
         }
         
         function downloadShiftsCSV() {
@@ -526,25 +559,78 @@ Total Jobs: ${totalJobs}`;
                 return;
             }
             
-            let csvContent = 'Date,Agent,Start Time,End Time,Hours (Decimal),Start KM,End KM,KM Travelled,System Jobs,Extra Jobs,Total Jobs\n';
+            // Build header row with dynamic client columns
+            let headers = [
+                'Date',
+                'Start Time',
+                'End Time',
+                'Agent',
+                'Email',
+                'Total Time (h:mm)',
+                'Total Time (decimal)',
+                'Time Multiplier',
+                'Adjusted Time (decimal)',
+                'Start Km',
+                'End Km',
+                'Km Travelled'
+            ];
+            
+            // Add dynamic client columns
+            allClients.forEach(client => {
+                headers.push(`Jobs - ${client}`);
+            });
+            
+            // Add remaining columns
+            headers.push('Extra Jobs');
+            headers.push('Total Jobs');
+            headers.push('Shift Notes');
+            
+            let csvContent = headers.join(',') + '\n';
             
             allShifts.forEach(shift => {
                 const startTime = new Date(shift.start_time);
                 const endTime = new Date(shift.end_time);
                 const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
                 const kmsTravelled = shift.end_kms - shift.start_kms;
+                const multiplier = getTimeMultiplier(shift.start_time);
+                const adjustedTime = hoursWorked * multiplier;
                 
                 const dateStr = startTime.toLocaleDateString('en-AU');
                 
-                csvContent += `"${dateStr}","${shift.agent_id}","${formatDateTime(shift.start_time)}","${formatDateTime(shift.end_time)}",${hoursWorked.toFixed(2)},${shift.start_kms},${shift.end_kms},${kmsTravelled},${shift.systemJobs},${shift.extra_jobs || 0},${shift.totalJobs}\n`;
+                let row = [
+                    dateStr,
+                    formatDateTime(shift.start_time),
+                    formatDateTime(shift.end_time),
+                    shift.agent_id,
+                    shift.userInfo?.email || '',
+                    formatTimeHMM(hoursWorked),
+                    hoursWorked.toFixed(2),
+                    getTimeMultiplierLabel(shift.start_time),
+                    adjustedTime.toFixed(2),
+                    shift.start_kms,
+                    shift.end_kms,
+                    kmsTravelled
+                ];
+                
+                // Add job counts for each client
+                allClients.forEach(client => {
+                    row.push(shift.jobsByClient?.[client] || 0);
+                });
+                
+                // Add remaining data
+                row.push(shift.extra_jobs || 0);
+                row.push(shift.totalJobs);
+                row.push(escapeCSV(shift.shift_notes || ''));
+                
+                csvContent += row.map(val => escapeCSV(val)).join(',') + '\n';
             });
             
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
             
-            const dateFrom = document.getElementById('dateFrom').value;
-            const dateTo = document.getElementById('dateTo').value;
+            const dateFrom = document.getElementById('shiftDateFrom').value;
+            const dateTo = document.getElementById('shiftDateTo').value;
             const filename = `shifts-${dateFrom}-to-${dateTo}.csv`;
             
             link.setAttribute('href', url);
