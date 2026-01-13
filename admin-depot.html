@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Depot Configuration - Admin</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script src="sidebar.js"></script>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+    </div>
+    
+    <!-- Sync Status -->
+    <div class="sync-status" id="syncStatus"></div>
+    
+    <!-- Main Container -->
+    <div class="app-wrapper">
+        <div class="container container-wide">
+            <div class="header">
+                <div class="header-content">
+                    <div class="header-icon">🏢</div>
+                    <div>
+                        <h1>Depot Configuration</h1>
+                        <div class="header-subtitle">Manage users, agents, clients & vendors</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="content">
+                <div id="alertContainer"></div>
+                
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab active" data-tab="users">Users</button>
+                    <button class="tab" data-tab="agents">Agents</button>
+                    <button class="tab" data-tab="clients">Clients</button>
+                    <button class="tab" data-tab="vendors">Vendors</button>
+                </div>
+                
+                <!-- Users Tab -->
+                <div class="tab-content active" id="users-tab">
+                    <div class="section-header">
+                        <h2>User Management</h2>
+                        <button class="btn btn-primary" onclick="openInviteUserModal()">+ Invite User</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Agent ID</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Shifts</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Agents Tab -->
+                <div class="tab-content" id="agents-tab">
+                    <div class="section-header">
+                        <h2>Agent Management</h2>
+                        <button class="btn btn-primary" onclick="openAddAgentModal()">+ Add Agent</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Agent ID</th>
+                                    <th>Assigned Users</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="agentsTableBody">
+                                <tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Clients Tab -->
+                <div class="tab-content" id="clients-tab">
+                    <div class="section-header">
+                        <h2>Client Management</h2>
+                        <button class="btn btn-primary" onclick="openAddClientModal()">+ Add Client</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Client ID</th>
+                                    <th>Linked Vendors</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clientsTableBody">
+                                <tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Vendors Tab -->
+                <div class="tab-content" id="vendors-tab">
+                    <div class="section-header">
+                        <h2>Vendor Management</h2>
+                        <button class="btn btn-primary" onclick="openAddVendorModal()">+ Add Vendor</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Vendor ID</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vendorsTableBody">
+                                <tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Agent Modal -->
+    <div class="modal" id="addAgentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Agent</h3>
+            </div>
+            <form id="addAgentForm">
+                <div class="form-group">
+                    <label class="form-label">Agent ID</label>
+                    <input type="text" id="agentId" class="form-input" required placeholder="e.g., 804">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeAddAgentModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Agent</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Add Client Modal -->
+    <div class="modal" id="addClientModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Client</h3>
+            </div>
+            <form id="addClientForm">
+                <div class="form-group">
+                    <label class="form-label">Client ID</label>
+                    <input type="text" id="clientId" class="form-input" required placeholder="e.g., AMTEK">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeAddClientModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Client</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Add Vendor Modal -->
+    <div class="modal" id="addVendorModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Vendor</h3>
+            </div>
+            <form id="addVendorForm">
+                <div class="form-group">
+                    <label class="form-label">Vendor ID</label>
+                    <input type="text" id="vendorId" class="form-input" required placeholder="e.g., XYZ">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeAddVendorModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Vendor</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Client Vendors Modal -->
+    <div class="modal" id="editClientVendorsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Vendors for <span id="editClientName"></span></h3>
+            </div>
+            <div id="vendorCheckboxes" style="max-height: 400px; overflow-y: auto; padding: 10px 0;">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="closeEditClientVendorsModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveClientVendors()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invite User Modal -->
+    <div class="modal" id="inviteUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Invite New User</h3>
+            </div>
+            <form id="inviteUserForm">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" id="inviteEmail" class="form-input" required placeholder="user@example.com">
+                </div>
+                <div class="help-box" style="margin-top: 16px;">
+                    <p style="margin: 0; font-size: 0.875rem;">
+                        The user will receive an invitation email to create their account. 
+                        They will be assigned the <strong>Technician</strong> role by default. 
+                        You can assign them to an agent after they sign up.
+                    </p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeInviteUserModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Send Invitation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Assign Agent Modal -->
+    <div class="modal" id="assignAgentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Assign Agent to <span id="assignUserEmail"></span></h3>
+            </div>
+            <form id="assignAgentForm">
+                <div class="form-group">
+                    <label class="form-label">Select Agent</label>
+                    <select id="assignAgentSelect" class="form-select" required>
+                        <option value="">Choose an agent...</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeAssignAgentModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Assign Agent</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- View User Modal -->
+    <div class="modal" id="viewUserModal">
+        <div class="modal-content" style="max-width: 640px;">
+            <div class="modal-header">
+                <h3>👤 User Details</h3>
+            </div>
+            <div id="viewUserContent">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="closeViewUserModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let viewingUserId = null;
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await initAuth('manager');
+            if (!currentUser) return;
+            
+            // Initialize sidebar
+            initSidebar(currentUser);
+            
+            await Promise.all([
+                loadUsers(),
+                loadAgents(),
+                loadClients(),
+                loadVendors()
+            ]);
+            
+            // Setup tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+                });
+            });
+            
+            // Setup forms
+            document.getElementById('addAgentForm').addEventListener('submit', handleAddAgent);
+            document.getElementById('addClientForm').addEventListener('submit', handleAddClient);
+            document.getElementById('addVendorForm').addEventListener('submit', handleAddVendor);
+            document.getElementById('inviteUserForm').addEventListener('submit', handleInviteUser);
+            document.getElementById('assignAgentForm').addEventListener('submit', handleAssignAgent);
+            
+            showLoading(false);
+        });
+        
+        function showLoading(show) {
+            document.getElementById("loading").classList.toggle("active", show);
+        }
+        
+        function showAlert(message, type) {
+            const container = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            
+            const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+            alert.innerHTML = `<span class="alert-icon">${icons[type] || 'ℹ'}</span><span>${message}</span>`;
+            
+            container.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+        
+        async function loadUsers() {
+            try {
+                const { data, error } = await db
+                    .from('user_roles')
+                    .select('*')
+                    .order('agent_id', { ascending: true });
+                
+                if (error) throw error;
+                
+                const tbody = document.getElementById('usersTableBody');
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">No users found</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = data.map(user => {
+                    const agentDisplay = user.agent_id 
+                        ? `<span style="font-family: var(--font-mono);">${user.agent_id}</span>` 
+                        : '<span style="color: var(--text-muted); font-style: italic;">Not assigned</span>';
+                    
+                    const shiftsDisplay = user.shifts_enabled 
+                        ? '<span style="color: var(--success);">✓</span>' 
+                        : '<span style="color: var(--text-muted);">—</span>';
+                    
+                    const assignBtn = !user.agent_id
+                        ? `<button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8125rem; margin-right: 6px;" onclick="openAssignAgentModal('${user.user_id}', '${user.email}')">Assign</button>`
+                        : '';
+                    
+                    return `
+                        <tr>
+                            <td>${agentDisplay}</td>
+                            <td>${user.email || 'N/A'}</td>
+                            <td><span class="badge badge-${user.role}">${user.role}</span></td>
+                            <td>${shiftsDisplay}</td>
+                            <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                            <td>
+                                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8125rem; margin-right: 6px;" onclick="openViewUserModal('${user.user_id}')">View</button>
+                                ${assignBtn}
+                                <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading users:', error);
+                showAlert('Error loading users: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadAgents() {
+            try {
+                const { data, error } = await db
+                    .from('agents')
+                    .select('agent_id')
+                    .order('agent_id', { ascending: true });
+                
+                if (error) throw error;
+                
+                const { data: userCounts } = await db.from('user_roles').select('agent_id');
+                
+                const counts = {};
+                userCounts?.forEach(u => {
+                    if (u.agent_id) counts[u.agent_id] = (counts[u.agent_id] || 0) + 1;
+                });
+                
+                const tbody = document.getElementById('agentsTableBody');
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">No agents found</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = data.map(agent => `
+                    <tr>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${agent.agent_id}</td>
+                        <td>${counts[agent.agent_id] || 0} user(s)</td>
+                        <td>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteAgent('${agent.agent_id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading agents:', error);
+                showAlert('Error loading agents: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadClients() {
+            try {
+                const { data, error } = await db
+                    .from('clients')
+                    .select('client_id')
+                    .order('client_id', { ascending: true });
+                
+                if (error) throw error;
+                
+                const tbody = document.getElementById('clientsTableBody');
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">No clients found</td></tr>';
+                    return;
+                }
+                
+                const clientVendorCounts = {};
+                for (const client of data) {
+                    const { count } = await db
+                        .from('clients_vendors')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('client_id', client.client_id);
+                    clientVendorCounts[client.client_id] = count || 0;
+                }
+                
+                tbody.innerHTML = data.map(client => `
+                    <tr>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${client.client_id}</td>
+                        <td>${clientVendorCounts[client.client_id]} vendor(s)</td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8125rem; margin-right: 6px;" onclick="openEditClientVendorsModal('${client.client_id}')">Edit Vendors</button>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteClient('${client.client_id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                showAlert('Error loading clients: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadVendors() {
+            try {
+                const { data, error } = await db
+                    .from('vendors')
+                    .select('vendor_id')
+                    .order('vendor_id', { ascending: true });
+                
+                if (error) throw error;
+                
+                const tbody = document.getElementById('vendorsTableBody');
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">No vendors found</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = data.map(vendor => `
+                    <tr>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${vendor.vendor_id}</td>
+                        <td>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteVendor('${vendor.vendor_id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading vendors:', error);
+                showAlert('Error loading vendors: ' + error.message, 'error');
+            }
+        }
+        
+        // Modal functions
+        function openAddAgentModal() {
+            document.getElementById('addAgentModal').classList.add('active');
+        }
+        
+        function closeAddAgentModal() {
+            document.getElementById('addAgentModal').classList.remove('active');
+            document.getElementById('addAgentForm').reset();
+        }
+        
+        function openAddClientModal() {
+            document.getElementById('addClientModal').classList.add('active');
+        }
+        
+        function closeAddClientModal() {
+            document.getElementById('addClientModal').classList.remove('active');
+            document.getElementById('addClientForm').reset();
+        }
+        
+        function openAddVendorModal() {
+            document.getElementById('addVendorModal').classList.add('active');
+        }
+        
+        function closeAddVendorModal() {
+            document.getElementById('addVendorModal').classList.remove('active');
+            document.getElementById('addVendorForm').reset();
+        }
+        
+        // CRUD operations
+        async function handleAddAgent(e) {
+            e.preventDefault();
+            const agentId = document.getElementById('agentId').value;
+            
+            try {
+                const { error } = await db.from('agents').insert([{ agent_id: agentId }]);
+                if (error) throw error;
+                
+                showAlert('Agent added successfully!', 'success');
+                closeAddAgentModal();
+                await loadAgents();
+            } catch (error) {
+                showAlert('Error adding agent: ' + error.message, 'error');
+            }
+        }
+        
+        async function handleAddClient(e) {
+            e.preventDefault();
+            const clientId = document.getElementById('clientId').value.toUpperCase();
+            
+            try {
+                const { error } = await db.from('clients').insert([{ client_id: clientId }]);
+                if (error) throw error;
+                
+                showAlert('Client added successfully!', 'success');
+                closeAddClientModal();
+                await loadClients();
+            } catch (error) {
+                showAlert('Error adding client: ' + error.message, 'error');
+            }
+        }
+        
+        async function handleAddVendor(e) {
+            e.preventDefault();
+            const vendorId = document.getElementById('vendorId').value.toUpperCase();
+            
+            try {
+                const { error } = await db.from('vendors').insert([{ vendor_id: vendorId }]);
+                if (error) throw error;
+                
+                showAlert('Vendor added successfully!', 'success');
+                closeAddVendorModal();
+                await loadVendors();
+            } catch (error) {
+                showAlert('Error adding vendor: ' + error.message, 'error');
+            }
+        }
+        
+        async function deleteAgent(agentId) {
+            if (!confirm(`Delete agent ${agentId}? This will also delete all associated boxes, jobs, and serials.`)) return;
+            
+            try {
+                const { error } = await db.from('agents').delete().eq('agent_id', agentId);
+                if (error) throw error;
+                
+                showAlert('Agent deleted successfully!', 'success');
+                await loadAgents();
+            } catch (error) {
+                showAlert('Error deleting agent: ' + error.message, 'error');
+            }
+        }
+        
+        async function deleteClient(clientId) {
+            if (!confirm(`Delete client ${clientId}?`)) return;
+            
+            try {
+                const { error } = await db.from('clients').delete().eq('client_id', clientId);
+                if (error) throw error;
+                
+                showAlert('Client deleted successfully!', 'success');
+                await loadClients();
+            } catch (error) {
+                showAlert('Error deleting client: ' + error.message, 'error');
+            }
+        }
+        
+        async function deleteVendor(vendorId) {
+            if (!confirm(`Delete vendor ${vendorId}?`)) return;
+            
+            try {
+                const { error } = await db.from('vendors').delete().eq('vendor_id', vendorId);
+                if (error) throw error;
+                
+                showAlert('Vendor deleted successfully!', 'success');
+                await loadVendors();
+            } catch (error) {
+                showAlert('Error deleting vendor: ' + error.message, 'error');
+            }
+        }
+        
+        async function deleteUser(userId, email) {
+            if (!confirm(`Delete user ${email}? They will lose access to the system.`)) return;
+            
+            try {
+                const { error } = await db.from('user_roles').delete().eq('user_id', userId);
+                if (error) throw error;
+                
+                showAlert(`✓ User ${email} removed.`, 'success');
+                await loadUsers();
+            } catch (error) {
+                showAlert('Error deleting user: ' + error.message, 'error');
+            }
+        }
+        
+        // Client-Vendor Management Functions
+        let currentEditingClient = null;
+        
+        async function openEditClientVendorsModal(clientId) {
+            currentEditingClient = clientId;
+            document.getElementById('editClientName').textContent = clientId;
+            
+            try {
+                const { data: vendors, error: vendorsError } = await db
+                    .from('vendors')
+                    .select('vendor_id')
+                    .order('vendor_id', { ascending: true });
+                
+                if (vendorsError) throw vendorsError;
+                
+                const { data: clientVendors, error: cvError } = await db
+                    .from('clients_vendors')
+                    .select('vendor_id')
+                    .eq('client_id', clientId);
+                
+                if (cvError) throw cvError;
+                
+                const linkedVendorIds = new Set(clientVendors.map(cv => cv.vendor_id));
+                
+                const checkboxContainer = document.getElementById('vendorCheckboxes');
+                checkboxContainer.innerHTML = vendors.map(vendor => `
+                    <div style="display: flex; color: var(--text-primary); align-items: center; padding: 12px; margin-bottom: 8px; background: var(--bg-tertiary); border-radius: 8px; border: 2px solid var(--border-primary); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-hover)';" onmouseout="this.style.borderColor='var(--border-primary)'; this.style.background='var(--bg-tertiary)';">
+                        <input 
+                            type="checkbox" 
+                            id="vendor_${vendor.vendor_id}" 
+                            value="${vendor.vendor_id}"
+                            ${linkedVendorIds.has(vendor.vendor_id) ? 'checked' : ''}
+                            style="width: 20px; height: 20px; margin-right: 12px; cursor: pointer; accent-color: var(--accent-primary);"
+                        >
+                        <label for="vendor_${vendor.vendor_id}" style="margin: 0; cursor: pointer; flex: 1; font-family: var(--font-mono);">${vendor.vendor_id}</label>
+                    </div>
+                `).join('');
+                
+                document.getElementById('editClientVendorsModal').classList.add('active');
+            } catch (error) {
+                console.error('Error opening edit modal:', error);
+                showAlert('Error loading vendor data: ' + error.message, 'error');
+            }
+        }
+        
+        function closeEditClientVendorsModal() {
+            document.getElementById('editClientVendorsModal').classList.remove('active');
+            currentEditingClient = null;
+        }
+        
+        async function saveClientVendors() {
+            if (!currentEditingClient) return;
+            
+            try {
+                const checkboxes = document.querySelectorAll('#vendorCheckboxes input[type="checkbox"]');
+                const selectedVendors = Array.from(checkboxes)
+                    .filter(cb => cb.checked)
+                    .map(cb => cb.value);
+                
+                const { error: deleteError } = await db
+                    .from('clients_vendors')
+                    .delete()
+                    .eq('client_id', currentEditingClient);
+                
+                if (deleteError) throw deleteError;
+                
+                if (selectedVendors.length > 0) {
+                    const relationships = selectedVendors.map(vendorId => ({
+                        client_id: currentEditingClient,
+                        vendor_id: vendorId
+                    }));
+                    
+                    const { error: insertError } = await db
+                        .from('clients_vendors')
+                        .insert(relationships);
+                    
+                    if (insertError) throw insertError;
+                }
+                
+                showAlert(`✓ Vendor associations updated for ${currentEditingClient}`, 'success');
+                closeEditClientVendorsModal();
+                await loadClients();
+            } catch (error) {
+                console.error('Error saving client vendors:', error);
+                showAlert('Error saving vendor associations: ' + error.message, 'error');
+            }
+        }
+        
+        // User Invitation Functions
+        function openInviteUserModal() {
+            document.getElementById('inviteUserModal').classList.add('active');
+        }
+        
+        function closeInviteUserModal() {
+            document.getElementById('inviteUserModal').classList.remove('active');
+            document.getElementById('inviteUserForm').reset();
+        }
+        
+        async function handleInviteUser(e) {
+            e.preventDefault();
+            const email = document.getElementById('inviteEmail').value.trim();
+            
+            try {
+                const token = generateToken();
+                
+                const expiresAt = new Date();
+                expiresAt.setHours(expiresAt.getHours() + 1);
+                
+                const { error: tokenError } = await db
+                    .from('invitation_tokens')
+                    .insert([{
+                        token: token,
+                        email: email,
+                        expires_at: expiresAt.toISOString(),
+                        created_by: currentUser.id
+                    }]);
+                
+                if (tokenError) throw tokenError;
+                
+                const signupLink = `${window.location.origin}/signup.html?token=${token}`;
+                
+                const message = `Invitation link for ${email}:\n\n` +
+                    `${signupLink}\n\n` +
+                    `⚠️ This link expires in 1 hour and can only be used once.\n` +
+                    `The user's email will be pre-filled - they only need to create a password.\n\n` +
+                    `After signup, assign them to an agent in the Users tab.`;
+                
+                try {
+                    await navigator.clipboard.writeText(signupLink);
+                    showAlert(`✓ Invitation link created and copied to clipboard!`, 'success');
+                    alert(message + '\n\n✓ Link copied to clipboard!');
+                } catch (err) {
+                    showAlert(`✓ Invitation link created!`, 'success');
+                    alert(message);
+                }
+                
+                closeInviteUserModal();
+            } catch (error) {
+                console.error('Error creating invitation:', error);
+                showAlert('Error creating invitation: ' + error.message, 'error');
+            }
+        }
+        
+        function generateToken() {
+            const array = new Uint8Array(32);
+            crypto.getRandomValues(array);
+            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+        
+        // Agent Assignment Functions
+        let currentAssigningUserId = null;
+        
+        async function openAssignAgentModal(userId, userEmail) {
+            currentAssigningUserId = userId;
+            document.getElementById('assignUserEmail').textContent = userEmail;
+            
+            try {
+                const { data: agents, error } = await db
+                    .from('agents')
+                    .select('agent_id')
+                    .order('agent_id', { ascending: true });
+                
+                if (error) throw error;
+                
+                const select = document.getElementById('assignAgentSelect');
+                select.innerHTML = '<option value="">Choose an agent...</option>' +
+                    agents.map(a => `<option value="${a.agent_id}">Agent ${a.agent_id}</option>`).join('');
+                
+                document.getElementById('assignAgentModal').classList.add('active');
+            } catch (error) {
+                console.error('Error loading agents:', error);
+                showAlert('Error loading agents: ' + error.message, 'error');
+            }
+        }
+        
+        function closeAssignAgentModal() {
+            document.getElementById('assignAgentModal').classList.remove('active');
+            document.getElementById('assignAgentForm').reset();
+            currentAssigningUserId = null;
+        }
+        
+        async function handleAssignAgent(e) {
+            e.preventDefault();
+            const agentId = document.getElementById('assignAgentSelect').value;
+            
+            if (!agentId || !currentAssigningUserId) return;
+            
+            try {
+                const { error } = await db
+                    .from('user_roles')
+                    .update({ agent_id: agentId })
+                    .eq('user_id', currentAssigningUserId);
+                
+                if (error) throw error;
+                
+                showAlert(`✓ Agent ${agentId} assigned successfully`, 'success');
+                closeAssignAgentModal();
+                await loadUsers();
+            } catch (error) {
+                console.error('Error assigning agent:', error);
+                showAlert('Error assigning agent: ' + error.message, 'error');
+            }
+        }
+        
+        // View User Modal Functions
+        async function openViewUserModal(userId) {
+            viewingUserId = userId;
+            showLoading(true);
+            
+            try {
+                const { data: user, error: userError } = await db
+                    .from('user_roles')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .single();
+                
+                if (userError) throw userError;
+                
+                let totalShifts = 0;
+                let totalHours = 0;
+                let totalKms = 0;
+                
+                const { count } = await db
+                    .from('shifts')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', userId)
+                    .eq('status', 'completed');
+                
+                totalShifts = count || 0;
+                
+                const { data: allShifts } = await db
+                    .from('shifts')
+                    .select('start_time, end_time, start_kms, end_kms')
+                    .eq('user_id', userId)
+                    .eq('status', 'completed');
+                
+                if (allShifts) {
+                    allShifts.forEach(s => {
+                        totalHours += (new Date(s.end_time) - new Date(s.start_time)) / (1000 * 60 * 60);
+                        totalKms += s.end_kms - s.start_kms;
+                    });
+                }
+                
+                const hours = Math.floor(totalHours);
+                const minutes = Math.round((totalHours - hours) * 60);
+                
+                let html = `
+                    <div class="user-detail-section">
+                        <h4 style="margin-bottom: 16px; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">Account Information</h4>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Email</span>
+                            <span class="settings-value">${user.email}</span>
+                        </div>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Role</span>
+                            <span class="settings-value"><span class="badge badge-${user.role}">${user.role}</span></span>
+                        </div>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Agent ID</span>
+                            <span class="settings-value">${user.agent_id || '<span style="color: var(--text-muted);">Not assigned</span>'}</span>
+                        </div>
+                        <div class="settings-info-row">
+                            <span class="settings-label">Created</span>
+                            <span class="settings-value">${new Date(user.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="user-detail-section" style="margin-top: 24px;">
+                        <h4 style="margin-bottom: 16px; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">Shift Settings</h4>
+                        <div class="toggle-container" style="margin-bottom: 0;">
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="shiftsEnabledToggle" ${user.shifts_enabled ? 'checked' : ''} onchange="toggleShiftsEnabled('${userId}', this.checked)">
+                                <div class="toggle-slider"></div>
+                            </div>
+                            <label class="toggle-label" for="shiftsEnabledToggle">Shifts Enabled</label>
+                        </div>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+                            When enabled, this user will be prompted to start/end shifts on the dashboard.
+                        </p>
+                    </div>
+                `;
+                
+                if (user.shifts_enabled || totalShifts > 0) {
+                    html += `
+                        <div class="user-detail-section" style="margin-top: 24px;">
+                            <h4 style="margin-bottom: 16px; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">Shift Statistics (All Time)</h4>
+                            <div class="shift-summary-grid" style="grid-template-columns: repeat(3, 1fr);">
+                                <div class="shift-summary-stat">
+                                    <div class="shift-summary-value">${totalShifts}</div>
+                                    <div class="shift-summary-label">Total Shifts</div>
+                                </div>
+                                <div class="shift-summary-stat">
+                                    <div class="shift-summary-value">${hours}h ${minutes}m</div>
+                                    <div class="shift-summary-label">Hours Worked</div>
+                                </div>
+                                <div class="shift-summary-stat">
+                                    <div class="shift-summary-value">${totalKms.toLocaleString()} km</div>
+                                    <div class="shift-summary-label">Distance</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    if (totalShifts > 0) {
+                        html += `
+                            <div style="margin-top: 16px;">
+                                <button class="btn btn-primary" style="width: 100%;" onclick="viewUserShifts('${userId}', '${user.agent_id}')">
+                                    📊 View All Shifts
+                                </button>
+                            </div>
+                        `;
+                    }
+                }
+                
+                document.getElementById('viewUserContent').innerHTML = html;
+                document.getElementById('viewUserModal').classList.add('active');
+                
+            } catch (error) {
+                console.error('Error loading user details:', error);
+                showAlert('Error loading user details: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function closeViewUserModal() {
+            document.getElementById('viewUserModal').classList.remove('active');
+            viewingUserId = null;
+        }
+        
+        async function toggleShiftsEnabled(userId, enabled) {
+            try {
+                const { error } = await db
+                    .from('user_roles')
+                    .update({ shifts_enabled: enabled })
+                    .eq('user_id', userId);
+                
+                if (error) throw error;
+                
+                showAlert(`✓ Shifts ${enabled ? 'enabled' : 'disabled'} for user`, 'success');
+                await loadUsers();
+            } catch (error) {
+                console.error('Error updating shift settings:', error);
+                showAlert('Error updating settings: ' + error.message, 'error');
+                document.getElementById('shiftsEnabledToggle').checked = !enabled;
+            }
+        }
+        
+        function viewUserShifts(userId, agentId) {
+            // Navigate to admin-shifts page with the user_id to filter
+            window.location.href = 'admin-shifts.html?user=' + userId;
+        }
+    </script>
+</body>
+</html>

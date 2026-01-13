@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="auth.js"></script>
+    <script src="sidebar.js"></script>
 </head>
 <body>
     <!-- Loading Overlay -->
@@ -17,46 +18,6 @@
     
     <!-- Sync Status -->
     <div class="sync-status" id="syncStatus"></div>
-    
-    <!-- Sidebar Overlay -->
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-    
-    <!-- Hamburger Button -->
-    <button class="hamburger-btn" id="hamburgerBtn">
-        <span></span>
-        <span></span>
-        <span></span>
-    </button>
-    
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <h2>Navigation</h2>
-            <button class="sidebar-close" id="sidebarClose">×</button>
-        </div>
-        <div class="sidebar-menu">
-            <div class="sidebar-menu-item active" data-page="main" id="menuMain">
-                <span>📋</span>
-                <span>Stock Entry</span>
-            </div>
-            <div class="sidebar-menu-item" data-page="export" id="menuExport">
-                <span>📊</span>
-                <span>View Boxes</span>
-            </div>
-            <div class="sidebar-menu-item" id="menuUser" onclick="window.location.href='user.html'">
-                <span>👤</span>
-                <span>User</span>
-            </div>
-            <div class="sidebar-menu-item" data-role="manager" onclick="window.location.href='admin.html'">
-                <span>⚙️</span>
-                <span>Admin Panel</span>
-            </div>
-            <div class="sidebar-menu-item" onclick="logout()">
-                <span>🚪</span>
-                <span>Sign Out</span>
-            </div>
-        </div>
-    </div>
     
     <!-- Main Container -->
     <div class="app-wrapper">
@@ -789,12 +750,6 @@ let editingJob = null;
             // Count jobs from database during shift timeframe
             let systemJobs = 0;
             try {
-                const { count, error } = await db
-                    .from('jobs')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('box_id', db.raw(`(SELECT id FROM boxes WHERE agent = '${currentAgent}')`));
-                
-                // Actually need to join - let's do a different approach
                 const { data: boxes } = await db
                     .from('boxes')
                     .select('id')
@@ -1035,6 +990,9 @@ Total: ${report.totalJobs}`;
             const user = await initAuth(['manager', 'technician']);
             if (!user) return;
             
+            // Initialize sidebar
+            initSidebar(user);
+            
             currentAgent = user.agent_id;
             currentUserRole = user.role;
             currentUserId = user.id;
@@ -1054,7 +1012,6 @@ Total: ${report.totalJobs}`;
                 console.error('Error checking shift settings:', error);
             }
             
-            document.getElementById("hamburgerBtn").classList.add("visible");
             document.getElementById("mainForm").classList.add("active");
             
             await Promise.all([
@@ -1065,12 +1022,6 @@ Total: ${report.totalJobs}`;
             ]);
 
             // Event Listeners
-            document.getElementById("hamburgerBtn").addEventListener("click", toggleSidebar);
-            document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
-            document.getElementById("sidebarClose").addEventListener("click", closeSidebar);
-            document.getElementById("menuMain").addEventListener("click", () => switchPage("main"));
-            document.getElementById("menuExport").addEventListener("click", () => switchPage("export"));
-
             document.getElementById("clientSelect").addEventListener("change", handleClientChange);
             document.getElementById("bulkToggle").addEventListener("change", handleBulkToggle);
             document.getElementById("bulkToggle2").addEventListener("change", handleBulkToggle2);
@@ -1088,26 +1039,24 @@ Total: ${report.totalJobs}`;
             document.getElementById("startShiftForm").addEventListener("submit", handleStartShift);
             document.getElementById("endShiftForm").addEventListener("submit", handleEndShift);
             document.getElementById("staleShiftForm").addEventListener("submit", handleStaleShift);
+            
+            // Handle hash for export page
+            if (window.location.hash === '#export') {
+                switchPage('export');
+            }
         });
-
-        function toggleSidebar() {
-            document.getElementById("sidebar").classList.toggle("active");
-            document.getElementById("sidebarOverlay").classList.toggle("active");
-            document.getElementById("hamburgerBtn").classList.toggle("active");
-        }
-
-        function closeSidebar() {
-            document.getElementById("sidebar").classList.remove("active");
-            document.getElementById("sidebarOverlay").classList.remove("active");
-            document.getElementById("hamburgerBtn").classList.remove("active");
-        }
 
         function switchPage(page) {
             document.querySelectorAll(".page-content").forEach(p => p.classList.remove("active"));
-            document.querySelectorAll(".sidebar-menu-item[data-page]").forEach(m => m.classList.remove("active"));
             
             document.getElementById(page === "main" ? "mainPage" : "exportPage").classList.add("active");
-            document.getElementById(page === "main" ? "menuMain" : "menuExport").classList.add("active");
+            
+            // Update URL hash
+            if (page === "export") {
+                window.location.hash = 'export';
+            } else {
+                history.replaceState(null, null, window.location.pathname);
+            }
             
             closeSidebar();
         }
