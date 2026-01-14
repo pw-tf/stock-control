@@ -1364,9 +1364,7 @@ tr:hover td {
    LOGIN PAGE
    ============================================ */
 .login-wrapper {
-    min-height: 100vh;
     display: flex;
-    align-items: center;
     justify-content: center;
     padding: var(--spacing-lg);
     position: relative;
@@ -1877,6 +1875,7 @@ tr:hover td {
     body {
         background: white;
         color: black;
+		zoom: 40%;
     }
     
     body::before {
@@ -1901,7 +1900,9 @@ tr:hover td {
 	.job-date,
 	.export-box-subtitle,
     .job-edit-actions,
-    .modal
+    .modal,
+	.export-results,
+	#alertContainer
 	{
         display: none !important;
     }

@@ -6,7 +6,6 @@
     <title>Dashboard - Stock Submission</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="auth.js"></script>
     <script src="sidebar.js"></script>
 </head>
@@ -39,151 +38,107 @@
             </div>
             
             <div class="content">
-                <!-- Main Page: Stock Entry -->
-                <div class="page-content active" id="mainPage">
-                    <div class="main-form" id="mainForm">
-                        <div id="alertContainer"></div>
-                        
-                        <!-- Current Box Status Card -->
-                        <div class="status-card">
-                            <div class="status-card-content">
-                                <h3 id="currentBoxId">No Active Box</h3>
-                                <p id="currentBoxClient">Select a client to begin</p>
-                                <div class="status-card-meta" id="jobsSummary"></div>
-                            </div>
-                            <button class="btn btn-danger" id="newBoxBtn" disabled>
-                                Start New Box
-                            </button>
-                        </div>
-                        
-                        <!-- Form Fields -->
-                        <div class="card">
-                            <div class="form-group">
-                                <label class="form-label" for="clientSelect">
-                                    Client <span class="required">*</span>
-                                </label>
-                                <select id="clientSelect" class="form-select">
-                                    <option value="">Select a client...</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="vendorSelect">
-                                    Vendor <span class="required">*</span>
-                                </label>
-                                <select id="vendorSelect" class="form-select">
-                                    <option value="">Select a vendor...</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="jobNumber">
-                                    Job Number <span class="required">*</span>
-                                </label>
-                                <input 
-                                    type="text" 
-                                    id="jobNumber" 
-                                    class="form-input" 
-                                    placeholder="Enter job number"
-                                >
-                            </div>
-                            
-                            <!-- Individual Serial Entry -->
-                            <div class="form-group individual-entry-area" id="individualEntry">
-                                <label class="form-label">
-                                    Serial Numbers <span class="required">*</span>
-                                </label>
-                                <div class="serial-inputs" id="serialInputs">
-                                    <div class="serial-input-row">
-                                        <input type="text" class="form-input serial-input" placeholder="Enter serial number">
-                                    </div>
-                                </div>
-                                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;">
-                                    <button class="btn btn-primary" id="addSerialBtn">
-                                        + Add Another Serial
-                                    </button>
-                                    <!-- Bulk Entry Toggle -->
-                                    <div class="toggle-container" style="margin: 0;">
-                                        <div class="toggle-switch">
-                                            <input type="checkbox" id="bulkToggle">
-                                            <div class="toggle-slider"></div>
-                                        </div>
-                                        <label class="toggle-label" for="bulkToggle">Bulk Entry Mode</label>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Bulk Serial Entry -->
-                            <div class="bulk-entry-area" id="bulkEntry">
-                                <div class="form-group">
-                                    <label class="form-label" for="bulkSerials">
-                                        Serial Numbers <span class="required">*</span>
-                                        <span style="font-weight: 400; color: var(--text-muted);">(one per line)</span>
-                                    </label>
-                                    <textarea 
-                                        id="bulkSerials" 
-                                        class="form-textarea" 
-                                        placeholder="Enter serial numbers, one per line..."
-                                    ></textarea>
-                                    <div style="margin-top: 12px;">
-                                        <!-- Bulk Entry Toggle (for turning off) -->
-                                        <div class="toggle-container" style="margin: 0;">
-                                            <div class="toggle-switch">
-                                                <input type="checkbox" id="bulkToggle2" checked>
-                                                <div class="toggle-slider"></div>
-                                            </div>
-                                            <label class="toggle-label" for="bulkToggle2">Bulk Entry Mode</label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="button-group">
-                                <button class="btn btn-primary" id="addJobBtn">
-                                    Add Job to Box
-                                </button>
-                            </div>
-                        </div>
+                <div id="alertContainer"></div>
+                
+                <!-- Current Box Status Card -->
+                <div class="status-card">
+                    <div class="status-card-content">
+                        <h3 id="currentBoxId">No Active Box</h3>
+                        <p id="currentBoxClient">Select a client to begin</p>
+                        <div class="status-card-meta" id="jobsSummary"></div>
                     </div>
+                    <button class="btn btn-danger" id="newBoxBtn" disabled>
+                        Start New Box
+                    </button>
                 </div>
                 
-                <!-- Export Page: View Boxes -->
-                <div class="page-content" id="exportPage">
-                    <div class="export-filters">
-                        <h2>View Boxes</h2>
-                        <div class="filter-row">
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label class="form-label" for="filterAgent">
-                                    Agent <span class="required">*</span>
-                                </label>
-                                <select id="filterAgent" class="form-select">
-                                    <option value="">Select an agent...</option>
-                                </select>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label class="form-label" for="filterExportClient">
-                                    Client <span class="required">*</span>
-                                </label>
-                                <select id="filterExportClient" class="form-select">
-                                    <option value="">Select a client...</option>
-                                </select>
+                <!-- Form Fields -->
+                <div class="card">
+                    <div class="form-group">
+                        <label class="form-label" for="clientSelect">
+                            Client <span class="required">*</span>
+                        </label>
+                        <select id="clientSelect" class="form-select">
+                            <option value="">Select a client...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="vendorSelect">
+                            Vendor <span class="required">*</span>
+                        </label>
+                        <select id="vendorSelect" class="form-select">
+                            <option value="">Select a client first...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="jobNumber">
+                            Job Number <span class="required">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="jobNumber" 
+                            class="form-input" 
+                            placeholder="Enter job number"
+                        >
+                    </div>
+                    
+                    <!-- Individual Serial Entry -->
+                    <div class="form-group individual-entry-area" id="individualEntry">
+                        <label class="form-label">
+                            Serial Numbers <span class="required">*</span>
+                        </label>
+                        <div class="serial-inputs" id="serialInputs">
+                            <div class="serial-input-row">
+                                <input type="text" class="form-input serial-input" placeholder="Enter serial number">
                             </div>
                         </div>
-                        <div class="button-group" style="margin-top: 16px;">
-                            <button class="btn btn-primary" id="loadBoxesBtn">Load Boxes</button>
-                            <button class="btn btn-ghost" id="clearExportFiltersBtn">Clear Selection</button>
+                        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;">
+                            <button class="btn btn-primary" id="addSerialBtn">
+                                + Add Another Serial
+                            </button>
+                            <!-- Bulk Entry Toggle -->
+                            <div class="toggle-container" style="margin: 0;">
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="bulkToggle">
+                                    <div class="toggle-slider"></div>
+                                </div>
+                                <label class="toggle-label" for="bulkToggle">Bulk Entry Mode</label>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="export-results" id="exportResults">
-                        <div class="empty-state">
-                            <div class="empty-state-icon">📦</div>
-                            <p>Select an agent and client, then click "Load Boxes"</p>
+                    <!-- Bulk Serial Entry -->
+                    <div class="bulk-entry-area" id="bulkEntry">
+                        <div class="form-group">
+                            <label class="form-label" for="bulkSerials">
+                                Serial Numbers <span class="required">*</span>
+                                <span style="font-weight: 400; color: var(--text-muted);">(one per line)</span>
+                            </label>
+                            <textarea 
+                                id="bulkSerials" 
+                                class="form-textarea" 
+                                placeholder="Enter serial numbers, one per line..."
+                            ></textarea>
+                            <div style="margin-top: 12px;">
+                                <!-- Bulk Entry Toggle (for turning off) -->
+                                <div class="toggle-container" style="margin: 0;">
+                                    <div class="toggle-switch">
+                                        <input type="checkbox" id="bulkToggle2" checked>
+                                        <div class="toggle-slider"></div>
+                                    </div>
+                                    <label class="toggle-label" for="bulkToggle2">Bulk Entry Mode</label>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="export-box-selection hidden" id="exportBoxSelection"></div>
-                    <div class="export-preview hidden" id="exportPreview"></div>
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="addJobBtn">
+                            Add Job to Box
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -398,51 +353,6 @@
         </div>
     </div>
 
-    <!-- Edit Job Modal -->
-    <div class="modal" id="editJobModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Edit Job</h3>
-            </div>
-            <div id="editJobAlertContainer"></div>
-            <div class="form-group">
-                <label class="form-label" for="editJobNumber">
-                    Job Number <span class="required">*</span>
-                </label>
-                <input 
-                    type="text" 
-                    id="editJobNumber" 
-                    class="form-input" 
-                    placeholder="Enter job number"
-                >
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="editVendorSelect">
-                    Vendor <span class="required">*</span>
-                </label>
-                <select id="editVendorSelect" class="form-select">
-                    <option value="">Loading vendors...</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="editSerials">
-                    Serial Numbers <span class="required">*</span>
-                    <span style="font-weight: 400; color: var(--text-muted);">(one per line)</span>
-                </label>
-                <textarea 
-                    id="editSerials" 
-                    class="form-textarea" 
-                    placeholder="Enter serial numbers, one per line..."
-                    style="min-height: 200px;"
-                ></textarea>
-            </div>
-            <div class="modal-actions">
-                <button class="btn btn-ghost" onclick="closeEditJobModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="saveJobEdit()">Save Changes</button>
-            </div>
-        </div>
-    </div>
-
     <script>
 let currentAgent, boxes = [], currentBox;
 let currentUserRole = null;
@@ -451,7 +361,6 @@ let shiftsEnabled = false;
 let activeShift = null;
 let staleShift = null;
 let lastShiftReport = null;
-let editingJob = null;
 
         function getClientCode(client) {
             return client ? client.substring(0, 3).toUpperCase() : "OTH";
@@ -489,15 +398,6 @@ let editingJob = null;
             return today;
         }
         
-        // Get midnight of the previous day (for stale shift detection)
-        function getYesterdayMidnight() {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            yesterday.setHours(0, 0, 0, 0);
-            return yesterday;
-        }
-        
-        // Check if two dates are on the same calendar day
         function isSameDay(date1, date2) {
             const d1 = new Date(date1);
             const d2 = new Date(date2);
@@ -506,22 +406,19 @@ let editingJob = null;
                    d1.getDate() === d2.getDate();
         }
         
-        // Get the last job entry time for the current shift
         async function getLastJobEntryTime() {
             if (!activeShift) return null;
             
             try {
-                // Get boxes for current agent
-                const { data: boxes } = await db
+                const { data: boxesData } = await db
                     .from('boxes')
                     .select('id')
                     .eq('agent', currentAgent);
                 
-                if (!boxes || boxes.length === 0) return null;
+                if (!boxesData || boxesData.length === 0) return null;
                 
-                const boxIds = boxes.map(b => b.id);
+                const boxIds = boxesData.map(b => b.id);
                 
-                // Get the most recent job created during this shift
                 const { data: jobs, error } = await db
                     .from('jobs')
                     .select('created_at')
@@ -542,7 +439,6 @@ let editingJob = null;
             }
         }
         
-        // Get the last shift close time for the current user
         async function getLastShiftCloseTime() {
             try {
                 const { data: shifts, error } = await db
@@ -573,7 +469,6 @@ let editingJob = null;
             }
             
             try {
-                // Check for active shift
                 const { data: shifts, error } = await db
                     .from('shifts')
                     .select('*')
@@ -589,9 +484,6 @@ let editingJob = null;
                     const shiftStart = new Date(shift.start_time);
                     const todayMidnight = getTodayMidnight();
                     
-                    // Check if shift is stale (started before today's midnight)
-                    // A shift is stale if it was started before midnight of TODAY
-                    // (i.e., it's from a previous day and wasn't closed)
                     if (shiftStart < todayMidnight) {
                         staleShift = shift;
                         activeShift = null;
@@ -643,7 +535,6 @@ let editingJob = null;
             }
         }
         
-        // Start Shift Modal
         function openStartShiftModal() {
             document.getElementById('startShiftTime').value = formatDateTimeLocal(new Date());
             document.getElementById('startShiftKms').value = '';
@@ -668,7 +559,6 @@ let editingJob = null;
             
             const startDateTime = new Date(startTime);
             
-            // VALIDATION: Open shift time must be greater than last shift close time
             const lastCloseTime = await getLastShiftCloseTime();
             if (lastCloseTime && startDateTime <= lastCloseTime) {
                 showAlert(`Start time must be after your last shift ended (${formatDateTime(lastCloseTime)})`, 'error', 'startShiftAlertContainer');
@@ -705,7 +595,6 @@ let editingJob = null;
             }
         }
         
-        // End Shift Modal
         function openEndShiftModal() {
             document.getElementById('endShiftTime').value = formatDateTimeLocal(new Date());
             document.getElementById('endShiftKms').value = '';
@@ -740,20 +629,17 @@ let editingJob = null;
             const endDateTime = new Date(endTime);
             const startDateTime = new Date(activeShift.start_time);
             
-            // VALIDATION: Close shift time must be same date as open shift time
             if (!isSameDay(startDateTime, endDateTime)) {
-                showAlert('End time must be on the same day as the shift started. Use the stale shift recovery if you forgot to close yesterday\'s shift.', 'error', 'endShiftAlertContainer');
+                showAlert('End time must be on the same day as the shift started.', 'error', 'endShiftAlertContainer');
                 return;
             }
             
-            // VALIDATION: Close shift time must be greater than last box entry time
             const lastJobTime = await getLastJobEntryTime();
             if (lastJobTime && endDateTime < lastJobTime) {
                 showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error', 'endShiftAlertContainer');
                 return;
             }
             
-            // VALIDATION: End time must be after start time
             if (endDateTime <= startDateTime) {
                 showAlert('End time must be after the shift start time', 'error', 'endShiftAlertContainer');
                 return;
@@ -777,7 +663,6 @@ let editingJob = null;
                 
                 if (error) throw error;
                 
-                // Generate report
                 await generateShiftReport(data);
                 
                 activeShift = null;
@@ -792,7 +677,6 @@ let editingJob = null;
             }
         }
         
-        // Stale Shift Modal
         function showStaleShiftModal() {
             const shift = staleShift;
             const startDate = new Date(shift.start_time);
@@ -806,7 +690,6 @@ let editingJob = null;
             
             document.getElementById('staleShiftStartInfo').value = `${formatDateTime(shift.start_time)} • ${shift.start_kms.toLocaleString()} km`;
             
-            // Default end time to 11:59 PM of the shift start date
             const defaultEndTime = new Date(startDate);
             defaultEndTime.setHours(23, 59, 0, 0);
             document.getElementById('staleShiftEndTime').value = formatDateTimeLocal(defaultEndTime);
@@ -839,26 +722,21 @@ let editingJob = null;
             const endDateTime = new Date(endTime);
             const startDateTime = new Date(staleShift.start_time);
             
-            // VALIDATION: For stale shifts, end time must be on the same day as start time
             if (!isSameDay(startDateTime, endDateTime)) {
                 showAlert('End time must be on the same day as the shift started (' + startDateTime.toLocaleDateString('en-AU') + ')', 'error', 'staleShiftAlertContainer');
                 return;
             }
             
-            // VALIDATION: End time must be after start time
             if (endDateTime <= startDateTime) {
                 showAlert('End time must be after the shift start time', 'error', 'staleShiftAlertContainer');
                 return;
             }
             
-            // Get last job time for the stale shift period
-            // Temporarily set activeShift to staleShift to use the helper function
             const tempActiveShift = activeShift;
             activeShift = staleShift;
             const lastJobTime = await getLastJobEntryTime();
             activeShift = tempActiveShift;
             
-            // VALIDATION: Close shift time must be greater than last box entry time
             if (lastJobTime && endDateTime < lastJobTime) {
                 showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error', 'staleShiftAlertContainer');
                 return;
@@ -882,13 +760,11 @@ let editingJob = null;
                 
                 if (error) throw error;
                 
-                // Generate report for the stale shift
                 await generateShiftReport(data);
                 
                 staleShift = null;
                 document.getElementById('staleShiftModal').classList.remove('active');
                 
-                // Re-check shift status (now should show no active shift)
                 await checkShiftStatus();
                 showSyncStatus('✓ Synced', 'synced');
             } catch (error) {
@@ -899,33 +775,28 @@ let editingJob = null;
             }
         }
         
-        // Shift Report
         async function generateShiftReport(shift) {
             const startTime = new Date(shift.start_time);
             const endTime = new Date(shift.end_time);
             
-            // Calculate hours
             const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
             const hours = Math.floor(hoursWorked);
             const minutes = Math.round((hoursWorked - hours) * 60);
             
-            // Calculate kilometres
             const kmsTravelled = shift.end_kms - shift.start_kms;
             
-            // Get time multiplier based on day of week
             const dayOfWeek = startTime.getDay();
             let timeMultiplier = 1.0;
             let timeMultiplierLabel = '1x';
-            if (dayOfWeek === 0) { // Sunday
+            if (dayOfWeek === 0) {
                 timeMultiplier = 2.0;
                 timeMultiplierLabel = '2x (Sun)';
-            } else if (dayOfWeek === 6) { // Saturday
+            } else if (dayOfWeek === 6) {
                 timeMultiplier = 1.5;
                 timeMultiplierLabel = '1.5x (Sat)';
             }
             const adjustedTime = hoursWorked * timeMultiplier;
             
-            // Load all clients for dynamic columns
             const { data: clientsData } = await db
                 .from('clients')
                 .select('client_id')
@@ -933,7 +804,6 @@ let editingJob = null;
             
             const allClients = clientsData ? clientsData.map(c => c.client_id) : [];
             
-            // Get user info
             const { data: userData } = await db
                 .from('user_roles')
                 .select('email')
@@ -942,7 +812,6 @@ let editingJob = null;
             
             const userEmail = userData?.email || '';
             
-            // Count jobs from database during shift timeframe, broken down by client
             let systemJobs = 0;
             let jobsByClient = {};
             allClients.forEach(client => {
@@ -950,22 +819,20 @@ let editingJob = null;
             });
             
             try {
-                const { data: boxes } = await db
+                const { data: boxesData } = await db
                     .from('boxes')
                     .select('id, client')
                     .eq('agent', currentAgent);
                 
-                if (boxes && boxes.length > 0) {
-                    // Group boxes by client
+                if (boxesData && boxesData.length > 0) {
                     const boxesByClient = {};
-                    boxes.forEach(box => {
+                    boxesData.forEach(box => {
                         if (!boxesByClient[box.client]) {
                             boxesByClient[box.client] = [];
                         }
                         boxesByClient[box.client].push(box.id);
                     });
                     
-                    // Count jobs per client
                     for (const client of Object.keys(boxesByClient)) {
                         const clientBoxIds = boxesByClient[client];
                         const { count } = await db
@@ -1083,7 +950,6 @@ Total: ${report.totalJobs}`;
         function downloadShiftReportCSV() {
             const report = lastShiftReport;
             
-            // Helper function to escape CSV values
             function escapeCSV(value) {
                 if (value === null || value === undefined) return '';
                 const str = String(value);
@@ -1093,7 +959,6 @@ Total: ${report.totalJobs}`;
                 return str;
             }
             
-            // Build header row with dynamic client columns
             let headers = [
                 'Date',
                 'Start Time',
@@ -1109,19 +974,16 @@ Total: ${report.totalJobs}`;
                 'Km Travelled'
             ];
             
-            // Add dynamic client columns
             report.allClients.forEach(client => {
                 headers.push(`Jobs - ${client}`);
             });
             
-            // Add remaining columns
             headers.push('Extra Jobs');
             headers.push('Total Jobs');
             headers.push('Shift Notes');
             
             let csvContent = headers.join(',') + '\n';
             
-            // Build data row
             let row = [
                 report.dateShort,
                 report.startTime,
@@ -1137,12 +999,10 @@ Total: ${report.totalJobs}`;
                 report.kmsTravelled
             ];
             
-            // Add job counts for each client
             report.allClients.forEach(client => {
                 row.push(report.jobsByClient?.[client] || 0);
             });
             
-            // Add remaining data
             row.push(report.extraJobs);
             row.push(report.totalJobs);
             row.push(escapeCSV(report.shiftNotes));
@@ -1166,34 +1026,8 @@ Total: ${report.totalJobs}`;
         }
 
         // ============================================
-        // ORIGINAL DASHBOARD FUNCTIONS
+        // STOCK ENTRY FUNCTIONS
         // ============================================
-
-        async function loadAgents() {
-            try {
-                const { data, error } = await db
-                    .from('agents')
-                    .select('agent_id')
-                    .order('agent_id', { ascending: true });
-                
-                if (error) throw new Error(error.message);
-                if (!data || data.length === 0) return;
-                
-                const filterAgent = document.getElementById('filterAgent');
-                if (filterAgent) {
-                    filterAgent.innerHTML = '<option value="">Select an agent...</option>';
-                    data.forEach(agent => {
-                        const option = document.createElement('option');
-                        option.value = agent.agent_id;
-                        option.textContent = `Agent ${agent.agent_id}`;
-                        filterAgent.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error('Error loading agents:', error);
-                showAlert('Error loading agents: ' + error.message, 'error');
-            }
-        }
 
         async function loadClients() {
             try {
@@ -1213,17 +1047,6 @@ Total: ${report.totalJobs}`;
                         option.value = client.client_id;
                         option.textContent = client.client_id;
                         clientSelect.appendChild(option);
-                    });
-                }
-                
-                const filterClient = document.getElementById('filterExportClient');
-                if (filterClient) {
-                    filterClient.innerHTML = '<option value="">Select a client...</option>';
-                    data.forEach(client => {
-                        const option = document.createElement('option');
-                        option.value = client.client_id;
-                        option.textContent = client.client_id;
-                        filterClient.appendChild(option);
                     });
                 }
             } catch (error) {
@@ -1296,10 +1119,7 @@ Total: ${report.totalJobs}`;
                 console.error('Error checking shift settings:', error);
             }
             
-            document.getElementById("mainForm").classList.add("active");
-            
             await Promise.all([
-                loadAgents(),
                 loadClients(),
                 loadBoxesForAgent(),
                 checkShiftStatus()
@@ -1312,38 +1132,14 @@ Total: ${report.totalJobs}`;
             document.getElementById("addSerialBtn").addEventListener("click", addSerialRow);
             document.getElementById("addJobBtn").addEventListener("click", handleAddJob);
             document.getElementById("newBoxBtn").addEventListener("click", handleNewBox);
-
-            document.getElementById("loadBoxesBtn").addEventListener("click", loadBoxes);
-            document.getElementById("clearExportFiltersBtn").addEventListener("click", clearExportPage);
-            
-            document.getElementById("filterAgent").addEventListener("change", resetExportResults);
-            document.getElementById("filterExportClient").addEventListener("change", resetExportResults);
             
             // Shift form listeners
             document.getElementById("startShiftForm").addEventListener("submit", handleStartShift);
             document.getElementById("endShiftForm").addEventListener("submit", handleEndShift);
             document.getElementById("staleShiftForm").addEventListener("submit", handleStaleShift);
             
-            // Handle hash for export page
-            if (window.location.hash === '#export') {
-                switchPage('export');
-            }
+            showLoading(false);
         });
-
-        function switchPage(page) {
-            document.querySelectorAll(".page-content").forEach(p => p.classList.remove("active"));
-            
-            document.getElementById(page === "main" ? "mainPage" : "exportPage").classList.add("active");
-            
-            // Update URL hash
-            if (page === "export") {
-                window.location.hash = 'export';
-            } else {
-                history.replaceState(null, null, window.location.pathname);
-            }
-            
-            closeSidebar();
-        }
 
         function handleBulkToggle() {
             const isBulk = document.getElementById("bulkToggle").checked;
@@ -1437,7 +1233,6 @@ Total: ${report.totalJobs}`;
                 return;
             }
             
-            // VALIDATION: Don't allow new jobs if shift is enabled but not active
             if (shiftsEnabled && !activeShift) {
                 showAlert("Cannot add jobs without an active shift. Please start a shift first.", "error");
                 return;
@@ -1698,398 +1493,6 @@ Total: ${report.totalJobs}`;
             status.textContent = message;
             status.className = `sync-status active ${type}`;
             setTimeout(() => status.classList.remove("active"), 3000);
-        }
-
-        // Export Page Functions
-        let selectedExportBox = null;
-
-        function resetExportResults() {
-            clearExportPreview();
-            document.getElementById("exportResults").innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📦</div>
-                    <p>Select an agent and client, then click "Load Boxes"</p>
-                </div>
-            `;
-        }
-
-        async function loadBoxes() {
-            const agent = document.getElementById("filterAgent").value;
-            const client = document.getElementById("filterExportClient").value;
-            
-            if (!agent || !client) {
-                showAlert("Please select both agent and client", "error");
-                return;
-            }
-            
-            showLoading(true);
-            
-            try {
-                const { data: boxesData, error } = await db
-                    .from("boxes")
-                    .select("*")
-                    .eq("agent", agent)
-                    .eq("client", client)
-                    .order("created_at", { ascending: false });
-                    
-                if (error) throw error;
-                
-                if (!boxesData || boxesData.length === 0) {
-                    document.getElementById("exportResults").innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">📭</div>
-                            <p>No boxes found for selected filters</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                for (let box of boxesData) {
-                    const { count: jobCount } = await db
-                        .from("jobs")
-                        .select("*", { count: "exact", head: true })
-                        .eq("box_id", box.id);
-                        
-                    const { count: serialCount } = await db
-                        .from("serials")
-                        .select("*", { count: "exact", head: true })
-                        .eq("box_id", box.id);
-                        
-                    box.jobCount = jobCount || 0;
-                    box.serialCount = serialCount || 0;
-                }
-                
-                renderBoxesList(boxesData);
-            } catch (error) {
-                showAlert("Error loading boxes: " + error.message, "error");
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        function renderBoxesList(boxesData) {
-            const container = document.getElementById("exportResults");
-            
-            let html = `<div class="card"><h3 style="margin-bottom: 16px; color: var(--text-primary);">Select a Box</h3><div class="box-list">`;
-            
-            boxesData.forEach(box => {
-                const closedDate = box.status === 'closed' && box.closed_at 
-                    ? ` • Closed: ${new Date(box.closed_at).toLocaleDateString()}` 
-                    : '';
-                    
-                html += `
-                    <div class="box-item" onclick="selectBoxForExport(${box.id}); generateExportPreview();">
-                        <div class="box-info">
-                            <div class="box-id">${box.box_id}</div>
-                            <div class="box-meta">${box.jobCount} jobs • ${box.serialCount} serials${closedDate}</div>
-                        </div>
-                        <span class="badge badge-${box.status}">${box.status}</span>
-                    </div>
-                `;
-            });
-            
-            html += `</div></div>`;
-            container.innerHTML = html;
-        }
-
-        async function selectBoxForExport(boxId) {
-            document.querySelectorAll(".box-item").forEach(el => el.classList.remove("selected"));
-            event.currentTarget.classList.add("selected");
-            selectedExportBox = boxId;
-        }
-
-        async function generateExportPreview() {
-            if (!selectedExportBox) return;
-            
-            showLoading(true);
-            
-            try {
-                const { data: box } = await db
-                    .from("boxes")
-                    .select("*")
-                    .eq("id", selectedExportBox)
-                    .single();
-                    
-                const { data: jobs } = await db
-                    .from("jobs")
-                    .select("*")
-                    .eq("box_id", selectedExportBox)
-                    .order("created_at", { ascending: false });
-                    
-                let html = `
-                    <div class="export-box-item">
-                        <div class="export-box-header">
-                            <div class="export-box-title">${box.box_id}</div>
-                            <div class="export-box-subtitle">
-                                Agent: ${box.agent} • Client: ${box.client}
-                                ${box.status === 'closed' && box.closed_at ? ` • Closed: ${new Date(box.closed_at).toLocaleDateString()}` : ''}
-                            </div>
-                        </div>
-                `;
-                
-                for (let job of jobs) {
-                    const { data: serials } = await db
-                        .from("serials")
-                        .select("serial_number")
-                        .eq("job_id", job.id)
-                        .order("created_at", { ascending: true });
-                        
-                    html += `
-                        <div class="job-section" onclick="toggleJobExpand(this)">
-                            <div class="job-date">Created: ${new Date(job.created_at).toLocaleString()}</div>
-                            <div class="job-header">
-                                <span>Job: ${job.job_number} • Vendor: ${job.vendor} • ${serials.length} serials</span>
-                                <span class="job-expand-icon">▼</span>
-                            </div>
-                            <div class="serial-grid">
-                    `;
-                    
-                    serials.forEach((serial, index) => {
-                        const barcodeId = `barcode-${selectedExportBox}-${Date.now()}-${index}`;
-                        html += `
-                            <div class="serial-item">
-                                <div class="serial-number">${serial.serial_number}</div>
-                                <div class="barcode-container">
-                                    <svg class="barcode-svg" data-serial="${serial.serial_number}" data-id="${barcodeId}"></svg>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    
-                    html += `
-                            </div>
-                            <div class="job-edit-actions">
-                                ${canEditJob(box.agent) ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); openEditJobModal(${job.id}, '${box.client}', '${box.agent}')">
-                                    ✏️ Edit Job
-                                </button>` : ''}
-                            </div>
-                        </div>
-                    `;
-                }
-                
-                html += `
-                    </div>
-                    <div style="text-align: center; margin-top: 24px;">
-                        <button class="btn btn-primary" onclick="window.print()">📄 Generate PDF</button>
-                        <button class="btn btn-ghost" onclick="clearExportPreview()" style="margin-left: 12px;">Close</button>
-                    </div>
-                `;
-                
-                const preview = document.getElementById("exportPreview");
-                preview.innerHTML = html;
-                preview.classList.remove("hidden");
-                
-                setTimeout(() => {
-                    document.querySelectorAll(".barcode-svg").forEach(svg => {
-                        const serial = svg.getAttribute("data-serial");
-                        const id = svg.getAttribute("data-id");
-                        
-                        try {
-                            svg.setAttribute("id", id);
-                            JsBarcode(`#${id}`, serial, {
-                                format: "CODE128",
-                                width: 2,
-                                height: 50,
-                                displayValue: false,
-                                margin: 5
-                            });
-                        } catch (e) {
-                            console.error("Barcode error:", e);
-                        }
-                    });
-                }, 100);
-                
-                showAlert("✓ Export preview generated", "success");
-            } catch (error) {
-                showAlert("Error generating export: " + error.message, "error");
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        function toggleJobExpand(element) {
-            element.classList.toggle('expanded');
-        }
-
-        function clearExportPreview() {
-            document.getElementById("exportPreview").innerHTML = "";
-            document.getElementById("exportPreview").classList.add("hidden");
-            document.getElementById("exportBoxSelection").classList.add("hidden");
-            selectedExportBox = null;
-            document.querySelectorAll(".box-item").forEach(el => el.classList.remove("selected"));
-        }
-
-        function clearExportPage() {
-            document.getElementById("filterAgent").value = "";
-            document.getElementById("filterExportClient").value = "";
-            resetExportResults();
-            clearExportPreview();
-        }
-
-        // Edit Job Functions
-        function canEditJob(boxAgent) {
-            if (currentUserRole === 'manager') {
-                return true;
-            }
-            if (currentUserRole === 'technician') {
-                return boxAgent === currentAgent;
-            }
-            return false;
-        }
-        
-        async function openEditJobModal(jobId, clientId, boxAgent) {
-            if (!canEditJob(boxAgent)) {
-                showAlert("You don't have permission to edit this job", "error");
-                return;
-            }
-            
-            try {
-                const { data: job, error: jobError } = await db
-                    .from("jobs")
-                    .select("*")
-                    .eq("id", jobId)
-                    .single();
-                
-                if (jobError) throw jobError;
-                
-                const { data: serials, error: serialsError } = await db
-                    .from("serials")
-                    .select("serial_number")
-                    .eq("job_id", jobId)
-                    .order("created_at", { ascending: true });
-                
-                if (serialsError) throw serialsError;
-                
-                const { data: vendors, error: vendorsError } = await db
-                    .from('clients_vendors')
-                    .select('vendor_id')
-                    .eq('client_id', clientId);
-                
-                if (vendorsError) throw vendorsError;
-                
-                document.getElementById("editJobNumber").value = job.job_number;
-                
-                const vendorSelect = document.getElementById("editVendorSelect");
-                vendorSelect.innerHTML = '<option value="">Select a vendor...</option>';
-                vendors.forEach(item => {
-                    const option = document.createElement('option');
-                    option.value = item.vendor_id;
-                    option.textContent = item.vendor_id;
-                    if (item.vendor_id === job.vendor) {
-                        option.selected = true;
-                    }
-                    vendorSelect.appendChild(option);
-                });
-                
-                document.getElementById("editSerials").value = serials.map(s => s.serial_number).join("\n");
-                
-                editingJob = {
-                    id: jobId,
-                    boxId: job.box_id,
-                    originalSerials: serials.map(s => s.serial_number)
-                };
-                
-                document.getElementById("editJobAlertContainer").innerHTML = "";
-                document.getElementById("editJobModal").classList.add("active");
-            } catch (error) {
-                showAlert("Error loading job data: " + error.message, "error");
-            }
-        }
-
-        function closeEditJobModal() {
-            document.getElementById("editJobModal").classList.remove("active");
-            editingJob = null;
-        }
-
-        async function saveJobEdit() {
-            if (!editingJob) return;
-            
-            const { data: job } = await db
-                .from("jobs")
-                .select("box_id")
-                .eq("id", editingJob.id)
-                .single();
-            
-            if (job) {
-                const { data: box } = await db
-                    .from("boxes")
-                    .select("agent")
-                    .eq("id", job.box_id)
-                    .single();
-                
-                if (box && !canEditJob(box.agent)) {
-                    showAlert("You don't have permission to edit this job", "error", "editJobAlertContainer");
-                    return;
-                }
-            }
-            
-            const jobNumber = document.getElementById("editJobNumber").value.trim();
-            const vendor = document.getElementById("editVendorSelect").value;
-            const serialsText = document.getElementById("editSerials").value.trim();
-            
-            if (!jobNumber || !vendor || !serialsText) {
-                showAlert("Please fill in all required fields", "error", "editJobAlertContainer");
-                return;
-            }
-            
-            const newSerials = serialsText.split("\n").map(s => s.trim()).filter(s => s.length > 0);
-            
-            if (newSerials.length === 0) {
-                showAlert("Please enter at least one serial", "error", "editJobAlertContainer");
-                return;
-            }
-            
-            const serialsToCheck = newSerials.filter(s => !editingJob.originalSerials.includes(s));
-            if (serialsToCheck.length > 0) {
-                const duplicates = await checkDuplicates(serialsToCheck);
-                if (duplicates.length > 0) {
-                    showAlert(`Duplicate serials found: ${duplicates.join(", ")}`, "warning", "editJobAlertContainer");
-                    return;
-                }
-            }
-            
-            showLoading(true);
-            
-            try {
-                const { error: jobError } = await db
-                    .from("jobs")
-                    .update({
-                        job_number: jobNumber,
-                        vendor: vendor
-                    })
-                    .eq("id", editingJob.id);
-                
-                if (jobError) throw jobError;
-                
-                const { error: deleteError } = await db
-                    .from("serials")
-                    .delete()
-                    .eq("job_id", editingJob.id);
-                
-                if (deleteError) throw deleteError;
-                
-                const serialRecords = newSerials.map(serial => ({
-                    job_id: editingJob.id,
-                    box_id: editingJob.boxId,
-                    serial_number: serial,
-                    created_at: new Date().toISOString()
-                }));
-                
-                const { error: serialError } = await db
-                    .from("serials")
-                    .insert(serialRecords);
-                
-                if (serialError) throw serialError;
-                
-                showAlert("✓ Job updated successfully", "success");
-                closeEditJobModal();
-                
-                await generateExportPreview();
-            } catch (error) {
-                showAlert("Error updating job: " + error.message, "error", "editJobAlertContainer");
-            } finally {
-                showLoading(false);
-            }
         }
     </script>
 </body>

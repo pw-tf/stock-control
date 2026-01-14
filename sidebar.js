@@ -68,8 +68,8 @@ function injectSidebarHTML() {
                 <span>📋</span>
                 <span>Stock Entry</span>
             </a>
-            <a href="dashboard.html#export" class="sidebar-menu-item" data-page="export">
-                <span>📊</span>
+            <a href="boxes.html" class="sidebar-menu-item" data-page="boxes">
+                <span>📦</span>
                 <span>View Boxes</span>
             </a>
             <a href="user.html" class="sidebar-menu-item" data-page="user">
@@ -122,11 +122,9 @@ function setActivePage() {
     let isAdminPage = false;
     
     if (filename === 'dashboard.html') {
-        if (currentHash === '#export') {
-            activePage = 'export';
-        } else {
-            activePage = 'dashboard';
-        }
+        activePage = 'dashboard';
+    } else if (filename === 'boxes.html') {
+        activePage = 'boxes';
     } else if (filename === 'user.html') {
         activePage = 'user';
     } else if (filename === 'admin-depot.html') {
