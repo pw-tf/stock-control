@@ -1,0 +1,21 @@
+# Prevent directory browsing
+Options -Indexes
+
+# Set the default handler to index.html
+DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # 1. Redirect /index.html to the root domain /
+    # This checks if the specific request is for index.html
+    RewriteCond %{THE_REQUEST} ^[A-Z]{3,9}\ /index\.html\ HTTP/
+    RewriteRule ^index\.html$ https://dev.mbsa.com.au/ [R=301,L]
+
+    # 2. (Optional) Force HTTPS 
+    # Uncomment the following lines if your server doesn't do this automatically
+    # RewriteCond %{HTTPS} off
+    # RewriteRule ^(.*)$ https://dev.mbsa.com.au/$1 [R=301,L]
+
+</IfModule>

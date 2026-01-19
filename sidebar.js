@@ -110,7 +110,7 @@ function injectSidebarHTML() {
 function setActivePage() {
     const currentPath = window.location.pathname;
     const currentHash = window.location.hash;
-    const filename = currentPath.split('/').pop().toLowerCase() || 'index.html';
+    const filename = currentPath.split('/').pop().toLowerCase() || 'index';
     
     // Remove active class from all items
     document.querySelectorAll('.sidebar-menu-item').forEach(item => {
