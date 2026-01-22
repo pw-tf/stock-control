@@ -6,6 +6,9 @@
     <title>User - Stock Submission</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="icons.js"></script>
     <script src="auth.js"></script>
     <script src="sidebar.js"></script>
 </head>
@@ -20,7 +23,7 @@
         <div class="container container-wide">
             <div class="header">
                 <div class="header-content">
-                    <div class="header-icon">👤</div>
+                    <div class="header-icon"><i data-lucide="user" width="32" height="32"></i></div>
                     <div>
                         <h1>User</h1>
                         <div class="header-subtitle">Shift Reports & Settings</div>
@@ -115,7 +118,7 @@
                     
                     <div class="card" style="margin-top: 24px;">
                         <h3 style="margin-bottom: 16px; color: var(--text-primary);">Actions</h3>
-                        <button class="btn btn-ghost" onclick="logout()">🚪 Sign Out</button>
+                        <button class="btn btn-ghost" onclick="logout()"><i data-lucide="log-out" width="20" height="20"></i> Sign Out</button>
                     </div>
                 </div>
             </div>

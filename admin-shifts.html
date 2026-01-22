@@ -6,6 +6,9 @@
     <title>Shift Reports - Admin</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="icons.js"></script>
     <script src="auth.js"></script>
     <script src="sidebar.js"></script>
 </head>
@@ -20,7 +23,7 @@
         <div class="container container-wide">
             <div class="header">
                 <div class="header-content">
-                    <div class="header-icon">📊</div>
+                    <div class="header-icon"><i data-lucide="bar-chart-2" width="32" height="32"></i></div>
                     <div>
                         <h1>Shift Reports</h1>
                         <div class="header-subtitle">View and manage all technician shifts</div>
@@ -105,7 +108,7 @@
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-ghost" onclick="closeShiftDetailModal()">Close</button>
-                <button type="button" class="btn btn-secondary" onclick="copyShiftDetail()">📋 Copy</button>
+                <button type="button" class="btn btn-secondary" onclick="copyShiftDetail()"><i data-lucide="clipboard" width="20" height="20"></i> Copy</button>
             </div>
         </div>
     </div>

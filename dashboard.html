@@ -6,6 +6,10 @@
     <title>Dashboard - Stock Submission</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="icons.js"></script>
+    <!-- Login Script-->
     <script src="auth.js"></script>
     <script src="sidebar.js"></script>
 </head>
@@ -23,7 +27,7 @@
         <div class="container">
             <div class="header">
                 <div class="header-content">
-                    <div class="header-icon">📦</div>
+                    <div class="header-icon"><i data-lucide="package" width="32" height="32"></i></div>
                     <div>
                         <h1>Stock Submission</h1>
                         <!-- Dynamic Shift Status -->
@@ -75,15 +79,16 @@
                     <div class="form-group">
                         <label class="form-label" for="jobNumber">
                             Job Number <span class="required">*</span>
+                            <span id="jobTypeLabel" style="font-weight: 400; color: var(--text-muted); margin-left: 8px;"></span>
                         </label>
-                        <input 
-                            type="text" 
-                            id="jobNumber" 
-                            class="form-input" 
+                        <input
+                            type="text"
+                            id="jobNumber"
+                            class="form-input"
                             placeholder="Enter job number"
                         >
                     </div>
-                    
+
                     <!-- Individual Serial Entry -->
                     <div class="form-group individual-entry-area" id="individualEntry">
                         <label class="form-label">
@@ -108,7 +113,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Bulk Serial Entry -->
                     <div class="bulk-entry-area" id="bulkEntry">
                         <div class="form-group">
@@ -116,9 +121,9 @@
                                 Serial Numbers <span class="required">*</span>
                                 <span style="font-weight: 400; color: var(--text-muted);">(one per line)</span>
                             </label>
-                            <textarea 
-                                id="bulkSerials" 
-                                class="form-textarea" 
+                            <textarea
+                                id="bulkSerials"
+                                class="form-textarea"
                                 placeholder="Enter serial numbers, one per line..."
                             ></textarea>
                             <div style="margin-top: 12px;">
@@ -148,7 +153,7 @@
     <div class="modal" id="startShiftModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>🚗 Start New Shift</h3>
+                <h3><i data-lucide="play-circle" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>Start New Shift</h3>
             </div>
             <div id="startShiftAlertContainer"></div>
             <form id="startShiftForm">
@@ -191,7 +196,7 @@
     <div class="modal" id="endShiftModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>🏁 End Shift</h3>
+                <h3><i data-lucide="square" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>End Shift</h3>
             </div>
             <div id="endShiftAlertContainer"></div>
             <form id="endShiftForm">
@@ -261,7 +266,7 @@
     <div class="modal" id="staleShiftModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>⚠️ Incomplete Shift Found</h3>
+                <h3><i data-lucide="alert-triangle" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>Incomplete Shift Found</h3>
             </div>
             <div class="help-box" style="margin-bottom: 20px; border-left-color: var(--warning);">
                 <p style="margin: 0;">
@@ -340,15 +345,47 @@
     <div class="modal" id="shiftReportModal">
         <div class="modal-content" style="max-width: 560px;">
             <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>📊 Shift Report</h3>
+                <h3><i data-lucide="bar-chart-2" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>Shift Report</h3>
                 <button type="button" class="modal-close-btn" onclick="closeShiftReportModal()" aria-label="Close">×</button>
             </div>
             <div class="shift-report-content" id="shiftReportContent">
                 <!-- Report will be generated here -->
             </div>
             <div class="modal-actions" style="flex-direction: column; gap: 12px;">
-                <button type="button" class="btn btn-secondary" onclick="copyShiftReport()" style="width: 100%;">📋 Copy as Text</button>
-                <button type="button" class="btn btn-primary" onclick="downloadShiftReportCSV()" style="width: 100%;">📥 Download CSV</button>
+                <button type="button" class="btn btn-secondary" onclick="copyShiftReport()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i data-lucide="clipboard" width="18" height="18"></i>
+                    <span>Copy as Text</span>
+                </button>
+                <button type="button" class="btn btn-primary" onclick="downloadShiftReportCSV()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i data-lucide="download" width="18" height="18"></i>
+                    <span>Download CSV</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Type Selection Modal -->
+    <div class="modal" id="jobTypeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i data-lucide="clipboard" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>Select Job Type</h3>
+            </div>
+            <p style="margin-bottom: 20px; color: var(--text-muted);">
+                What type of job are you adding?
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button type="button" class="btn btn-primary" onclick="selectJobType('swap-upgrade')" style="width: 100%; padding: 16px; display: flex; align-items: center; gap: 12px;">
+                    <i data-lucide="refresh-cw" width="20" height="20"></i>
+                    <span>Swap/Upgrade</span>
+                </button>
+                <button type="button" class="btn btn-primary" onclick="selectJobType('install')" style="width: 100%; padding: 16px; display: flex; align-items: center; gap: 12px;">
+                    <i data-lucide="plus-circle" width="20" height="20"></i>
+                    <span>Install</span>
+                </button>
+                <button type="button" class="btn btn-primary" onclick="selectJobType('deinstall')" style="width: 100%; padding: 16px; display: flex; align-items: center; gap: 12px;">
+                    <i data-lucide="minus-circle" width="20" height="20"></i>
+                    <span>Deinstall</span>
+                </button>
             </div>
         </div>
     </div>
@@ -361,6 +398,7 @@ let shiftsEnabled = false;
 let activeShift = null;
 let staleShift = null;
 let lastShiftReport = null;
+let currentJobType = null;
 
         function getClientCode(client) {
             return client ? client.substring(0, 3).toUpperCase() : "OTH";
@@ -912,12 +950,59 @@ let lastShiftReport = null;
             
             document.getElementById('shiftReportContent').innerHTML = html;
             document.getElementById('shiftReportModal').classList.add('active');
+            // Initialize icons in the modal
+            setTimeout(() => Icons.init(), 0);
         }
-        
+
         function closeShiftReportModal() {
             document.getElementById('shiftReportModal').classList.remove('active');
         }
-        
+
+        // ============================================
+        // JOB TYPE MODAL FUNCTIONS
+        // ============================================
+
+        function showJobTypeModal() {
+            document.getElementById('jobTypeModal').classList.add('active');
+            // Initialize icons in the modal
+            setTimeout(() => Icons.init(), 0);
+        }
+
+        function closeJobTypeModal() {
+            document.getElementById('jobTypeModal').classList.remove('active');
+        }
+
+        function selectJobType(jobType) {
+            currentJobType = jobType;
+            closeJobTypeModal();
+
+            const individualEntry = document.getElementById('individualEntry');
+            const bulkEntry = document.getElementById('bulkEntry');
+            const jobTypeLabel = document.getElementById('jobTypeLabel');
+
+            const jobTypeLabels = {
+                'swap-upgrade': '(Swap/Upgrade)',
+                'install': '(Install)',
+                'deinstall': '(Deinstall)'
+            };
+
+            jobTypeLabel.textContent = jobTypeLabels[jobType] || '';
+
+            if (jobType === 'install') {
+                // Hide both serial entry sections for Install jobs
+                individualEntry.style.display = 'none';
+                bulkEntry.style.display = 'none';
+            } else {
+                // Show serial entry for Swap/Upgrade and Deinstall
+                individualEntry.style.display = '';
+                bulkEntry.style.display = '';
+                // Apply current bulk toggle state
+                const isBulk = document.getElementById("bulkToggle").checked;
+                individualEntry.classList.toggle("hidden", isBulk);
+                bulkEntry.classList.toggle("active", isBulk);
+            }
+        }
+
         function copyShiftReport() {
             const report = lastShiftReport;
             
@@ -1167,17 +1252,18 @@ Total: ${report.totalJobs}`;
 
         async function handleClientChange() {
             const client = document.getElementById("clientSelect").value;
-            
+
             await updateVendorsByClient(client);
 
             if (!client) {
                 currentBox = null;
+                currentJobType = null;
                 updateCurrentBoxDisplay();
                 return;
             }
-            
+
             showLoading(true);
-            
+
             try {
                 const { data, error } = await db
                     .from("boxes")
@@ -1187,16 +1273,16 @@ Total: ${report.totalJobs}`;
                     .eq("status", "open")
                     .order("created_at", { ascending: false })
                     .limit(1);
-                    
+
                 if (error) throw error;
-                
+
                 if (data && data.length > 0) {
                     currentBox = data[0];
                     await loadJobsForBox(currentBox.id);
                 } else {
                     const boxNumber = await getNextBoxNumber(client);
                     const boxId = formatBoxId(currentAgent, client, boxNumber);
-                    
+
                     const { data: newBox, error: insertError } = await db
                         .from("boxes")
                         .insert([{
@@ -1209,16 +1295,19 @@ Total: ${report.totalJobs}`;
                         }])
                         .select()
                         .single();
-                        
+
                     if (insertError) throw insertError;
-                    
+
                     currentBox = newBox;
                     currentBox.jobs = [];
                 }
-                
+
                 updateCurrentBoxDisplay();
                 await loadBoxesForAgent();
                 showSyncStatus("✓ Synced", "synced");
+
+                // Show job type selection modal
+                showJobTypeModal();
             } catch (error) {
                 showAlert("Error loading box: " + error.message, "error");
                 showSyncStatus("✕ Sync failed", "error");
@@ -1232,51 +1321,59 @@ Total: ${report.totalJobs}`;
                 showAlert("Please select a client first", "error");
                 return;
             }
-            
+
             if (shiftsEnabled && !activeShift) {
                 showAlert("Cannot add jobs without an active shift. Please start a shift first.", "error");
                 return;
             }
-            
+
+            if (!currentJobType) {
+                showAlert("Please select a job type first", "error");
+                return;
+            }
+
             const vendor = document.getElementById("vendorSelect").value;
             const jobNumber = document.getElementById("jobNumber").value.trim();
             const isBulk = document.getElementById("bulkToggle").checked;
-            
+
             if (!vendor || !jobNumber) {
                 showAlert("Please fill in all required fields", "error");
                 return;
             }
-            
+
             let serials = [];
-            
-            if (isBulk) {
-                const bulkText = document.getElementById("bulkSerials").value.trim();
-                if (!bulkText) {
-                    showAlert("Please enter at least one serial", "error");
+
+            // Only collect serials for Swap/Upgrade and Deinstall jobs (not Install)
+            if (currentJobType !== 'install') {
+                if (isBulk) {
+                    const bulkText = document.getElementById("bulkSerials").value.trim();
+                    if (!bulkText) {
+                        showAlert("Please enter at least one serial", "error");
+                        return;
+                    }
+                    serials = bulkText.split("\n").map(s => s.trim()).filter(s => s.length > 0);
+                } else {
+                    document.querySelectorAll(".serial-input").forEach(input => {
+                        const value = input.value.trim();
+                        if (value) serials.push(value);
+                    });
+                }
+
+                if (serials.length === 0) {
+                    showAlert("Please enter at least one serial number", "error");
                     return;
                 }
-                serials = bulkText.split("\n").map(s => s.trim()).filter(s => s.length > 0);
-            } else {
-                document.querySelectorAll(".serial-input").forEach(input => {
-                    const value = input.value.trim();
-                    if (value) serials.push(value);
-                });
+
+                const duplicates = await checkDuplicates(serials);
+                if (duplicates.length > 0) {
+                    showAlert(`Duplicate serials found: ${duplicates.join(", ")}`, "warning");
+                    return;
+                }
             }
-            
-            if (serials.length === 0) {
-                showAlert("Please enter at least one serial", "error");
-                return;
-            }
-            
-            const duplicates = await checkDuplicates(serials);
-            if (duplicates.length > 0) {
-                showAlert(`Duplicate serials found: ${duplicates.join(", ")}`, "warning");
-                return;
-            }
-            
+
             showLoading(true);
             showSyncStatus("Syncing...", "syncing");
-            
+
             try {
                 const { data: job, error: jobError } = await db
                     .from("jobs")
@@ -1288,23 +1385,38 @@ Total: ${report.totalJobs}`;
                     }])
                     .select()
                     .single();
-                    
+
                 if (jobError) throw jobError;
-                
-                const serialRecords = serials.map(serial => ({
-                    job_id: job.id,
-                    box_id: currentBox.id,
-                    serial_number: serial,
-                    created_at: new Date().toISOString()
-                }));
-                
-                const { error: serialError } = await db.from("serials").insert(serialRecords);
-                if (serialError) throw serialError;
-                
-                showAlert(`✓ Job ${jobNumber} added with ${serials.length} serial(s)`, "success");
+
+                // Only insert serials if job type requires them
+                if (currentJobType !== 'install' && serials.length > 0) {
+                    const serialRecords = serials.map(serial => ({
+                        job_id: job.id,
+                        box_id: currentBox.id,
+                        serial_number: serial,
+                        created_at: new Date().toISOString()
+                    }));
+
+                    const { error: serialError } = await db.from("serials").insert(serialRecords);
+                    if (serialError) throw serialError;
+                }
+
+                const jobTypeLabels = {
+                    'swap-upgrade': 'Swap/Upgrade',
+                    'install': 'Install',
+                    'deinstall': 'Deinstall'
+                };
+                const jobTypeLabel = jobTypeLabels[currentJobType] || currentJobType;
+
+                const message = currentJobType === 'install'
+                    ? `✓ ${jobTypeLabel} job ${jobNumber} added`
+                    : `✓ ${jobTypeLabel} job ${jobNumber} added with ${serials.length} serial(s)`;
+
+                showAlert(message, "success");
                 showSyncStatus("✓ Synced", "synced");
+
+                // Clear form and reset to basic dashboard
                 clearJobForm();
-                await document.getElementById("clientSelect").dispatchEvent(new Event("change"));
             } catch (error) {
                 showAlert("Error saving job: " + error.message, "error");
                 showSyncStatus("✕ Sync failed", "error");
@@ -1459,8 +1571,12 @@ Total: ${report.totalJobs}`;
         }
 
         function clearJobForm() {
+            // Reset all form fields
+            document.getElementById("clientSelect").value = "";
             document.getElementById("vendorSelect").value = "";
+            document.getElementById("vendorSelect").innerHTML = '<option value="">Select a client first...</option>';
             document.getElementById("jobNumber").value = "";
+            document.getElementById("jobTypeLabel").textContent = "";
             document.getElementById("bulkSerials").value = "";
             document.getElementById("bulkToggle").checked = false;
             document.getElementById("bulkToggle2").checked = false;
@@ -1469,7 +1585,20 @@ Total: ${report.totalJobs}`;
                     <input type="text" class="form-input serial-input" placeholder="Enter serial number">
                 </div>
             `;
+
+            // Reset bulk toggle state
             handleBulkToggle();
+
+            // Reset serial entry visibility
+            document.getElementById("individualEntry").style.display = '';
+            document.getElementById("bulkEntry").style.display = '';
+
+            // Clear current box and job type
+            currentBox = null;
+            currentJobType = null;
+
+            // Update display to show no active box
+            updateCurrentBoxDisplay();
         }
 
         function showAlert(message, type, containerId = "alertContainer") {

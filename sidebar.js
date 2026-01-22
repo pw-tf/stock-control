@@ -65,43 +65,50 @@ function injectSidebarHTML() {
         </div>
         <div class="sidebar-menu">
             <a href="dashboard.html" class="sidebar-menu-item" data-page="dashboard">
-                <span>📋</span>
+                <span><i data-lucide="clipboard" width="20" height="20"></i></span>
                 <span>Stock Entry</span>
             </a>
             <a href="boxes.html" class="sidebar-menu-item" data-page="boxes">
-                <span>📦</span>
+                <span><i data-lucide="package-open" width="20" height="20"></i></span>
                 <span>View Boxes</span>
             </a>
             <a href="user.html" class="sidebar-menu-item" data-page="user">
-                <span>👤</span>
+                <span><i data-lucide="user" width="20" height="20"></i></span>
                 <span>User</span>
             </a>
-            
+
             <!-- Admin Panel Dropdown (Manager only) -->
             <div class="sidebar-dropdown" data-role="manager" id="adminDropdown">
                 <div class="sidebar-menu-item dropdown-toggle" id="adminToggle" data-page="admin">
-                    <span>⚙️</span>
+                    <span><i data-lucide="settings" width="20" height="20"></i></span>
                     <span>Admin Panel</span>
-                    <span class="dropdown-arrow">▼</span>
+                    <span class="dropdown-arrow"><i data-lucide="chevron-down" width="16" height="16"></i></span>
                 </div>
                 <div class="dropdown-content" id="adminSubmenu">
                     <a href="admin-depot.html" class="sidebar-menu-item sub-item" data-page="admin-depot">
-                        <span>🏢</span>
+                        <span><i data-lucide="house" width="20" height="20"></i></span>
                         <span>Depot Config</span>
                     </a>
                     <a href="admin-shifts.html" class="sidebar-menu-item sub-item" data-page="admin-shifts">
-                        <span>📊</span>
+                        <span><i data-lucide="bar-chart-2" width="20" height="20"></i></span>
                         <span>Shift Reports</span>
                     </a>
                 </div>
             </div>
-            
+
             <div class="sidebar-menu-item" id="logoutBtn">
-                <span>🚪</span>
+                <span><i data-lucide="log-out" width="20" height="20"></i></span>
                 <span>Sign Out</span>
             </div>
         </div>
     `;
+
+    // Initialize Lucide icons after injecting HTML
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    } else if (typeof Icons !== 'undefined') {
+        Icons.init();
+    }
 }
 
 /**
@@ -153,9 +160,16 @@ function setActivePage() {
     if (isAdminPage) {
         const adminToggle = document.getElementById('adminToggle');
         const adminSubmenu = document.getElementById('adminSubmenu');
+        const arrow = adminToggle ? adminToggle.querySelector('.dropdown-arrow i') : null;
+
         if (adminToggle && adminSubmenu) {
             adminToggle.classList.add('active', 'open');
             adminSubmenu.classList.add('show');
+
+            // Rotate the chevron icon to show it's open
+            if (arrow) {
+                arrow.style.transform = 'rotate(180deg)';
+            }
         }
     }
 }
@@ -246,10 +260,17 @@ function closeSidebar() {
 function toggleAdminDropdown() {
     const toggle = document.getElementById('adminToggle');
     const submenu = document.getElementById('adminSubmenu');
-    
+    const arrow = toggle ? toggle.querySelector('.dropdown-arrow i') : null;
+
     if (toggle && submenu) {
-        toggle.classList.toggle('open');
+        const isOpen = toggle.classList.toggle('open');
         submenu.classList.toggle('show');
+
+        // Rotate the chevron icon
+        if (arrow) {
+            arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+            arrow.style.transition = 'transform 0.2s ease';
+        }
     }
 }
 
