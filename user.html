@@ -87,7 +87,7 @@
                     <div class="card">
                         <div id="shiftsContainer">
                             <div class="empty-state">
-                                <div class="empty-state-icon">📊</div>
+                                <div class="empty-state-icon"><i data-lucide="bar-chart-2" width="48" height="48"></i></div>
                                 <p>Select a date range and click "Load Shifts" to view your shift reports</p>
                             </div>
                         </div>
@@ -135,7 +135,7 @@
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-ghost" onclick="closeShiftDetailModal()">Close</button>
-                <button type="button" class="btn btn-secondary" onclick="copyShiftDetail()">📋 Copy</button>
+                <button type="button" class="btn btn-secondary" onclick="copyShiftDetail()"><i data-lucide="clipboard" width="20" height="20"></i> Copy</button>
             </div>
         </div>
     </div>
@@ -341,7 +341,7 @@
             if (!allShifts || allShifts.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">📭</div>
+                        <div class="empty-state-icon"><i data-lucide="inbox" width="48" height="48"></i></div>
                         <p>No completed shifts found for the selected date range</p>
                     </div>
                 `;
