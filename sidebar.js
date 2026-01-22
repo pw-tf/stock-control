@@ -68,9 +68,9 @@ function injectSidebarHTML() {
                 <span><i data-lucide="clipboard" width="20" height="20"></i></span>
                 <span>Stock Entry</span>
             </a>
-            <a href="boxes.html" class="sidebar-menu-item" data-page="boxes">
+            <a href="inventory.html" class="sidebar-menu-item" data-page="boxes">
                 <span><i data-lucide="package-open" width="20" height="20"></i></span>
-                <span>View Boxes</span>
+                <span>Inventory</span>
             </a>
             <a href="user.html" class="sidebar-menu-item" data-page="user">
                 <span><i data-lucide="user" width="20" height="20"></i></span>

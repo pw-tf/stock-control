@@ -1065,7 +1065,7 @@ tr:hover td {
     height: 100%;
     background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(4px);
-    z-index: 1100;
+    z-index: 1000;
     display: none;
     align-items: center;
     justify-content: center;
@@ -1172,6 +1172,70 @@ tr:hover td {
 .box-item.selected {
     border-color: var(--accent-primary);
     background: var(--accent-glow);
+}
+
+/* Job Search Results */
+.job-search-results {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+.job-search-item {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    transition: var(--transition-base);
+}
+
+.job-search-item:hover {
+    border-color: var(--border-accent);
+    background: var(--bg-elevated);
+}
+
+.job-search-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.job-search-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+}
+
+.job-search-date {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.job-search-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.job-search-row {
+    display: flex;
+    gap: var(--spacing-sm);
+    font-size: 0.9375rem;
+}
+
+.job-search-row strong {
+    min-width: 80px;
+}
+
+.job-search-receipt {
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border-primary);
 }
 
 .box-info {
@@ -1858,7 +1922,26 @@ tr:hover td {
         flex-direction: column;
         text-align: center;
     }
-    
+
+    .job-search-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+
+    .job-search-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .job-search-row strong {
+        min-width: unset;
+    }
+
+    .job-search-receipt {
+        margin-top: var(--spacing-sm);
+    }
+
     .table-container {
         overflow-x: auto;
     }
@@ -1902,7 +1985,8 @@ tr:hover td {
     .job-edit-actions,
     .modal,
 	.export-results,
-	#alertContainer
+	#alertContainer,
+    .tabs
 	{
         display: none !important;
     }

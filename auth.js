@@ -7,6 +7,9 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Initialize Supabase client
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Make db available globally for storage operations
+window.db = db;
+
 // Check if user is authenticated
 async function checkAuth() {
     const { data: { session } } = await db.auth.getSession();

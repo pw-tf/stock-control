@@ -89,6 +89,7 @@
                         >
                     </div>
 
+
                     <!-- Individual Serial Entry -->
                     <div class="form-group individual-entry-area" id="individualEntry">
                         <label class="form-label">
@@ -139,6 +140,50 @@
                         </div>
                     </div>
                     
+                    <!-- Receipt Upload Section -->
+                    <div class="form-group" id="receiptUploadSection" style="display: none;">
+                        <label class="form-label">
+                            Receipt Photo <span class="required">*</span>
+                        </label>
+
+                        <!-- Upload Controls -->
+                        <div id="receiptUploadControls">
+                            <input
+                                type="file"
+                                id="receiptFileInput"
+                                accept="image/*"
+                                capture="environment"
+                                style="display: none;"
+                                onchange="handleReceiptFileSelect(event)"
+                            >
+                            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('receiptFileInput').click()">
+                                    <i data-lucide="camera" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
+                                    Take/Upload Photo
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Receipt Preview -->
+                        <div id="receiptPreview" style="display: none; margin-top: 16px;">
+                            <div style="position: relative; border-radius: 8px; overflow: hidden; border: 2px solid var(--border-primary); background: var(--bg-secondary);">
+                                <img id="receiptPreviewImg" src="" alt="Receipt preview" style="width: 100%; max-height: 300px; object-fit: contain;">
+                                <button
+                                    type="button"
+                                    onclick="clearReceiptUpload()"
+                                    style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; line-height: 1;"
+                                    title="Remove photo"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                            <p style="font-size: 0.75rem; color: var(--success); margin-top: 8px; display: flex; align-items: center; gap: 4px;">
+                                <i data-lucide="check-circle" width="14" height="14"></i>
+                                Receipt photo ready
+                            </p>
+                        </div>
+                    </div>
+                                        
                     <div class="button-group">
                         <button class="btn btn-primary" id="addJobBtn">
                             Add Job to Box
@@ -390,7 +435,7 @@
         </div>
     </div>
 
-    <script>
+<script>
 let currentAgent, boxes = [], currentBox;
 let currentUserRole = null;
 let currentUserId = null;
@@ -399,614 +444,733 @@ let activeShift = null;
 let staleShift = null;
 let lastShiftReport = null;
 let currentJobType = null;
+let currentReceiptFile = null;
+let currentReceiptUrl = null;
+let isReceiptRequired = false;
+let currentClientSettings = null;
 
-        function getClientCode(client) {
-            return client ? client.substring(0, 3).toUpperCase() : "OTH";
-        }
+// ============================================
+// SHIFT MANAGEMENT FUNCTIONS
+// ============================================
 
-        function formatBoxId(agent, client, boxNumber) {
-            return `${agent}-${getClientCode(client)}-${boxNumber}`;
-        }
+function formatDateTime(date) {
+    return new Date(date).toLocaleString('en-AU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+}
 
-        // ============================================
-        // SHIFT MANAGEMENT FUNCTIONS
-        // ============================================
+function formatDateTimeLocal(date) {
+    const d = new Date(date);
+    const offset = d.getTimezoneOffset();
+    const localDate = new Date(d.getTime() - offset * 60 * 1000);
+    return localDate.toISOString().slice(0, 16);
+}
+
+function getTodayMidnight() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+}
+
+function isSameDay(date1, date2) {
+    const d1 = new Date(date1);
+    const d2 = new Date(date2);
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+}
+
+async function getLastJobEntryTime() {
+    if (!activeShift) return null;
+    
+    try {
+        const { data: boxesData } = await db
+            .from('boxes')
+            .select('id')
+            .eq('agent', currentAgent);
         
-        function formatDateTime(date) {
-            return new Date(date).toLocaleString('en-AU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-            });
+        if (!boxesData || boxesData.length === 0) return null;
+        
+        const boxIds = boxesData.map(b => b.id);
+        
+        const { data: jobs, error } = await db
+            .from('jobs')
+            .select('created_at')
+            .in('box_id', boxIds)
+            .gte('created_at', activeShift.start_time)
+            .order('created_at', { ascending: false })
+            .limit(1);
+        
+        if (error) throw error;
+        
+        if (jobs && jobs.length > 0) {
+            return new Date(jobs[0].created_at);
         }
+        return null;
+    } catch (error) {
+        console.error('Error getting last job entry time:', error);
+        return null;
+    }
+}
+
+async function getLastShiftCloseTime() {
+    try {
+        const { data: shifts, error } = await db
+            .from('shifts')
+            .select('end_time')
+            .eq('user_id', currentUserId)
+            .eq('status', 'completed')
+            .order('end_time', { ascending: false })
+            .limit(1);
         
-        function formatDateTimeLocal(date) {
-            const d = new Date(date);
-            const offset = d.getTimezoneOffset();
-            const localDate = new Date(d.getTime() - offset * 60 * 1000);
-            return localDate.toISOString().slice(0, 16);
+        if (error) throw error;
+        
+        if (shifts && shifts.length > 0) {
+            return new Date(shifts[0].end_time);
         }
+        return null;
+    } catch (error) {
+        console.error('Error getting last shift close time:', error);
+        return null;
+    }
+}
+
+async function checkShiftStatus() {
+    if (!shiftsEnabled) {
+        document.getElementById('shiftStatusText').textContent = 'Stock Entry System';
+        document.getElementById('shiftHeaderBtn').style.display = 'none';
+        return;
+    }
+    
+    try {
+        const { data: shifts, error } = await db
+            .from('shifts')
+            .select('*')
+            .eq('user_id', currentUserId)
+            .eq('status', 'active')
+            .order('start_time', { ascending: false })
+            .limit(1);
         
-        function getTodayMidnight() {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            return today;
-        }
+        if (error) throw error;
         
-        function isSameDay(date1, date2) {
-            const d1 = new Date(date1);
-            const d2 = new Date(date2);
-            return d1.getFullYear() === d2.getFullYear() &&
-                   d1.getMonth() === d2.getMonth() &&
-                   d1.getDate() === d2.getDate();
-        }
-        
-        async function getLastJobEntryTime() {
-            if (!activeShift) return null;
+        if (shifts && shifts.length > 0) {
+            const shift = shifts[0];
+            const shiftStart = new Date(shift.start_time);
+            const todayMidnight = getTodayMidnight();
             
-            try {
-                const { data: boxesData } = await db
-                    .from('boxes')
-                    .select('id')
-                    .eq('agent', currentAgent);
-                
-                if (!boxesData || boxesData.length === 0) return null;
-                
-                const boxIds = boxesData.map(b => b.id);
-                
-                const { data: jobs, error } = await db
-                    .from('jobs')
-                    .select('created_at')
-                    .in('box_id', boxIds)
-                    .gte('created_at', activeShift.start_time)
-                    .order('created_at', { ascending: false })
-                    .limit(1);
-                
-                if (error) throw error;
-                
-                if (jobs && jobs.length > 0) {
-                    return new Date(jobs[0].created_at);
-                }
-                return null;
-            } catch (error) {
-                console.error('Error getting last job entry time:', error);
-                return null;
-            }
-        }
-        
-        async function getLastShiftCloseTime() {
-            try {
-                const { data: shifts, error } = await db
-                    .from('shifts')
-                    .select('end_time')
-                    .eq('user_id', currentUserId)
-                    .eq('status', 'completed')
-                    .order('end_time', { ascending: false })
-                    .limit(1);
-                
-                if (error) throw error;
-                
-                if (shifts && shifts.length > 0) {
-                    return new Date(shifts[0].end_time);
-                }
-                return null;
-            } catch (error) {
-                console.error('Error getting last shift close time:', error);
-                return null;
-            }
-        }
-        
-        async function checkShiftStatus() {
-            if (!shiftsEnabled) {
-                document.getElementById('shiftStatusText').textContent = 'Stock Entry System';
-                document.getElementById('shiftHeaderBtn').style.display = 'none';
-                return;
-            }
-            
-            try {
-                const { data: shifts, error } = await db
-                    .from('shifts')
-                    .select('*')
-                    .eq('user_id', currentUserId)
-                    .eq('status', 'active')
-                    .order('start_time', { ascending: false })
-                    .limit(1);
-                
-                if (error) throw error;
-                
-                if (shifts && shifts.length > 0) {
-                    const shift = shifts[0];
-                    const shiftStart = new Date(shift.start_time);
-                    const todayMidnight = getTodayMidnight();
-                    
-                    if (shiftStart < todayMidnight) {
-                        staleShift = shift;
-                        activeShift = null;
-                        showStaleShiftModal();
-                    } else {
-                        activeShift = shift;
-                        staleShift = null;
-                        updateShiftDisplay();
-                    }
-                } else {
-                    activeShift = null;
-                    staleShift = null;
-                    updateShiftDisplay();
-                }
-            } catch (error) {
-                console.error('Error checking shift status:', error);
-                document.getElementById('shiftStatusText').textContent = 'Error loading shift';
-            }
-        }
-        
-        function updateShiftDisplay() {
-            const statusText = document.getElementById('shiftStatusText');
-            const headerBtn = document.getElementById('shiftHeaderBtn');
-            
-            if (!shiftsEnabled) {
-                statusText.textContent = 'Stock Entry System';
-                headerBtn.style.display = 'none';
-                return;
-            }
-            
-            if (activeShift) {
-                const startTime = new Date(activeShift.start_time);
-                const timeStr = startTime.toLocaleTimeString('en-AU', { 
-                    hour: '2-digit', 
-                    minute: '2-digit',
-                    hour12: true 
-                });
-                statusText.innerHTML = `<span class="shift-active-indicator"></span> Active Shift • Started ${timeStr}`;
-                headerBtn.textContent = 'End Shift';
-                headerBtn.className = 'btn btn-sm btn-danger shift-header-btn';
-                headerBtn.style.display = 'inline-flex';
-                headerBtn.onclick = openEndShiftModal;
-            } else {
-                statusText.textContent = 'No Active Shift';
-                headerBtn.textContent = 'Start Shift';
-                headerBtn.className = 'btn btn-sm btn-primary shift-header-btn';
-                headerBtn.style.display = 'inline-flex';
-                headerBtn.onclick = openStartShiftModal;
-            }
-        }
-        
-        function openStartShiftModal() {
-            document.getElementById('startShiftTime').value = formatDateTimeLocal(new Date());
-            document.getElementById('startShiftKms').value = '';
-            document.getElementById('startShiftAlertContainer').innerHTML = '';
-            document.getElementById('startShiftModal').classList.add('active');
-        }
-        
-        function closeStartShiftModal() {
-            document.getElementById('startShiftModal').classList.remove('active');
-        }
-        
-        async function handleStartShift(e) {
-            e.preventDefault();
-            
-            const startTime = document.getElementById('startShiftTime').value;
-            const startKms = parseInt(document.getElementById('startShiftKms').value);
-            
-            if (!startTime || isNaN(startKms)) {
-                showAlert('Please fill in all required fields', 'error', 'startShiftAlertContainer');
-                return;
-            }
-            
-            const startDateTime = new Date(startTime);
-            
-            const lastCloseTime = await getLastShiftCloseTime();
-            if (lastCloseTime && startDateTime <= lastCloseTime) {
-                showAlert(`Start time must be after your last shift ended (${formatDateTime(lastCloseTime)})`, 'error', 'startShiftAlertContainer');
-                return;
-            }
-            
-            showLoading(true);
-            
-            try {
-                const { data, error } = await db
-                    .from('shifts')
-                    .insert([{
-                        user_id: currentUserId,
-                        agent_id: currentAgent,
-                        start_time: startDateTime.toISOString(),
-                        start_kms: startKms,
-                        status: 'active'
-                    }])
-                    .select()
-                    .single();
-                
-                if (error) throw error;
-                
-                activeShift = data;
-                closeStartShiftModal();
-                updateShiftDisplay();
-                showAlert('✓ Shift started successfully', 'success');
-                showSyncStatus('✓ Synced', 'synced');
-            } catch (error) {
-                console.error('Error starting shift:', error);
-                showAlert('Error starting shift: ' + error.message, 'error', 'startShiftAlertContainer');
-            } finally {
-                showLoading(false);
-            }
-        }
-        
-        function openEndShiftModal() {
-            document.getElementById('endShiftTime').value = formatDateTimeLocal(new Date());
-            document.getElementById('endShiftKms').value = '';
-            document.getElementById('extraJobs').value = '0';
-            document.getElementById('shiftNotes').value = '';
-            document.getElementById('endShiftAlertContainer').innerHTML = '';
-            document.getElementById('endShiftModal').classList.add('active');
-        }
-        
-        function closeEndShiftModal() {
-            document.getElementById('endShiftModal').classList.remove('active');
-        }
-        
-        async function handleEndShift(e) {
-            e.preventDefault();
-            
-            const endTime = document.getElementById('endShiftTime').value;
-            const endKms = parseInt(document.getElementById('endShiftKms').value);
-            const extraJobs = parseInt(document.getElementById('extraJobs').value) || 0;
-            const shiftNotes = document.getElementById('shiftNotes').value.trim();
-            
-            if (!endTime || isNaN(endKms)) {
-                showAlert('Please fill in all required fields', 'error', 'endShiftAlertContainer');
-                return;
-            }
-            
-            if (endKms < activeShift.start_kms) {
-                showAlert('End kilometres cannot be less than start kilometres', 'error', 'endShiftAlertContainer');
-                return;
-            }
-            
-            const endDateTime = new Date(endTime);
-            const startDateTime = new Date(activeShift.start_time);
-            
-            if (!isSameDay(startDateTime, endDateTime)) {
-                showAlert('End time must be on the same day as the shift started.', 'error', 'endShiftAlertContainer');
-                return;
-            }
-            
-            const lastJobTime = await getLastJobEntryTime();
-            if (lastJobTime && endDateTime < lastJobTime) {
-                showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error', 'endShiftAlertContainer');
-                return;
-            }
-            
-            if (endDateTime <= startDateTime) {
-                showAlert('End time must be after the shift start time', 'error', 'endShiftAlertContainer');
-                return;
-            }
-            
-            showLoading(true);
-            
-            try {
-                const { data, error } = await db
-                    .from('shifts')
-                    .update({
-                        end_time: endDateTime.toISOString(),
-                        end_kms: endKms,
-                        extra_jobs: extraJobs,
-                        shift_notes: shiftNotes,
-                        status: 'completed'
-                    })
-                    .eq('id', activeShift.id)
-                    .select()
-                    .single();
-                
-                if (error) throw error;
-                
-                await generateShiftReport(data);
-                
+            if (shiftStart < todayMidnight) {
+                staleShift = shift;
                 activeShift = null;
-                closeEndShiftModal();
-                updateShiftDisplay();
-                showSyncStatus('✓ Synced', 'synced');
-            } catch (error) {
-                console.error('Error ending shift:', error);
-                showAlert('Error ending shift: ' + error.message, 'error', 'endShiftAlertContainer');
-            } finally {
-                showLoading(false);
-            }
-        }
-        
-        function showStaleShiftModal() {
-            const shift = staleShift;
-            const startDate = new Date(shift.start_time);
-            
-            document.getElementById('staleShiftDate').textContent = startDate.toLocaleDateString('en-AU', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            });
-            
-            document.getElementById('staleShiftStartInfo').value = `${formatDateTime(shift.start_time)} • ${shift.start_kms.toLocaleString()} km`;
-            
-            const defaultEndTime = new Date(startDate);
-            defaultEndTime.setHours(23, 59, 0, 0);
-            document.getElementById('staleShiftEndTime').value = formatDateTimeLocal(defaultEndTime);
-            
-            document.getElementById('staleShiftEndKms').value = '';
-            document.getElementById('staleExtraJobs').value = '0';
-            document.getElementById('staleShiftNotes').value = '';
-            document.getElementById('staleShiftAlertContainer').innerHTML = '';
-            document.getElementById('staleShiftModal').classList.add('active');
-        }
-        
-        async function handleStaleShift(e) {
-            e.preventDefault();
-            
-            const endTime = document.getElementById('staleShiftEndTime').value;
-            const endKms = parseInt(document.getElementById('staleShiftEndKms').value);
-            const extraJobs = parseInt(document.getElementById('staleExtraJobs').value) || 0;
-            const shiftNotes = document.getElementById('staleShiftNotes').value.trim();
-            
-            if (!endTime || isNaN(endKms)) {
-                showAlert('Please fill in all required fields', 'error', 'staleShiftAlertContainer');
-                return;
-            }
-            
-            if (endKms < staleShift.start_kms) {
-                showAlert('End kilometres cannot be less than start kilometres', 'error', 'staleShiftAlertContainer');
-                return;
-            }
-            
-            const endDateTime = new Date(endTime);
-            const startDateTime = new Date(staleShift.start_time);
-            
-            if (!isSameDay(startDateTime, endDateTime)) {
-                showAlert('End time must be on the same day as the shift started (' + startDateTime.toLocaleDateString('en-AU') + ')', 'error', 'staleShiftAlertContainer');
-                return;
-            }
-            
-            if (endDateTime <= startDateTime) {
-                showAlert('End time must be after the shift start time', 'error', 'staleShiftAlertContainer');
-                return;
-            }
-            
-            const tempActiveShift = activeShift;
-            activeShift = staleShift;
-            const lastJobTime = await getLastJobEntryTime();
-            activeShift = tempActiveShift;
-            
-            if (lastJobTime && endDateTime < lastJobTime) {
-                showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error', 'staleShiftAlertContainer');
-                return;
-            }
-            
-            showLoading(true);
-            
-            try {
-                const { data, error } = await db
-                    .from('shifts')
-                    .update({
-                        end_time: endDateTime.toISOString(),
-                        end_kms: endKms,
-                        extra_jobs: extraJobs,
-                        shift_notes: shiftNotes,
-                        status: 'completed'
-                    })
-                    .eq('id', staleShift.id)
-                    .select()
-                    .single();
-                
-                if (error) throw error;
-                
-                await generateShiftReport(data);
-                
-                staleShift = null;
-                document.getElementById('staleShiftModal').classList.remove('active');
-                
-                await checkShiftStatus();
-                showSyncStatus('✓ Synced', 'synced');
-            } catch (error) {
-                console.error('Error closing stale shift:', error);
-                showAlert('Error closing shift: ' + error.message, 'error', 'staleShiftAlertContainer');
-            } finally {
-                showLoading(false);
-            }
-        }
-        
-        async function generateShiftReport(shift) {
-            const startTime = new Date(shift.start_time);
-            const endTime = new Date(shift.end_time);
-            
-            const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
-            const hours = Math.floor(hoursWorked);
-            const minutes = Math.round((hoursWorked - hours) * 60);
-            
-            const kmsTravelled = shift.end_kms - shift.start_kms;
-            
-            const dayOfWeek = startTime.getDay();
-            let timeMultiplier = 1.0;
-            let timeMultiplierLabel = '1x';
-            if (dayOfWeek === 0) {
-                timeMultiplier = 2.0;
-                timeMultiplierLabel = '2x (Sun)';
-            } else if (dayOfWeek === 6) {
-                timeMultiplier = 1.5;
-                timeMultiplierLabel = '1.5x (Sat)';
-            }
-            const adjustedTime = hoursWorked * timeMultiplier;
-            
-            const { data: clientsData } = await db
-                .from('clients')
-                .select('client_id')
-                .order('client_id', { ascending: true });
-            
-            const allClients = clientsData ? clientsData.map(c => c.client_id) : [];
-            
-            const { data: userData } = await db
-                .from('user_roles')
-                .select('email')
-                .eq('user_id', currentUserId)
-                .single();
-            
-            const userEmail = userData?.email || '';
-            
-            let systemJobs = 0;
-            let jobsByClient = {};
-            allClients.forEach(client => {
-                jobsByClient[client] = 0;
-            });
-            
-            try {
-                const { data: boxesData } = await db
-                    .from('boxes')
-                    .select('id, client')
-                    .eq('agent', currentAgent);
-                
-                if (boxesData && boxesData.length > 0) {
-                    const boxesByClient = {};
-                    boxesData.forEach(box => {
-                        if (!boxesByClient[box.client]) {
-                            boxesByClient[box.client] = [];
-                        }
-                        boxesByClient[box.client].push(box.id);
-                    });
-                    
-                    for (const client of Object.keys(boxesByClient)) {
-                        const clientBoxIds = boxesByClient[client];
-                        const { count } = await db
-                            .from('jobs')
-                            .select('*', { count: 'exact', head: true })
-                            .in('box_id', clientBoxIds)
-                            .gte('created_at', shift.start_time)
-                            .lte('created_at', shift.end_time);
-                        
-                        jobsByClient[client] = count || 0;
-                        systemJobs += count || 0;
-                    }
-                }
-            } catch (error) {
-                console.error('Error counting jobs:', error);
-            }
-            
-            const totalJobs = systemJobs + (shift.extra_jobs || 0);
-            
-            lastShiftReport = {
-                date: startTime.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-                dateShort: startTime.toLocaleDateString('en-AU'),
-                startTime: formatDateTime(shift.start_time),
-                endTime: formatDateTime(shift.end_time),
-                hoursWorked: `${hours}h ${minutes}m`,
-                hoursDecimal: hoursWorked.toFixed(2),
-                timeMultiplier: timeMultiplier,
-                timeMultiplierLabel: timeMultiplierLabel,
-                adjustedTime: adjustedTime.toFixed(2),
-                startKms: shift.start_kms,
-                endKms: shift.end_kms,
-                kmsTravelled: kmsTravelled,
-                systemJobs: systemJobs,
-                extraJobs: shift.extra_jobs || 0,
-                totalJobs: totalJobs,
-                agentId: currentAgent,
-                email: userEmail,
-                jobsByClient: jobsByClient,
-                allClients: allClients,
-                shiftNotes: shift.shift_notes || ''
-            };
-            
-            showShiftReportModal();
-        }
-        
-        function showShiftReportModal() {
-            const report = lastShiftReport;
-            
-            const html = `
-                <div class="shift-report-card">
-                    <div class="shift-report-header">
-                        <div class="shift-report-date">${report.date}</div>
-                        <div class="shift-report-agent">Agent ${report.agentId}</div>
-                    </div>
-                    
-                    <div class="shift-report-grid">
-                        <div class="shift-report-stat">
-                            <div class="shift-report-stat-value">${report.hoursWorked}</div>
-                            <div class="shift-report-stat-label">Hours Worked</div>
-                            <div class="shift-report-stat-detail">${report.startTime} → ${report.endTime}</div>
-                        </div>
-                        
-                        <div class="shift-report-stat">
-                            <div class="shift-report-stat-value">${report.kmsTravelled.toLocaleString()} km</div>
-                            <div class="shift-report-stat-label">Distance Travelled</div>
-                            <div class="shift-report-stat-detail">${report.startKms.toLocaleString()} → ${report.endKms.toLocaleString()} km</div>
-                        </div>
-                        
-                        <div class="shift-report-stat">
-                            <div class="shift-report-stat-value">${report.totalJobs}</div>
-                            <div class="shift-report-stat-label">Total Jobs</div>
-                            <div class="shift-report-stat-detail">${report.systemJobs} logged + ${report.extraJobs} extra</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            document.getElementById('shiftReportContent').innerHTML = html;
-            document.getElementById('shiftReportModal').classList.add('active');
-            // Initialize icons in the modal
-            setTimeout(() => Icons.init(), 0);
-        }
-
-        function closeShiftReportModal() {
-            document.getElementById('shiftReportModal').classList.remove('active');
-        }
-
-        // ============================================
-        // JOB TYPE MODAL FUNCTIONS
-        // ============================================
-
-        function showJobTypeModal() {
-            document.getElementById('jobTypeModal').classList.add('active');
-            // Initialize icons in the modal
-            setTimeout(() => Icons.init(), 0);
-        }
-
-        function closeJobTypeModal() {
-            document.getElementById('jobTypeModal').classList.remove('active');
-        }
-
-        function selectJobType(jobType) {
-            currentJobType = jobType;
-            closeJobTypeModal();
-
-            const individualEntry = document.getElementById('individualEntry');
-            const bulkEntry = document.getElementById('bulkEntry');
-            const jobTypeLabel = document.getElementById('jobTypeLabel');
-
-            const jobTypeLabels = {
-                'swap-upgrade': '(Swap/Upgrade)',
-                'install': '(Install)',
-                'deinstall': '(Deinstall)'
-            };
-
-            jobTypeLabel.textContent = jobTypeLabels[jobType] || '';
-
-            if (jobType === 'install') {
-                // Hide both serial entry sections for Install jobs
-                individualEntry.style.display = 'none';
-                bulkEntry.style.display = 'none';
+                showStaleShiftModal();
             } else {
-                // Show serial entry for Swap/Upgrade and Deinstall
-                individualEntry.style.display = '';
-                bulkEntry.style.display = '';
-                // Apply current bulk toggle state
-                const isBulk = document.getElementById("bulkToggle").checked;
-                individualEntry.classList.toggle("hidden", isBulk);
-                bulkEntry.classList.toggle("active", isBulk);
+                activeShift = shift;
+                staleShift = null;
+                updateShiftDisplay();
+            }
+        } else {
+            activeShift = null;
+            staleShift = null;
+            updateShiftDisplay();
+        }
+    } catch (error) {
+        console.error('Error checking shift status:', error);
+        document.getElementById('shiftStatusText').textContent = 'Error loading shift';
+    }
+}
+
+function updateShiftDisplay() {
+    const statusText = document.getElementById('shiftStatusText');
+    const headerBtn = document.getElementById('shiftHeaderBtn');
+    
+    if (!shiftsEnabled) {
+        statusText.textContent = 'Stock Entry System';
+        headerBtn.style.display = 'none';
+        return;
+    }
+    
+    if (activeShift) {
+        const startTime = new Date(activeShift.start_time);
+        const timeStr = startTime.toLocaleTimeString('en-AU', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true 
+        });
+        statusText.innerHTML = `<span class="shift-active-indicator"></span> Active Shift • Started ${timeStr}`;
+        headerBtn.textContent = 'End Shift';
+        headerBtn.className = 'btn btn-sm btn-danger shift-header-btn';
+        headerBtn.style.display = 'inline-flex';
+        headerBtn.onclick = openEndShiftModal;
+    } else {
+        statusText.textContent = 'No Active Shift';
+        headerBtn.textContent = 'Start Shift';
+        headerBtn.className = 'btn btn-sm btn-primary shift-header-btn';
+        headerBtn.style.display = 'inline-flex';
+        headerBtn.onclick = openStartShiftModal;
+    }
+}
+
+function openStartShiftModal() {
+    document.getElementById('startShiftTime').value = formatDateTimeLocal(new Date());
+    document.getElementById('startShiftKms').value = '';
+    document.getElementById('startShiftAlertContainer').innerHTML = '';
+    document.getElementById('startShiftModal').classList.add('active');
+}
+
+function closeStartShiftModal() {
+    document.getElementById('startShiftModal').classList.remove('active');
+}
+
+async function handleStartShift(e) {
+    e.preventDefault();
+    
+    const startTime = document.getElementById('startShiftTime').value;
+    const startKms = parseInt(document.getElementById('startShiftKms').value);
+    
+    if (!startTime || isNaN(startKms)) {
+        showAlert('Please fill in all required fields', 'error', 'startShiftAlertContainer');
+        return;
+    }
+    
+    const startDateTime = new Date(startTime);
+    
+    const lastCloseTime = await getLastShiftCloseTime();
+    if (lastCloseTime && startDateTime <= lastCloseTime) {
+        showAlert(`Start time must be after your last shift ended (${formatDateTime(lastCloseTime)})`, 'error', 'startShiftAlertContainer');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const { data, error } = await db
+            .from('shifts')
+            .insert([{
+                user_id: currentUserId,
+                agent_id: currentAgent,
+                start_time: startDateTime.toISOString(),
+                start_kms: startKms,
+                status: 'active'
+            }])
+            .select()
+            .single();
+        
+        if (error) throw error;
+        
+        activeShift = data;
+        closeStartShiftModal();
+        updateShiftDisplay();
+        showAlert('✓ Shift started successfully', 'success');
+        showSyncStatus('✓ Synced', 'synced');
+    } catch (error) {
+        console.error('Error starting shift:', error);
+        showAlert('Error starting shift: ' + error.message, 'error', 'startShiftAlertContainer');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function openEndShiftModal() {
+    document.getElementById('endShiftTime').value = formatDateTimeLocal(new Date());
+    document.getElementById('endShiftKms').value = '';
+    document.getElementById('extraJobs').value = '0';
+    document.getElementById('shiftNotes').value = '';
+    document.getElementById('endShiftAlertContainer').innerHTML = '';
+    document.getElementById('endShiftModal').classList.add('active');
+}
+
+function closeEndShiftModal() {
+    document.getElementById('endShiftModal').classList.remove('active');
+}
+
+async function handleEndShift(e) {
+    e.preventDefault();
+    
+    const endTime = document.getElementById('endShiftTime').value;
+    const endKms = parseInt(document.getElementById('endShiftKms').value);
+    const extraJobs = parseInt(document.getElementById('extraJobs').value) || 0;
+    const shiftNotes = document.getElementById('shiftNotes').value.trim();
+    
+    if (!endTime || isNaN(endKms)) {
+        showAlert('Please fill in all required fields', 'error', 'endShiftAlertContainer');
+        return;
+    }
+    
+    if (endKms < activeShift.start_kms) {
+        showAlert('End kilometres cannot be less than start kilometres', 'error', 'endShiftAlertContainer');
+        return;
+    }
+    
+    const endDateTime = new Date(endTime);
+    const startDateTime = new Date(activeShift.start_time);
+    
+    if (!isSameDay(startDateTime, endDateTime)) {
+        showAlert('End time must be on the same day as the shift started.', 'error', 'endShiftAlertContainer');
+        return;
+    }
+    
+    const lastJobTime = await getLastJobEntryTime();
+    if (lastJobTime && endDateTime < lastJobTime) {
+        showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error', 'endShiftAlertContainer');
+        return;
+    }
+    
+    if (endDateTime <= startDateTime) {
+        showAlert('End time must be after the shift start time', 'error', 'endShiftAlertContainer');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const { data, error } = await db
+            .from('shifts')
+            .update({
+                end_time: endDateTime.toISOString(),
+                end_kms: endKms,
+                extra_jobs: extraJobs,
+                shift_notes: shiftNotes,
+                status: 'completed'
+            })
+            .eq('id', activeShift.id)
+            .select()
+            .single();
+        
+        if (error) throw error;
+        
+        await generateShiftReport(data);
+        
+        activeShift = null;
+        closeEndShiftModal();
+        updateShiftDisplay();
+        showSyncStatus('✓ Synced', 'synced');
+    } catch (error) {
+        console.error('Error ending shift:', error);
+        showAlert('Error ending shift: ' + error.message, 'error', 'endShiftAlertContainer');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function showStaleShiftModal() {
+    const shift = staleShift;
+    const startDate = new Date(shift.start_time);
+    
+    document.getElementById('staleShiftDate').textContent = startDate.toLocaleDateString('en-AU', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
+    
+    document.getElementById('staleShiftStartInfo').value = `${formatDateTime(shift.start_time)} • ${shift.start_kms.toLocaleString()} km`;
+    
+    const defaultEndTime = new Date(startDate);
+    defaultEndTime.setHours(23, 59, 0, 0);
+    document.getElementById('staleShiftEndTime').value = formatDateTimeLocal(defaultEndTime);
+    
+    document.getElementById('staleShiftEndKms').value = '';
+    document.getElementById('staleExtraJobs').value = '0';
+    document.getElementById('staleShiftNotes').value = '';
+    document.getElementById('staleShiftAlertContainer').innerHTML = '';
+    document.getElementById('staleShiftModal').classList.add('active');
+}
+
+async function handleStaleShift(e) {
+    e.preventDefault();
+    
+    const endTime = document.getElementById('staleShiftEndTime').value;
+    const endKms = parseInt(document.getElementById('staleShiftEndKms').value);
+    const extraJobs = parseInt(document.getElementById('staleExtraJobs').value) || 0;
+    const shiftNotes = document.getElementById('staleShiftNotes').value.trim();
+    
+    if (!endTime || isNaN(endKms)) {
+        showAlert('Please fill in all required fields', 'error', 'staleShiftAlertContainer');
+        return;
+    }
+    
+    if (endKms < staleShift.start_kms) {
+        showAlert('End kilometres cannot be less than start kilometres', 'error', 'staleShiftAlertContainer');
+        return;
+    }
+    
+    const endDateTime = new Date(endTime);
+    const startDateTime = new Date(staleShift.start_time);
+    
+    if (!isSameDay(startDateTime, endDateTime)) {
+        showAlert('End time must be on the same day as the shift started (' + startDateTime.toLocaleDateString('en-AU') + ')', 'error', 'staleShiftAlertContainer');
+        return;
+    }
+    
+    if (endDateTime <= startDateTime) {
+        showAlert('End time must be after the shift start time', 'error', 'staleShiftAlertContainer');
+        return;
+    }
+    
+    const tempActiveShift = activeShift;
+    activeShift = staleShift;
+    const lastJobTime = await getLastJobEntryTime();
+    activeShift = tempActiveShift;
+    
+    if (lastJobTime && endDateTime < lastJobTime) {
+        showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error', 'staleShiftAlertContainer');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const { data, error } = await db
+            .from('shifts')
+            .update({
+                end_time: endDateTime.toISOString(),
+                end_kms: endKms,
+                extra_jobs: extraJobs,
+                shift_notes: shiftNotes,
+                status: 'completed'
+            })
+            .eq('id', staleShift.id)
+            .select()
+            .single();
+        
+        if (error) throw error;
+        
+        await generateShiftReport(data);
+        
+        staleShift = null;
+        document.getElementById('staleShiftModal').classList.remove('active');
+        
+        await checkShiftStatus();
+        showSyncStatus('✓ Synced', 'synced');
+    } catch (error) {
+        console.error('Error closing stale shift:', error);
+        showAlert('Error closing shift: ' + error.message, 'error', 'staleShiftAlertContainer');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function generateShiftReport(shift) {
+    const startTime = new Date(shift.start_time);
+    const endTime = new Date(shift.end_time);
+    
+    const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
+    const hours = Math.floor(hoursWorked);
+    const minutes = Math.round((hoursWorked - hours) * 60);
+    
+    const kmsTravelled = shift.end_kms - shift.start_kms;
+    
+    const dayOfWeek = startTime.getDay();
+    let timeMultiplier = 1.0;
+    let timeMultiplierLabel = '1x';
+    if (dayOfWeek === 0) {
+        timeMultiplier = 2.0;
+        timeMultiplierLabel = '2x (Sun)';
+    } else if (dayOfWeek === 6) {
+        timeMultiplier = 1.5;
+        timeMultiplierLabel = '1.5x (Sat)';
+    }
+    const adjustedTime = hoursWorked * timeMultiplier;
+    
+    const { data: clientsData } = await db
+        .from('clients')
+        .select('client_id')
+        .order('client_id', { ascending: true });
+    
+    const allClients = clientsData ? clientsData.map(c => c.client_id) : [];
+    
+    const { data: userData } = await db
+        .from('user_roles')
+        .select('email')
+        .eq('user_id', currentUserId)
+        .single();
+    
+    const userEmail = userData?.email || '';
+    
+    let systemJobs = 0;
+    let jobsByClient = {};
+    allClients.forEach(client => {
+        jobsByClient[client] = 0;
+    });
+    
+    try {
+        const { data: boxesData } = await db
+            .from('boxes')
+            .select('id, client')
+            .eq('agent', currentAgent);
+        
+        if (boxesData && boxesData.length > 0) {
+            const boxesByClient = {};
+            boxesData.forEach(box => {
+                if (!boxesByClient[box.client]) {
+                    boxesByClient[box.client] = [];
+                }
+                boxesByClient[box.client].push(box.id);
+            });
+            
+            for (const client of Object.keys(boxesByClient)) {
+                const clientBoxIds = boxesByClient[client];
+                const { count } = await db
+                    .from('jobs')
+                    .select('*', { count: 'exact', head: true })
+                    .in('box_id', clientBoxIds)
+                    .gte('created_at', shift.start_time)
+                    .lte('created_at', shift.end_time);
+                
+                jobsByClient[client] = count || 0;
+                systemJobs += count || 0;
             }
         }
+    } catch (error) {
+        console.error('Error counting jobs:', error);
+    }
+    
+    const totalJobs = systemJobs + (shift.extra_jobs || 0);
+    
+    lastShiftReport = {
+        date: startTime.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+        dateShort: startTime.toLocaleDateString('en-AU'),
+        startTime: formatDateTime(shift.start_time),
+        endTime: formatDateTime(shift.end_time),
+        hoursWorked: `${hours}h ${minutes}m`,
+        hoursDecimal: hoursWorked.toFixed(2),
+        timeMultiplier: timeMultiplier,
+        timeMultiplierLabel: timeMultiplierLabel,
+        adjustedTime: adjustedTime.toFixed(2),
+        startKms: shift.start_kms,
+        endKms: shift.end_kms,
+        kmsTravelled: kmsTravelled,
+        systemJobs: systemJobs,
+        extraJobs: shift.extra_jobs || 0,
+        totalJobs: totalJobs,
+        agentId: currentAgent,
+        email: userEmail,
+        jobsByClient: jobsByClient,
+        allClients: allClients,
+        shiftNotes: shift.shift_notes || ''
+    };
+    
+    showShiftReportModal();
+}
 
-        function copyShiftReport() {
-            const report = lastShiftReport;
+function showShiftReportModal() {
+    const report = lastShiftReport;
+    
+    const html = `
+        <div class="shift-report-card">
+            <div class="shift-report-header">
+                <div class="shift-report-date">${report.date}</div>
+                <div class="shift-report-agent">Agent ${report.agentId}</div>
+            </div>
             
-            const text = `SHIFT REPORT - ${report.date}
+            <div class="shift-report-grid">
+                <div class="shift-report-stat">
+                    <div class="shift-report-stat-value">${report.hoursWorked}</div>
+                    <div class="shift-report-stat-label">Hours Worked</div>
+                    <div class="shift-report-stat-detail">${report.startTime} → ${report.endTime}</div>
+                </div>
+                
+                <div class="shift-report-stat">
+                    <div class="shift-report-stat-value">${report.kmsTravelled.toLocaleString()} km</div>
+                    <div class="shift-report-stat-label">Distance Travelled</div>
+                    <div class="shift-report-stat-detail">${report.startKms.toLocaleString()} → ${report.endKms.toLocaleString()} km</div>
+                </div>
+                
+                <div class="shift-report-stat">
+                    <div class="shift-report-stat-value">${report.totalJobs}</div>
+                    <div class="shift-report-stat-label">Total Jobs</div>
+                    <div class="shift-report-stat-detail">${report.systemJobs} logged + ${report.extraJobs} extra</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('shiftReportContent').innerHTML = html;
+    document.getElementById('shiftReportModal').classList.add('active');
+    // Initialize icons in the modal
+    setTimeout(() => Icons.init(), 0);
+}
+
+function closeShiftReportModal() {
+    document.getElementById('shiftReportModal').classList.remove('active');
+}
+
+// ============================================
+// JOB TYPE MODAL FUNCTIONS
+// ============================================
+
+function showJobTypeModal() {
+    document.getElementById('jobTypeModal').classList.add('active');
+    // Initialize icons in the modal
+    setTimeout(() => Icons.init(), 0);
+}
+
+function closeJobTypeModal() {
+    document.getElementById('jobTypeModal').classList.remove('active');
+}
+
+async function selectJobType(jobType) {
+    currentJobType = jobType;
+    closeJobTypeModal();
+
+    const individualEntry = document.getElementById('individualEntry');
+    const bulkEntry = document.getElementById('bulkEntry');
+    const jobTypeLabel = document.getElementById('jobTypeLabel');
+
+    const jobTypeLabels = {
+        'swap-upgrade': '(Swap/Upgrade)',
+        'install': '(Install)',
+        'deinstall': '(Deinstall)'
+    };
+
+    jobTypeLabel.textContent = jobTypeLabels[jobType] || '';
+
+    if (jobType === 'install') {
+        // Hide both serial entry sections for Install jobs
+        individualEntry.style.display = 'none';
+        bulkEntry.style.display = 'none';
+    } else {
+        // Show serial entry for Swap/Upgrade and Deinstall
+        individualEntry.style.display = '';
+        bulkEntry.style.display = '';
+        // Apply current bulk toggle state
+        const isBulk = document.getElementById("bulkToggle").checked;
+        individualEntry.classList.toggle("hidden", isBulk);
+        bulkEntry.classList.toggle("active", isBulk);
+    }
+
+    // Check if receipt is required for this client + job type
+    await checkReceiptRequirement();
+}
+
+async function checkReceiptRequirement() {
+    const receiptSection = document.getElementById('receiptUploadSection');
+
+    if (!currentBox || !currentJobType) {
+        receiptSection.style.display = 'none';
+        isReceiptRequired = false;
+        return;
+    }
+
+    try {
+        // Load client settings if not already loaded
+        if (!currentClientSettings || currentClientSettings.client_id !== currentBox.client) {
+            const { data: client, error } = await db
+                .from('clients')
+                .select('*')
+                .eq('client_id', currentBox.client)
+                .single();
+
+            if (error) throw error;
+            currentClientSettings = client;
+        }
+
+        // Check if receipt is required for this job type
+        const receiptFields = {
+            'swap-upgrade': 'receipt_swap_upgrade_enabled',
+            'install': 'receipt_install_enabled',
+            'deinstall': 'receipt_deinstall_enabled'
+        };
+
+        const fieldName = receiptFields[currentJobType];
+        isReceiptRequired = currentClientSettings[fieldName] || false;
+
+        if (isReceiptRequired) {
+            receiptSection.style.display = '';
+            // Initialize icons for the newly shown section
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        } else {
+            receiptSection.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error checking receipt requirement:', error);
+        isReceiptRequired = false;
+        receiptSection.style.display = 'none';
+    }
+}
+
+function handleReceiptFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        showAlert('Please select an image file', 'error');
+        return;
+    }
+
+    // Validate file size (5MB limit)
+    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    if (file.size > maxSize) {
+        showAlert('Image size must be less than 5MB', 'error');
+        return;
+    }
+
+    currentReceiptFile = file;
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('receiptPreviewImg').src = e.target.result;
+        document.getElementById('receiptUploadControls').style.display = 'none';
+        document.getElementById('receiptPreview').style.display = '';
+
+        // Initialize icons for the preview section
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearReceiptUpload() {
+    currentReceiptFile = null;
+    currentReceiptUrl = null;
+    document.getElementById('receiptFileInput').value = '';
+    document.getElementById('receiptPreviewImg').src = '';
+    document.getElementById('receiptUploadControls').style.display = '';
+    document.getElementById('receiptPreview').style.display = 'none';
+}
+
+async function uploadReceiptToStorage(jobId) {
+    if (!currentReceiptFile) {
+        throw new Error('No receipt file selected');
+    }
+
+    try {
+        // Generate unique filename: timestamp-jobId.extension
+        const timestamp = Date.now();
+        const extension = currentReceiptFile.name.split('.').pop() || 'jpg';
+        const filename = `${timestamp}-${jobId}.${extension}`;
+
+        // Upload to Supabase Storage using the existing db client from auth.js
+        const { data, error } = await db.storage
+            .from('job-receipts')
+            .upload(filename, currentReceiptFile, {
+                contentType: currentReceiptFile.type,
+                upsert: false
+            });
+
+        if (error) throw error;
+
+        // Store just the filename, we'll generate signed URLs when viewing
+        return filename;
+    } catch (error) {
+        console.error('Error uploading receipt:', error);
+        throw new Error('Failed to upload receipt: ' + error.message);
+    }
+}
+
+function copyShiftReport() {
+    const report = lastShiftReport;
+    
+    const text = `SHIFT REPORT - ${report.date}
 Agent: ${report.agentId}
 
 TIME
@@ -1023,606 +1187,637 @@ JOBS
 System Logged: ${report.systemJobs}
 Extra Jobs: ${report.extraJobs}
 Total: ${report.totalJobs}`;
-            
-            navigator.clipboard.writeText(text).then(() => {
-                showAlert('✓ Report copied to clipboard', 'success');
-            }).catch(err => {
-                console.error('Copy failed:', err);
-                showAlert('Failed to copy report', 'error');
+    
+    navigator.clipboard.writeText(text).then(() => {
+        showAlert('✓ Report copied to clipboard', 'success');
+    }).catch(err => {
+        console.error('Copy failed:', err);
+        showAlert('Failed to copy report', 'error');
+    });
+}
+
+function downloadShiftReportCSV() {
+    const report = lastShiftReport;
+    
+    function escapeCSV(value) {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    }
+    
+    let headers = [
+        'Date',
+        'Start Time',
+        'End Time',
+        'Agent',
+        'Email',
+        'Total Time (h:mm)',
+        'Total Time (decimal)',
+        'Time Multiplier',
+        'Adjusted Time (decimal)',
+        'Start Km',
+        'End Km',
+        'Km Travelled'
+    ];
+    
+    report.allClients.forEach(client => {
+        headers.push(`Jobs - ${client}`);
+    });
+    
+    headers.push('Extra Jobs');
+    headers.push('Total Jobs');
+    headers.push('Shift Notes');
+    
+    let csvContent = headers.join(',') + '\n';
+    
+    let row = [
+        report.dateShort,
+        report.startTime,
+        report.endTime,
+        report.agentId,
+        report.email,
+        report.hoursWorked,
+        report.hoursDecimal,
+        report.timeMultiplierLabel,
+        report.adjustedTime,
+        report.startKms,
+        report.endKms,
+        report.kmsTravelled
+    ];
+    
+    report.allClients.forEach(client => {
+        row.push(report.jobsByClient?.[client] || 0);
+    });
+    
+    row.push(report.extraJobs);
+    row.push(report.totalJobs);
+    row.push(escapeCSV(report.shiftNotes));
+    
+    csvContent += row.map(val => escapeCSV(val)).join(',') + '\n';
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    const filename = `shift-report-${report.date.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.csv`;
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showAlert('✓ CSV downloaded', 'success');
+}
+
+// ============================================
+// STOCK ENTRY FUNCTIONS
+// ============================================
+
+async function loadClients() {
+    try {
+        const { data, error } = await db
+            .from('clients')
+            .select('client_id')
+            .order('client_id', { ascending: true });
+        
+        if (error) throw new Error(error.message);
+        if (!data || data.length === 0) return;
+        
+        const clientSelect = document.getElementById('clientSelect');
+        if (clientSelect) {
+            clientSelect.innerHTML = '<option value="">Select a client...</option>';
+            data.forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.client_id;
+                option.textContent = client.client_id;
+                clientSelect.appendChild(option);
             });
+        }
+    } catch (error) {
+        console.error('Error loading clients:', error);
+        showAlert('Error loading clients: ' + error.message, 'error');
+    }
+}
+
+async function updateVendorsByClient(clientId) {
+    const vendorSelect = document.getElementById('vendorSelect');
+    if (!vendorSelect) return;
+
+    if (!clientId) {
+        vendorSelect.innerHTML = '<option value="">Select a client first...</option>';
+        return;
+    }
+
+    try {
+        const { data, error } = await db
+            .from('clients_vendors')
+            .select('vendor_id')
+            .eq('client_id', clientId);
+        
+        if (error) throw new Error(error.message);
+        
+        vendorSelect.innerHTML = '<option value="">Select a vendor...</option>';
+        
+        if (data && data.length > 0) {
+            data.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.vendor_id;
+                option.textContent = item.vendor_id;
+                vendorSelect.appendChild(option);
+            });
+        } else {
+            const option = document.createElement('option');
+            option.textContent = "No vendors linked to this client";
+            option.disabled = true;
+            vendorSelect.appendChild(option);
+        }
+    } catch (error) {
+        console.error('Error loading filtered vendors:', error);
+        showAlert('Error loading vendors: ' + error.message, 'error');
+    }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+    const user = await initAuth(['manager', 'technician']);
+    if (!user) return;
+    
+    // Initialize sidebar
+    initSidebar(user);
+    
+    currentAgent = user.agent_id;
+    currentUserRole = user.role;
+    currentUserId = user.id;
+    
+    // Check if shifts are enabled for this user
+    try {
+        const { data: userData, error } = await db
+            .from('user_roles')
+            .select('shifts_enabled')
+            .eq('user_id', currentUserId)
+            .single();
+        
+        if (!error && userData) {
+            shiftsEnabled = userData.shifts_enabled || false;
+        }
+    } catch (error) {
+        console.error('Error checking shift settings:', error);
+    }
+    
+    await Promise.all([
+        loadClients(),
+        loadBoxesForAgent(),
+        checkShiftStatus()
+    ]);
+
+    // Event Listeners
+    document.getElementById("clientSelect").addEventListener("change", handleClientChange);
+    document.getElementById("bulkToggle").addEventListener("change", handleBulkToggle);
+    document.getElementById("bulkToggle2").addEventListener("change", handleBulkToggle2);
+    document.getElementById("addSerialBtn").addEventListener("click", addSerialRow);
+    document.getElementById("addJobBtn").addEventListener("click", handleAddJob);
+    document.getElementById("newBoxBtn").addEventListener("click", handleNewBox);
+    
+    // Shift form listeners
+    document.getElementById("startShiftForm").addEventListener("submit", handleStartShift);
+    document.getElementById("endShiftForm").addEventListener("submit", handleEndShift);
+    document.getElementById("staleShiftForm").addEventListener("submit", handleStaleShift);
+    
+    showLoading(false);
+});
+
+function handleBulkToggle() {
+    const isBulk = document.getElementById("bulkToggle").checked;
+    document.getElementById("individualEntry").classList.toggle("hidden", isBulk);
+    document.getElementById("bulkEntry").classList.toggle("active", isBulk);
+    document.getElementById("bulkToggle2").checked = isBulk;
+}
+
+function handleBulkToggle2() {
+    const isBulk = document.getElementById("bulkToggle2").checked;
+    document.getElementById("individualEntry").classList.toggle("hidden", isBulk);
+    document.getElementById("bulkEntry").classList.toggle("active", isBulk);
+    document.getElementById("bulkToggle").checked = isBulk;
+}
+
+function addSerialRow() {
+    const row = document.createElement("div");
+    row.className = "serial-input-row";
+    row.innerHTML = `
+        <input type="text" class="form-input serial-input" placeholder="Enter serial number">
+        <button type="button" class="btn btn-danger btn-icon btn-remove" onclick="this.parentElement.remove()">×</button>
+    `;
+    document.getElementById("serialInputs").appendChild(row);
+}
+
+async function handleClientChange() {
+    const client = document.getElementById("clientSelect").value;
+
+    await updateVendorsByClient(client);
+
+    if (!client) {
+        currentBox = null;
+        currentJobType = null;
+        updateCurrentBoxDisplay();
+        return;
+    }
+
+    showLoading(true);
+
+    try {
+        const { data, error } = await db
+            .from("boxes")
+            .select("*")
+            .eq("agent", currentAgent)
+            .eq("client", client)
+            .eq("status", "open")
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            currentBox = data[0];
+            await loadJobsForBox(currentBox.id);
+        } else {
+            const boxNumber = await getNextBoxNumber(client);
+            const boxId = formatBoxId(currentAgent, client, boxNumber);
+
+            const { data: newBox, error: insertError } = await db
+                .from("boxes")
+                .insert([{
+                    box_id: boxId,
+                    agent: currentAgent,
+                    client: client,
+                    box_number: boxNumber,
+                    status: "open",
+                    created_at: new Date().toISOString()
+                }])
+                .select()
+                .single();
+
+            if (insertError) throw insertError;
+
+            currentBox = newBox;
+            currentBox.jobs = [];
+        }
+
+        updateCurrentBoxDisplay();
+        await loadBoxesForAgent();
+        showSyncStatus("✓ Synced", "synced");
+
+        // Show job type selection modal
+        showJobTypeModal();
+    } catch (error) {
+        showAlert("Error loading box: " + error.message, "error");
+        showSyncStatus("✕ Sync failed", "error");
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function handleAddJob() {
+    if (!currentBox) {
+        showAlert("Please select a client first", "error");
+        return;
+    }
+
+    if (shiftsEnabled && !activeShift) {
+        showAlert("Cannot add jobs without an active shift. Please start a shift first.", "error");
+        return;
+    }
+
+    if (!currentJobType) {
+        showAlert("Please select a job type first", "error");
+        return;
+    }
+
+    // Check if receipt is required and uploaded
+    if (isReceiptRequired && !currentReceiptFile) {
+        showAlert("Please upload a receipt photo before adding the job", "error");
+        return;
+    }
+
+    const vendor = document.getElementById("vendorSelect").value;
+    const jobNumber = document.getElementById("jobNumber").value.trim();
+    const isBulk = document.getElementById("bulkToggle").checked;
+
+    if (!vendor || !jobNumber) {
+        showAlert("Please fill in all required fields", "error");
+        return;
+    }
+
+    let serials = [];
+
+    // Only collect serials for Swap/Upgrade and Deinstall jobs (not Install)
+    if (currentJobType !== 'install') {
+        if (isBulk) {
+            const bulkText = document.getElementById("bulkSerials").value.trim();
+            if (!bulkText) {
+                showAlert("Please enter at least one serial", "error");
+                return;
+            }
+            serials = bulkText.split("\n").map(s => s.trim()).filter(s => s.length > 0);
+        } else {
+            document.querySelectorAll(".serial-input").forEach(input => {
+                const value = input.value.trim();
+                if (value) serials.push(value);
+            });
+        }
+
+        if (serials.length === 0) {
+            showAlert("Please enter at least one serial number", "error");
+            return;
+        }
+
+        const duplicates = await checkDuplicates(serials);
+        if (duplicates.length > 0) {
+            showAlert(`Duplicate serials found: ${duplicates.join(", ")}`, "warning");
+            return;
+        }
+    }
+
+    showLoading(true);
+    showSyncStatus("Syncing...", "syncing");
+
+    try {
+        // Create job with job_type (receipt_url will be added after upload if needed)
+        const jobData = {
+            box_id: currentBox.id,
+            job_number: jobNumber,
+            vendor: vendor,
+            job_type: currentJobType,
+            shift_id: activeShift?.id || null,
+            created_at: new Date().toISOString()
+        };
+
+        const { data: job, error: jobError } = await db
+            .from("jobs")
+            .insert([jobData])
+            .select()
+            .single();
+
+        if (jobError) throw jobError;
+
+        // Upload receipt if required
+        if (isReceiptRequired && currentReceiptFile) {
+            showSyncStatus("Uploading receipt...", "syncing");
+            const receiptUrl = await uploadReceiptToStorage(job.id);
+
+            // Update job with receipt URL
+            const { error: updateError } = await db
+                .from("jobs")
+                .update({ receipt_url: receiptUrl })
+                .eq('id', job.id);
+
+            if (updateError) throw updateError;
+        }
+
+        // Only insert serials if job type requires them
+        if (currentJobType !== 'install' && serials.length > 0) {
+            const serialRecords = serials.map(serial => ({
+                job_id: job.id,
+                box_id: currentBox.id,
+                serial_number: serial,
+                created_at: new Date().toISOString()
+            }));
+
+            const { error: serialError } = await db.from("serials").insert(serialRecords);
+            if (serialError) throw serialError;
+        }
+
+        const jobTypeLabels = {
+            'swap-upgrade': 'Swap/Upgrade',
+            'install': 'Install',
+            'deinstall': 'Deinstall'
+        };
+        const jobTypeLabel = jobTypeLabels[currentJobType] || currentJobType;
+
+        const message = currentJobType === 'install'
+            ? `✓ ${jobTypeLabel} job ${jobNumber} added`
+            : `✓ ${jobTypeLabel} job ${jobNumber} added with ${serials.length} serial(s)`;
+
+        showAlert(message, "success");
+        showSyncStatus("✓ Synced", "synced");
+
+        // Clear form and reset to basic dashboard
+        clearJobForm();
+    } catch (error) {
+        showAlert("Error saving job: " + error.message, "error");
+        showSyncStatus("✕ Sync failed", "error");
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function handleNewBox() {
+    if (!currentBox || !currentBox.jobs || currentBox.jobs.length === 0) {
+        showAlert("Cannot start new box without adding jobs to current one", "warning");
+        return;
+    }
+    
+    if (!confirm(`Close current box and start new box for ${currentBox.client}?`)) return;
+    
+    showLoading(true);
+    
+    try {
+        const client = currentBox.client;
+        
+        await db
+            .from("boxes")
+            .update({ status: "closed", closed_at: new Date().toISOString() })
+            .eq("id", currentBox.id);
+            
+        const boxNumber = await getNextBoxNumber(client);
+        const boxId = formatBoxId(currentAgent, client, boxNumber);
+        
+        const { data: newBox, error } = await db
+            .from("boxes")
+            .insert([{
+                box_id: boxId,
+                agent: currentAgent,
+                client: client,
+                box_number: boxNumber,
+                status: "open",
+                created_at: new Date().toISOString()
+            }])
+            .select()
+            .single();
+            
+        if (error) throw error;
+        
+        currentBox = newBox;
+        currentBox.jobs = [];
+        updateCurrentBoxDisplay();
+        await loadBoxesForAgent();
+        showAlert(`✓ New box started: ${currentBox.box_id}`, "success");
+        showSyncStatus("✓ Synced", "synced");
+    } catch (error) {
+        showAlert("Error starting new box: " + error.message, "error");
+        showSyncStatus("✕ Sync failed", "error");
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function loadJobsForBox(boxId) {
+    try {
+        const { data: jobs, error } = await db
+            .from("jobs")
+            .select("*")
+            .eq("box_id", boxId)
+            .order("created_at", { ascending: true });
+            
+        if (error) throw error;
+        
+        for (let job of jobs) {
+            const { data: serials } = await db
+                .from("serials")
+                .select("serial_number")
+                .eq("job_id", job.id);
+                
+            job.serials = serials ? serials.map(s => s.serial_number) : [];
         }
         
-        function downloadShiftReportCSV() {
-            const report = lastShiftReport;
+        currentBox.jobs = jobs;
+    } catch (error) {
+        currentBox.jobs = [];
+    }
+}
+
+async function getNextBoxNumber(client) {
+    try {
+        const { data } = await db
+            .from("boxes")
+            .select("box_number")
+            .eq("agent", currentAgent)
+            .eq("client", client)
+            .order("box_number", { ascending: false })
+            .limit(1);
             
-            function escapeCSV(value) {
-                if (value === null || value === undefined) return '';
-                const str = String(value);
-                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                    return `"${str.replace(/"/g, '""')}"`;
-                }
-                return str;
-            }
-            
-            let headers = [
-                'Date',
-                'Start Time',
-                'End Time',
-                'Agent',
-                'Email',
-                'Total Time (h:mm)',
-                'Total Time (decimal)',
-                'Time Multiplier',
-                'Adjusted Time (decimal)',
-                'Start Km',
-                'End Km',
-                'Km Travelled'
-            ];
-            
-            report.allClients.forEach(client => {
-                headers.push(`Jobs - ${client}`);
-            });
-            
-            headers.push('Extra Jobs');
-            headers.push('Total Jobs');
-            headers.push('Shift Notes');
-            
-            let csvContent = headers.join(',') + '\n';
-            
-            let row = [
-                report.dateShort,
-                report.startTime,
-                report.endTime,
-                report.agentId,
-                report.email,
-                report.hoursWorked,
-                report.hoursDecimal,
-                report.timeMultiplierLabel,
-                report.adjustedTime,
-                report.startKms,
-                report.endKms,
-                report.kmsTravelled
-            ];
-            
-            report.allClients.forEach(client => {
-                row.push(report.jobsByClient?.[client] || 0);
-            });
-            
-            row.push(report.extraJobs);
-            row.push(report.totalJobs);
-            row.push(escapeCSV(report.shiftNotes));
-            
-            csvContent += row.map(val => escapeCSV(val)).join(',') + '\n';
-            
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            
-            const filename = `shift-report-${report.date.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.csv`;
-            
-            link.setAttribute('href', url);
-            link.setAttribute('download', filename);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            showAlert('✓ CSV downloaded', 'success');
+        if (data && data.length > 0) {
+            return String(parseInt(data[0].box_number) + 1).padStart(3, "0");
         }
+        return "001";
+    } catch (error) {
+        return "001";
+    }
+}
 
-        // ============================================
-        // STOCK ENTRY FUNCTIONS
-        // ============================================
+function updateCurrentBoxDisplay() {
+    const boxIdEl = document.getElementById("currentBoxId");
+    const boxClientEl = document.getElementById("currentBoxClient");
+    const jobsSummaryEl = document.getElementById("jobsSummary");
+    const newBoxBtn = document.getElementById("newBoxBtn");
+    
+    if (currentBox) {
+        boxIdEl.textContent = currentBox.box_id;
+        boxClientEl.textContent = `${currentBox.client} • Agent ${currentBox.agent}`;
+        
+        const jobs = currentBox.jobs || [];
+        const jobCount = jobs.length;
+        const serialCount = jobs.reduce((sum, job) => sum + (job.serials ? job.serials.length : 0), 0);
+        
+        jobsSummaryEl.textContent = `${jobCount} job(s) • ${serialCount} serial(s)`;
+        newBoxBtn.disabled = false;
+    } else {
+        boxIdEl.textContent = "No Active Box";
+        boxClientEl.textContent = "Select a client to begin";
+        jobsSummaryEl.textContent = "";
+        newBoxBtn.disabled = true;
+    }
+}
 
-        async function loadClients() {
-            try {
-                const { data, error } = await db
-                    .from('clients')
-                    .select('client_id')
-                    .order('client_id', { ascending: true });
-                
-                if (error) throw new Error(error.message);
-                if (!data || data.length === 0) return;
-                
-                const clientSelect = document.getElementById('clientSelect');
-                if (clientSelect) {
-                    clientSelect.innerHTML = '<option value="">Select a client...</option>';
-                    data.forEach(client => {
-                        const option = document.createElement('option');
-                        option.value = client.client_id;
-                        option.textContent = client.client_id;
-                        clientSelect.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error('Error loading clients:', error);
-                showAlert('Error loading clients: ' + error.message, 'error');
-            }
-        }
-
-        async function updateVendorsByClient(clientId) {
-            const vendorSelect = document.getElementById('vendorSelect');
-            if (!vendorSelect) return;
-
-            if (!clientId) {
-                vendorSelect.innerHTML = '<option value="">Select a client first...</option>';
-                return;
-            }
-
-            try {
-                const { data, error } = await db
-                    .from('clients_vendors')
-                    .select('vendor_id')
-                    .eq('client_id', clientId);
-                
-                if (error) throw new Error(error.message);
-                
-                vendorSelect.innerHTML = '<option value="">Select a vendor...</option>';
-                
-                if (data && data.length > 0) {
-                    data.forEach(item => {
-                        const option = document.createElement('option');
-                        option.value = item.vendor_id;
-                        option.textContent = item.vendor_id;
-                        vendorSelect.appendChild(option);
-                    });
-                } else {
-                    const option = document.createElement('option');
-                    option.textContent = "No vendors linked to this client";
-                    option.disabled = true;
-                    vendorSelect.appendChild(option);
-                }
-            } catch (error) {
-                console.error('Error loading filtered vendors:', error);
-                showAlert('Error loading vendors: ' + error.message, 'error');
-            }
-        }
-
-        document.addEventListener("DOMContentLoaded", async () => {
-            const user = await initAuth(['manager', 'technician']);
-            if (!user) return;
+async function checkDuplicates(serials) {
+    try {
+        const { data } = await db
+            .from("serials")
+            .select("serial_number")
+            .in("serial_number", serials);
             
-            // Initialize sidebar
-            initSidebar(user);
+        return data ? data.map(s => s.serial_number) : [];
+    } catch (error) {
+        return [];
+    }
+}
+
+async function loadBoxesForAgent() {
+    try {
+        const { data } = await db
+            .from("boxes")
+            .select("*")
+            .eq("agent", currentAgent)
+            .order("created_at", { ascending: false });
             
-            currentAgent = user.agent_id;
-            currentUserRole = user.role;
-            currentUserId = user.id;
-            
-            // Check if shifts are enabled for this user
-            try {
-                const { data: userData, error } = await db
-                    .from('user_roles')
-                    .select('shifts_enabled')
-                    .eq('user_id', currentUserId)
-                    .single();
-                
-                if (!error && userData) {
-                    shiftsEnabled = userData.shifts_enabled || false;
-                }
-            } catch (error) {
-                console.error('Error checking shift settings:', error);
-            }
-            
-            await Promise.all([
-                loadClients(),
-                loadBoxesForAgent(),
-                checkShiftStatus()
-            ]);
+        boxes = data || [];
+    } catch (error) {
+        boxes = [];
+    }
+}
 
-            // Event Listeners
-            document.getElementById("clientSelect").addEventListener("change", handleClientChange);
-            document.getElementById("bulkToggle").addEventListener("change", handleBulkToggle);
-            document.getElementById("bulkToggle2").addEventListener("change", handleBulkToggle2);
-            document.getElementById("addSerialBtn").addEventListener("click", addSerialRow);
-            document.getElementById("addJobBtn").addEventListener("click", handleAddJob);
-            document.getElementById("newBoxBtn").addEventListener("click", handleNewBox);
-            
-            // Shift form listeners
-            document.getElementById("startShiftForm").addEventListener("submit", handleStartShift);
-            document.getElementById("endShiftForm").addEventListener("submit", handleEndShift);
-            document.getElementById("staleShiftForm").addEventListener("submit", handleStaleShift);
-            
-            showLoading(false);
-        });
+function clearJobForm() {
+    // Reset all form fields
+    document.getElementById("clientSelect").value = "";
+    document.getElementById("vendorSelect").value = "";
+    document.getElementById("vendorSelect").innerHTML = '<option value="">Select a client first...</option>';
+    document.getElementById("jobNumber").value = "";
+    document.getElementById("jobTypeLabel").textContent = "";
+    document.getElementById("bulkSerials").value = "";
+    document.getElementById("bulkToggle").checked = false;
+    document.getElementById("bulkToggle2").checked = false;
+    document.getElementById("serialInputs").innerHTML = `
+        <div class="serial-input-row">
+            <input type="text" class="form-input serial-input" placeholder="Enter serial number">
+        </div>
+    `;
 
-        function handleBulkToggle() {
-            const isBulk = document.getElementById("bulkToggle").checked;
-            document.getElementById("individualEntry").classList.toggle("hidden", isBulk);
-            document.getElementById("bulkEntry").classList.toggle("active", isBulk);
-            document.getElementById("bulkToggle2").checked = isBulk;
-        }
+    // Reset bulk toggle state
+    handleBulkToggle();
 
-        function handleBulkToggle2() {
-            const isBulk = document.getElementById("bulkToggle2").checked;
-            document.getElementById("individualEntry").classList.toggle("hidden", isBulk);
-            document.getElementById("bulkEntry").classList.toggle("active", isBulk);
-            document.getElementById("bulkToggle").checked = isBulk;
-        }
+    // Reset serial entry visibility
+    document.getElementById("individualEntry").style.display = '';
+    document.getElementById("bulkEntry").style.display = '';
 
-        function addSerialRow() {
-            const row = document.createElement("div");
-            row.className = "serial-input-row";
-            row.innerHTML = `
-                <input type="text" class="form-input serial-input" placeholder="Enter serial number">
-                <button type="button" class="btn btn-danger btn-icon btn-remove" onclick="this.parentElement.remove()">×</button>
-            `;
-            document.getElementById("serialInputs").appendChild(row);
-        }
+    // Clear current box and job type
+    currentBox = null;
+    currentJobType = null;
 
-        async function handleClientChange() {
-            const client = document.getElementById("clientSelect").value;
+    // Clear receipt upload state
+    clearReceiptUpload();
+    isReceiptRequired = false;
+    currentClientSettings = null;
+    document.getElementById('receiptUploadSection').style.display = 'none';
 
-            await updateVendorsByClient(client);
+    // Update display to show no active box
+    updateCurrentBoxDisplay();
+}
 
-            if (!client) {
-                currentBox = null;
-                currentJobType = null;
-                updateCurrentBoxDisplay();
-                return;
-            }
+function showAlert(message, type, containerId = "alertContainer") {
+    const container = document.getElementById(containerId);
+    const alert = document.createElement("div");
+    alert.className = `alert alert-${type}`;
+    
+    const icons = { success: "✓", error: "✕", warning: "⚠", info: "ℹ" };
+    alert.innerHTML = `<span class="alert-icon">${icons[type] || "ℹ"}</span><span>${message}</span>`;
+    
+    container.appendChild(alert);
+    setTimeout(() => alert.remove(), 5000);
+}
 
-            showLoading(true);
+function showLoading(show) {
+    document.getElementById("loading").classList.toggle("active", show);
+}
 
-            try {
-                const { data, error } = await db
-                    .from("boxes")
-                    .select("*")
-                    .eq("agent", currentAgent)
-                    .eq("client", client)
-                    .eq("status", "open")
-                    .order("created_at", { ascending: false })
-                    .limit(1);
-
-                if (error) throw error;
-
-                if (data && data.length > 0) {
-                    currentBox = data[0];
-                    await loadJobsForBox(currentBox.id);
-                } else {
-                    const boxNumber = await getNextBoxNumber(client);
-                    const boxId = formatBoxId(currentAgent, client, boxNumber);
-
-                    const { data: newBox, error: insertError } = await db
-                        .from("boxes")
-                        .insert([{
-                            box_id: boxId,
-                            agent: currentAgent,
-                            client: client,
-                            box_number: boxNumber,
-                            status: "open",
-                            created_at: new Date().toISOString()
-                        }])
-                        .select()
-                        .single();
-
-                    if (insertError) throw insertError;
-
-                    currentBox = newBox;
-                    currentBox.jobs = [];
-                }
-
-                updateCurrentBoxDisplay();
-                await loadBoxesForAgent();
-                showSyncStatus("✓ Synced", "synced");
-
-                // Show job type selection modal
-                showJobTypeModal();
-            } catch (error) {
-                showAlert("Error loading box: " + error.message, "error");
-                showSyncStatus("✕ Sync failed", "error");
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        async function handleAddJob() {
-            if (!currentBox) {
-                showAlert("Please select a client first", "error");
-                return;
-            }
-
-            if (shiftsEnabled && !activeShift) {
-                showAlert("Cannot add jobs without an active shift. Please start a shift first.", "error");
-                return;
-            }
-
-            if (!currentJobType) {
-                showAlert("Please select a job type first", "error");
-                return;
-            }
-
-            const vendor = document.getElementById("vendorSelect").value;
-            const jobNumber = document.getElementById("jobNumber").value.trim();
-            const isBulk = document.getElementById("bulkToggle").checked;
-
-            if (!vendor || !jobNumber) {
-                showAlert("Please fill in all required fields", "error");
-                return;
-            }
-
-            let serials = [];
-
-            // Only collect serials for Swap/Upgrade and Deinstall jobs (not Install)
-            if (currentJobType !== 'install') {
-                if (isBulk) {
-                    const bulkText = document.getElementById("bulkSerials").value.trim();
-                    if (!bulkText) {
-                        showAlert("Please enter at least one serial", "error");
-                        return;
-                    }
-                    serials = bulkText.split("\n").map(s => s.trim()).filter(s => s.length > 0);
-                } else {
-                    document.querySelectorAll(".serial-input").forEach(input => {
-                        const value = input.value.trim();
-                        if (value) serials.push(value);
-                    });
-                }
-
-                if (serials.length === 0) {
-                    showAlert("Please enter at least one serial number", "error");
-                    return;
-                }
-
-                const duplicates = await checkDuplicates(serials);
-                if (duplicates.length > 0) {
-                    showAlert(`Duplicate serials found: ${duplicates.join(", ")}`, "warning");
-                    return;
-                }
-            }
-
-            showLoading(true);
-            showSyncStatus("Syncing...", "syncing");
-
-            try {
-                const { data: job, error: jobError } = await db
-                    .from("jobs")
-                    .insert([{
-                        box_id: currentBox.id,
-                        job_number: jobNumber,
-                        vendor: vendor,
-                        created_at: new Date().toISOString()
-                    }])
-                    .select()
-                    .single();
-
-                if (jobError) throw jobError;
-
-                // Only insert serials if job type requires them
-                if (currentJobType !== 'install' && serials.length > 0) {
-                    const serialRecords = serials.map(serial => ({
-                        job_id: job.id,
-                        box_id: currentBox.id,
-                        serial_number: serial,
-                        created_at: new Date().toISOString()
-                    }));
-
-                    const { error: serialError } = await db.from("serials").insert(serialRecords);
-                    if (serialError) throw serialError;
-                }
-
-                const jobTypeLabels = {
-                    'swap-upgrade': 'Swap/Upgrade',
-                    'install': 'Install',
-                    'deinstall': 'Deinstall'
-                };
-                const jobTypeLabel = jobTypeLabels[currentJobType] || currentJobType;
-
-                const message = currentJobType === 'install'
-                    ? `✓ ${jobTypeLabel} job ${jobNumber} added`
-                    : `✓ ${jobTypeLabel} job ${jobNumber} added with ${serials.length} serial(s)`;
-
-                showAlert(message, "success");
-                showSyncStatus("✓ Synced", "synced");
-
-                // Clear form and reset to basic dashboard
-                clearJobForm();
-            } catch (error) {
-                showAlert("Error saving job: " + error.message, "error");
-                showSyncStatus("✕ Sync failed", "error");
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        async function handleNewBox() {
-            if (!currentBox || !currentBox.jobs || currentBox.jobs.length === 0) {
-                showAlert("Cannot start new box without adding jobs to current one", "warning");
-                return;
-            }
-            
-            if (!confirm(`Close current box and start new box for ${currentBox.client}?`)) return;
-            
-            showLoading(true);
-            
-            try {
-                const client = currentBox.client;
-                
-                await db
-                    .from("boxes")
-                    .update({ status: "closed", closed_at: new Date().toISOString() })
-                    .eq("id", currentBox.id);
-                    
-                const boxNumber = await getNextBoxNumber(client);
-                const boxId = formatBoxId(currentAgent, client, boxNumber);
-                
-                const { data: newBox, error } = await db
-                    .from("boxes")
-                    .insert([{
-                        box_id: boxId,
-                        agent: currentAgent,
-                        client: client,
-                        box_number: boxNumber,
-                        status: "open",
-                        created_at: new Date().toISOString()
-                    }])
-                    .select()
-                    .single();
-                    
-                if (error) throw error;
-                
-                currentBox = newBox;
-                currentBox.jobs = [];
-                updateCurrentBoxDisplay();
-                await loadBoxesForAgent();
-                showAlert(`✓ New box started: ${currentBox.box_id}`, "success");
-                showSyncStatus("✓ Synced", "synced");
-            } catch (error) {
-                showAlert("Error starting new box: " + error.message, "error");
-                showSyncStatus("✕ Sync failed", "error");
-            } finally {
-                showLoading(false);
-            }
-        }
-
-        async function loadJobsForBox(boxId) {
-            try {
-                const { data: jobs, error } = await db
-                    .from("jobs")
-                    .select("*")
-                    .eq("box_id", boxId)
-                    .order("created_at", { ascending: true });
-                    
-                if (error) throw error;
-                
-                for (let job of jobs) {
-                    const { data: serials } = await db
-                        .from("serials")
-                        .select("serial_number")
-                        .eq("job_id", job.id);
-                        
-                    job.serials = serials ? serials.map(s => s.serial_number) : [];
-                }
-                
-                currentBox.jobs = jobs;
-            } catch (error) {
-                currentBox.jobs = [];
-            }
-        }
-
-        async function getNextBoxNumber(client) {
-            try {
-                const { data } = await db
-                    .from("boxes")
-                    .select("box_number")
-                    .eq("agent", currentAgent)
-                    .eq("client", client)
-                    .order("box_number", { ascending: false })
-                    .limit(1);
-                    
-                if (data && data.length > 0) {
-                    return String(parseInt(data[0].box_number) + 1).padStart(3, "0");
-                }
-                return "001";
-            } catch (error) {
-                return "001";
-            }
-        }
-
-        function updateCurrentBoxDisplay() {
-            const boxIdEl = document.getElementById("currentBoxId");
-            const boxClientEl = document.getElementById("currentBoxClient");
-            const jobsSummaryEl = document.getElementById("jobsSummary");
-            const newBoxBtn = document.getElementById("newBoxBtn");
-            
-            if (currentBox) {
-                boxIdEl.textContent = currentBox.box_id;
-                boxClientEl.textContent = `${currentBox.client} • Agent ${currentBox.agent}`;
-                
-                const jobs = currentBox.jobs || [];
-                const jobCount = jobs.length;
-                const serialCount = jobs.reduce((sum, job) => sum + (job.serials ? job.serials.length : 0), 0);
-                
-                jobsSummaryEl.textContent = `${jobCount} job(s) • ${serialCount} serial(s)`;
-                newBoxBtn.disabled = false;
-            } else {
-                boxIdEl.textContent = "No Active Box";
-                boxClientEl.textContent = "Select a client to begin";
-                jobsSummaryEl.textContent = "";
-                newBoxBtn.disabled = true;
-            }
-        }
-
-        async function checkDuplicates(serials) {
-            try {
-                const { data } = await db
-                    .from("serials")
-                    .select("serial_number")
-                    .in("serial_number", serials);
-                    
-                return data ? data.map(s => s.serial_number) : [];
-            } catch (error) {
-                return [];
-            }
-        }
-
-        async function loadBoxesForAgent() {
-            try {
-                const { data } = await db
-                    .from("boxes")
-                    .select("*")
-                    .eq("agent", currentAgent)
-                    .order("created_at", { ascending: false });
-                    
-                boxes = data || [];
-            } catch (error) {
-                boxes = [];
-            }
-        }
-
-        function clearJobForm() {
-            // Reset all form fields
-            document.getElementById("clientSelect").value = "";
-            document.getElementById("vendorSelect").value = "";
-            document.getElementById("vendorSelect").innerHTML = '<option value="">Select a client first...</option>';
-            document.getElementById("jobNumber").value = "";
-            document.getElementById("jobTypeLabel").textContent = "";
-            document.getElementById("bulkSerials").value = "";
-            document.getElementById("bulkToggle").checked = false;
-            document.getElementById("bulkToggle2").checked = false;
-            document.getElementById("serialInputs").innerHTML = `
-                <div class="serial-input-row">
-                    <input type="text" class="form-input serial-input" placeholder="Enter serial number">
-                </div>
-            `;
-
-            // Reset bulk toggle state
-            handleBulkToggle();
-
-            // Reset serial entry visibility
-            document.getElementById("individualEntry").style.display = '';
-            document.getElementById("bulkEntry").style.display = '';
-
-            // Clear current box and job type
-            currentBox = null;
-            currentJobType = null;
-
-            // Update display to show no active box
-            updateCurrentBoxDisplay();
-        }
-
-        function showAlert(message, type, containerId = "alertContainer") {
-            const container = document.getElementById(containerId);
-            const alert = document.createElement("div");
-            alert.className = `alert alert-${type}`;
-            
-            const icons = { success: "✓", error: "✕", warning: "⚠", info: "ℹ" };
-            alert.innerHTML = `<span class="alert-icon">${icons[type] || "ℹ"}</span><span>${message}</span>`;
-            
-            container.appendChild(alert);
-            setTimeout(() => alert.remove(), 5000);
-        }
-
-        function showLoading(show) {
-            document.getElementById("loading").classList.toggle("active", show);
-        }
-
-        function showSyncStatus(message, type) {
-            const status = document.getElementById("syncStatus");
-            status.textContent = message;
-            status.className = `sync-status active ${type}`;
-            setTimeout(() => status.classList.remove("active"), 3000);
-        }
-    </script>
+function showSyncStatus(message, type) {
+    const status = document.getElementById("syncStatus");
+    status.textContent = message;
+    status.className = `sync-status active ${type}`;
+    setTimeout(() => status.classList.remove("active"), 3000);
+}
+</script>
 </body>
 </html>
