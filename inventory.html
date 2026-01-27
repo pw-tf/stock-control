@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>View Boxes - Stock Submission</title>
+    <title>Inventory - Stock Submission</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Icons -->
@@ -39,76 +39,80 @@
             <div class="content">
                 <div id="alertContainer"></div>
 
-                <!-- Tabs -->
-                <div class="tabs">
-                    <button class="tab active" data-tab="view-boxes" onclick="switchTab('view-boxes')">View Boxes</button>
-                    <button class="tab" data-tab="job-search" onclick="switchTab('job-search')">Job Search</button>
-                </div>
+                <!-- Search Filters -->
+                <div class="export-filters">
+                    <h2>Search Inventory</h2>
 
-                <!-- View Boxes Tab -->
-                <div class="tab-content active" id="view-boxes-tab">
-                    <!-- Filters -->
-                    <div class="export-filters">
-                        <h2>Search Boxes</h2>
-                        <div class="filter-row">
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label class="form-label">Agent <span class="required">*</span></label>
-                                <select id="filterAgent" class="form-select">
-                                    <option value="">-- Select Agent --</option>
-                                </select>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label class="form-label">Client <span class="required">*</span></label>
-                                <select id="filterClient" class="form-select">
-                                    <option value="">-- Select Client --</option>
-                                </select>
-                            </div>
+                    <!-- Agent & Client Filters -->
+                    <div class="filter-row">
+                        <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                            <label class="form-label">Agent</label>
+                            <select id="searchAgent" class="form-select">
+                                <option value="">Select Agent...</option>
+                            </select>
                         </div>
-                        <div class="button-group" style="margin-top: var(--spacing-lg);">
-                            <button class="btn btn-primary" id="loadBoxesBtn">Load Boxes</button>
-                            <button class="btn btn-ghost" id="clearFiltersBtn">Clear Selection</button>
+                        <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                            <label class="form-label">Client</label>
+                            <select id="searchClient" class="form-select">
+                                <option value="">All Clients</option>
+                            </select>
                         </div>
                     </div>
 
-                    <!-- Results -->
-                    <div class="export-results" id="exportResults">
-                        <div class="empty-state">
-                            <div class="empty-state-icon"><i data-lucide="package-open" width="48" height="48"></i></div>
-                            <p>Select an agent and client, then click "Load Boxes"</p>
+                    <!-- Text Search -->
+                    <div class="filter-row" style="margin-top: var(--spacing-md);">
+                        <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                            <label class="form-label">Job Number or Serial <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
+                            <input type="text" id="jobSearchInput" class="form-input" placeholder="e.g., 12345 or *ABC*">
                         </div>
                     </div>
 
-                    <!-- Box Preview -->
-                    <div class="export-preview hidden" id="exportPreview"></div>
-                </div>
-
-                <!-- Job Search Tab -->
-                <div class="tab-content" id="job-search-tab">
-                    <div class="export-filters">
-                        <h2>Search by Job Number</h2>
-                        <div class="filter-row">
-                            <div class="form-group" style="margin-bottom: 0; flex: 1;">
-                                <label class="form-label">Job Number <span class="required">*</span></label>
-                                <input type="text" id="jobSearchInput" class="form-input" placeholder="Enter job number...">
+                    <!-- Date Range Filters -->
+                    <div style="margin-top: var(--spacing-lg);">
+                        <label class="form-label">Date Range</label>
+                        <div class="quick-filters" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+                            <button type="button" class="btn btn-sm btn-ghost quick-filter-btn" data-range="today">Today</button>
+                            <button type="button" class="btn btn-sm btn-ghost quick-filter-btn" data-range="7days">Last 7 Days</button>
+                            <button type="button" class="btn btn-sm btn-ghost quick-filter-btn" data-range="30days">Last 30 Days</button>
+                            <button type="button" class="btn btn-sm btn-ghost quick-filter-btn" data-range="custom">Custom Range</button>
+                        </div>
+                        <div id="customDateRange" style="display: none;">
+                            <div class="filter-row">
+                                <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                                    <label class="form-label" style="font-size: 0.75rem;">From</label>
+                                    <input type="date" id="dateFrom" class="form-input">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                                    <label class="form-label" style="font-size: 0.75rem;">To</label>
+                                    <input type="date" id="dateTo" class="form-input">
+                                </div>
                             </div>
                         </div>
-                        <div class="button-group" style="margin-top: var(--spacing-lg);">
-                            <button class="btn btn-primary" id="searchJobBtn">
-                                <i data-lucide="search" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
-                                Search Job
-                            </button>
-                            <button class="btn btn-ghost" id="clearJobSearchBtn">Clear</button>
+                        <div id="activeDateFilter" style="display: none; margin-top: 8px; padding: 8px 12px; background: var(--bg-secondary); border-radius: 6px; font-size: 0.875rem; color: var(--text-secondary);">
+                            <span id="activeDateFilterText"></span>
+                            <button type="button" class="btn btn-sm btn-ghost" id="clearDateFilter" style="margin-left: 8px; padding: 2px 8px;">×</button>
                         </div>
                     </div>
 
-                    <!-- Job Search Results -->
-                    <div class="export-results" id="jobSearchResults">
-                        <div class="empty-state">
-                            <div class="empty-state-icon"><i data-lucide="search" width="48" height="48"></i></div>
-                            <p>Enter a job number to search</p>
-                        </div>
+                    <div class="button-group" style="margin-top: var(--spacing-lg);">
+                        <button class="btn btn-primary" id="searchJobBtn">
+                            <i data-lucide="search" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
+                            Search
+                        </button>
+                        <button class="btn btn-ghost" id="clearJobSearchBtn">Clear All</button>
                     </div>
                 </div>
+
+                <!-- Search Results -->
+                <div class="export-results" id="searchResults">
+                    <div class="empty-state">
+                        <div class="empty-state-icon"><i data-lucide="search" width="48" height="48"></i></div>
+                        <p>Select filters or enter a search term</p>
+                    </div>
+                </div>
+
+                <!-- Box Detail Preview (for expanded box view) -->
+                <div class="export-preview hidden" id="boxDetailPreview"></div>
             </div>
         </div>
     </div>
@@ -171,26 +175,24 @@
         let selectedBoxAgent = null;
         let allVendors = [];
         let deleteJobId = null;
-        
+        let activeDateRange = null; // { from: Date, to: Date, label: string }
+        let lastSearchResults = null; // Store last search results for print all
+
         document.addEventListener('DOMContentLoaded', async () => {
             currentUser = await initAuth(['manager', 'technician']);
             if (!currentUser) return;
-            
+
             // Initialize sidebar
             initSidebar(currentUser);
-            
+
             // Load filter options
             await Promise.all([
                 loadAgents(),
                 loadClients(),
                 loadVendors()
             ]);
-            
+
             // Setup event listeners
-            document.getElementById('loadBoxesBtn').addEventListener('click', loadBoxes);
-            document.getElementById('clearFiltersBtn').addEventListener('click', clearFilters);
-            document.getElementById('filterAgent').addEventListener('change', clearPreview);
-            document.getElementById('filterClient').addEventListener('change', clearPreview);
             document.getElementById('editJobForm').addEventListener('submit', handleSaveJob);
             document.getElementById('addSerialBtn').addEventListener('click', addSerialInput);
             document.getElementById('searchJobBtn').addEventListener('click', searchJob);
@@ -199,178 +201,431 @@
                 if (e.key === 'Enter') searchJob();
             });
 
+            // Date filter event listeners
+            document.querySelectorAll('.quick-filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => handleQuickFilter(btn.dataset.range));
+            });
+            document.getElementById('clearDateFilter').addEventListener('click', clearDateFilter);
+            document.getElementById('dateFrom').addEventListener('change', handleCustomDateChange);
+            document.getElementById('dateTo').addEventListener('change', handleCustomDateChange);
+
             showLoading(false);
         });
 
         // ============================================
-        // TAB SWITCHING
+        // DATE FILTER FUNCTIONS
         // ============================================
 
-        function switchTab(tabName) {
-            // Remove active class from all tabs and tab contents
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
+        function handleQuickFilter(range) {
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            let fromDate = new Date();
+            fromDate.setHours(0, 0, 0, 0);
+            let label = '';
+
+            // Update button states
+            document.querySelectorAll('.quick-filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.range === range) {
+                    btn.classList.add('active');
+                }
             });
 
-            // Add active class to selected tab and content
-            document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
-            document.getElementById(`${tabName}-tab`).classList.add('active');
-
-            // Initialize icons after tab switch
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
+            if (range === 'custom') {
+                document.getElementById('customDateRange').style.display = 'block';
+                // Don't set activeDateRange yet - wait for user to pick dates
+                return;
             }
+
+            document.getElementById('customDateRange').style.display = 'none';
+
+            switch (range) {
+                case 'today':
+                    label = 'Today';
+                    break;
+                case '7days':
+                    fromDate.setDate(fromDate.getDate() - 7);
+                    label = 'Last 7 Days';
+                    break;
+                case '30days':
+                    fromDate.setDate(fromDate.getDate() - 30);
+                    label = 'Last 30 Days';
+                    break;
+            }
+
+            activeDateRange = { from: fromDate, to: today, label: label };
+            updateDateFilterDisplay();
+        }
+
+        function handleCustomDateChange() {
+            const fromInput = document.getElementById('dateFrom').value;
+            const toInput = document.getElementById('dateTo').value;
+
+            if (fromInput && toInput) {
+                const fromDate = new Date(fromInput);
+                fromDate.setHours(0, 0, 0, 0);
+                const toDate = new Date(toInput);
+                toDate.setHours(23, 59, 59, 999);
+
+                const fromStr = fromDate.toLocaleDateString('en-AU');
+                const toStr = toDate.toLocaleDateString('en-AU');
+                activeDateRange = { from: fromDate, to: toDate, label: `${fromStr} - ${toStr}` };
+                updateDateFilterDisplay();
+            }
+        }
+
+        function updateDateFilterDisplay() {
+            const container = document.getElementById('activeDateFilter');
+            const text = document.getElementById('activeDateFilterText');
+
+            if (activeDateRange) {
+                text.textContent = `Filtering: ${activeDateRange.label}`;
+                container.style.display = 'flex';
+                container.style.alignItems = 'center';
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
+        function clearDateFilter() {
+            activeDateRange = null;
+            document.getElementById('customDateRange').style.display = 'none';
+            document.getElementById('dateFrom').value = '';
+            document.getElementById('dateTo').value = '';
+            document.querySelectorAll('.quick-filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            updateDateFilterDisplay();
         }
 
         // ============================================
         // JOB SEARCH
         // ============================================
 
-        async function searchJob() {
-            const jobNumber = document.getElementById('jobSearchInput').value.trim();
+        function convertToSqlPattern(input) {
+            // Convert user wildcards (*) to SQL wildcards (%)
+            // If no wildcards present, default to "contains" matching
+            let pattern = input;
 
-            if (!jobNumber) {
-                showAlert('Please enter a job number', 'error');
+            if (pattern.includes('*')) {
+                // Replace * with %
+                pattern = pattern.replace(/\*/g, '%');
+            } else {
+                // Default: contains matching
+                pattern = `%${pattern}%`;
+            }
+
+            return pattern;
+        }
+
+        function isWildcardSearch(input) {
+            // A search is a wildcard search if it contains * or will use contains matching
+            // (i.e., any search that isn't an exact match)
+            return true; // All searches now use pattern matching
+        }
+
+        async function searchJob() {
+            const searchInput = document.getElementById('jobSearchInput').value.trim();
+            const selectedAgent = document.getElementById('searchAgent').value;
+            const selectedClient = document.getElementById('searchClient').value;
+            const hasTextSearch = searchInput.length > 0;
+            const hasDateFilter = activeDateRange !== null;
+            const hasAgentFilter = selectedAgent.length > 0;
+            const hasClientFilter = selectedClient.length > 0;
+
+            // Need at least one search criteria
+            if (!hasTextSearch && !hasDateFilter && !hasAgentFilter && !hasClientFilter) {
+                showAlert('Please select a filter or enter a search term', 'error');
                 return;
             }
 
+            // Minimum 3 characters for text searches
+            if (hasTextSearch && searchInput.replace(/\*/g, '').length < 3) {
+                showAlert('Please enter at least 3 characters to search', 'error');
+                return;
+            }
+
+            // Validate custom date range if active
+            if (hasDateFilter && activeDateRange) {
+                // Check if from date is after to date
+                if (activeDateRange.from > activeDateRange.to) {
+                    showAlert('"From" Date must be before "To" Date', 'error');
+                    return;
+                }
+            }
             showLoading(true);
 
             try {
-                // Search for job by job number
-                const { data: jobs, error: jobError } = await db
-                    .from('jobs')
-                    .select('*')
-                    .eq('job_number', jobNumber);
+                const pattern = hasTextSearch ? convertToSqlPattern(searchInput) : null;
 
-                if (jobError) throw jobError;
+                // Results collections (kept separate for 3-section display)
+                const matchingBoxes = new Map();      // Boxes matching box_id pattern
+                const matchingJobs = new Map();       // Jobs matching job_number pattern
+                const matchingSerials = [];          // Serials matching serial_number pattern
+                const boxCache = new Map();          // Cache box data for jobs/serials
 
-                if (!jobs || jobs.length === 0) {
-                    document.getElementById('jobSearchResults').innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon"><i data-lucide="search" width="48" height="48"></i></div>
-                            <p>No jobs found with job number "${jobNumber}"</p>
-                        </div>
-                    `;
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                // Get valid box IDs if agent/client filter is set
+                let validBoxIds = null;
+                if (hasAgentFilter || hasClientFilter) {
+                    let boxQuery = db.from('boxes').select('*');
+                    if (hasAgentFilter) boxQuery = boxQuery.eq('agent', selectedAgent);
+                    if (hasClientFilter) boxQuery = boxQuery.eq('client', selectedClient);
+                    const { data: filteredBoxes, error } = await boxQuery;
+                    if (error) throw error;
+
+                    if (!filteredBoxes || filteredBoxes.length === 0) {
+                        showNoResults(hasAgentFilter, hasClientFilter, hasTextSearch, hasDateFilter, selectedAgent, selectedClient, searchInput);
+                        showLoading(false);
+                        return;
+                    }
+
+                    validBoxIds = filteredBoxes.map(b => b.id);
+                    filteredBoxes.forEach(box => boxCache.set(box.id, box));
+                }
+
+                // 1. Search for BOXES by box_id pattern
+                if (hasTextSearch) {
+                    let boxQuery = db.from('boxes').select('*').ilike('box_id', pattern);
+                    if (hasAgentFilter) boxQuery = boxQuery.eq('agent', selectedAgent);
+                    if (hasClientFilter) boxQuery = boxQuery.eq('client', selectedClient);
+                    const { data: boxes, error } = await boxQuery;
+                    if (error) throw error;
+                    if (boxes) {
+                        boxes.forEach(box => {
+                            matchingBoxes.set(box.id, box);
+                            boxCache.set(box.id, box);
+                        });
+                    }
+                }
+
+                // 2. Search for JOBS by job_number pattern
+                if (hasTextSearch) {
+                    let jobQuery = db.from('jobs').select('*').ilike('job_number', pattern);
+                    if (validBoxIds) jobQuery = jobQuery.in('box_id', validBoxIds);
+                    if (hasDateFilter) {
+                        jobQuery = jobQuery
+                            .gte('created_at', activeDateRange.from.toISOString())
+                            .lte('created_at', activeDateRange.to.toISOString());
+                    }
+                    const { data: jobs, error } = await jobQuery;
+                    if (error) throw error;
+                    if (jobs) {
+                        for (const job of jobs) {
+                            // Get box info if not cached
+                            if (!boxCache.has(job.box_id)) {
+                                const { data: box } = await db.from('boxes').select('*').eq('id', job.box_id).single();
+                                if (box) boxCache.set(box.id, box);
+                            }
+                            job.box = boxCache.get(job.box_id);
+                            matchingJobs.set(job.id, job);
+                        }
+                    }
+                }
+
+                // 3. Search for SERIALS by serial_number pattern
+                if (hasTextSearch) {
+                    let serialQuery = db.from('serials').select('*, jobs(*, boxes(*))').ilike('serial_number', pattern);
+                    if (validBoxIds) serialQuery = serialQuery.in('box_id', validBoxIds);
+                    const { data: serials, error } = await serialQuery;
+                    if (error) throw error;
+                    if (serials) {
+                        for (const serial of serials) {
+                            // Apply date filter to the job
+                            if (hasDateFilter && serial.jobs) {
+                                const jobDate = new Date(serial.jobs.created_at);
+                                if (jobDate < activeDateRange.from || jobDate > activeDateRange.to) {
+                                    continue;
+                                }
+                            }
+                            matchingSerials.push({
+                                ...serial,
+                                job: serial.jobs,
+                                box: serial.jobs?.boxes
+                            });
+                        }
+                    }
+                }
+
+                // 4. Filter-only search (no text, just agent/client/date)
+                if (!hasTextSearch && (hasAgentFilter || hasClientFilter || hasDateFilter)) {
+                    // Get boxes matching filters
+                    if (hasDateFilter) {
+                        // Boxes created in date range
+                        let createdQuery = db.from('boxes').select('*')
+                            .gte('created_at', activeDateRange.from.toISOString())
+                            .lte('created_at', activeDateRange.to.toISOString());
+                        if (hasAgentFilter) createdQuery = createdQuery.eq('agent', selectedAgent);
+                        if (hasClientFilter) createdQuery = createdQuery.eq('client', selectedClient);
+                        const { data: createdBoxes } = await createdQuery;
+                        if (createdBoxes) {
+                            createdBoxes.forEach(box => {
+                                box._reason = 'created';
+                                matchingBoxes.set(box.id, box);
+                            });
+                        }
+
+                        // Boxes closed in date range
+                        let closedQuery = db.from('boxes').select('*')
+                            .not('closed_at', 'is', null)
+                            .gte('closed_at', activeDateRange.from.toISOString())
+                            .lte('closed_at', activeDateRange.to.toISOString());
+                        if (hasAgentFilter) closedQuery = closedQuery.eq('agent', selectedAgent);
+                        if (hasClientFilter) closedQuery = closedQuery.eq('client', selectedClient);
+                        const { data: closedBoxes } = await closedQuery;
+                        if (closedBoxes) {
+                            closedBoxes.forEach(box => {
+                                if (!matchingBoxes.has(box.id)) {
+                                    box._reason = 'closed';
+                                    matchingBoxes.set(box.id, box);
+                                }
+                            });
+                        }
+                    } else if (validBoxIds) {
+                        // Agent/client filter only - show all matching boxes
+                        validBoxIds.forEach(boxId => {
+                            const box = boxCache.get(boxId);
+                            if (box) {
+                                box._reason = box.closed_at ? 'closed' : 'open';
+                                matchingBoxes.set(box.id, box);
+                            }
+                        });
+                    }
+
+                    // Get jobs matching filters
+                    let jobsQuery = db.from('jobs').select('*');
+                    if (validBoxIds) jobsQuery = jobsQuery.in('box_id', validBoxIds);
+                    if (hasDateFilter) {
+                        jobsQuery = jobsQuery
+                            .gte('created_at', activeDateRange.from.toISOString())
+                            .lte('created_at', activeDateRange.to.toISOString());
+                    }
+                    jobsQuery = jobsQuery.order('created_at', { ascending: false }).limit(200);
+                    const { data: jobs } = await jobsQuery;
+                    if (jobs) {
+                        for (const job of jobs) {
+                            if (!boxCache.has(job.box_id)) {
+                                const { data: box } = await db.from('boxes').select('*').eq('id', job.box_id).single();
+                                if (box) boxCache.set(box.id, box);
+                            }
+                            job.box = boxCache.get(job.box_id);
+                            matchingJobs.set(job.id, job);
+                        }
+                    }
+                }
+
+                // Check if we have any results
+                if (matchingBoxes.size === 0 && matchingJobs.size === 0 && matchingSerials.length === 0) {
+                    showNoResults(hasAgentFilter, hasClientFilter, hasTextSearch, hasDateFilter, selectedAgent, selectedClient, searchInput);
                     showLoading(false);
                     return;
                 }
 
-                // Get additional data for each job
-                const jobsWithDetails = await Promise.all(jobs.map(async (job) => {
-                    // Get box details
-                    const { data: box } = await db
-                        .from('boxes')
-                        .select('*')
-                        .eq('id', job.box_id)
-                        .single();
+                // Store and render results
+                lastSearchResults = {
+                    boxes: Array.from(matchingBoxes.values()),
+                    jobs: Array.from(matchingJobs.values()),
+                    serials: matchingSerials
+                };
 
-                    // Get serials for this job
-                    const { data: serials } = await db
-                        .from('serials')
-                        .select('serial_number')
-                        .eq('job_id', job.id);
-
-                    return {
-                        ...job,
-                        box: box,
-                        serials: serials || []
-                    };
-                }));
-
-                renderJobSearchResults(jobsWithDetails);
+                renderSearchResults(lastSearchResults);
 
             } catch (error) {
-                console.error('Error searching for job:', error);
-                showAlert('Error searching for job: ' + error.message, 'error');
+                console.error('Error searching:', error);
+                showAlert('Error searching: ' + error.message, 'error');
             } finally {
                 showLoading(false);
             }
         }
 
-        function renderJobSearchResults(jobs) {
-            const container = document.getElementById('jobSearchResults');
+        function showNoResults(hasAgentFilter, hasClientFilter, hasTextSearch, hasDateFilter, selectedAgent, selectedClient, searchInput) {
+            const searchParts = [];
+            if (hasAgentFilter) searchParts.push(`Agent ${selectedAgent}`);
+            if (hasClientFilter) searchParts.push(selectedClient);
+            if (hasTextSearch) searchParts.push(`"${searchInput}"`);
+            if (hasDateFilter) searchParts.push(activeDateRange.label);
+            const searchDesc = searchParts.join(' + ') || 'your search';
+            document.getElementById('searchResults').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i data-lucide="search" width="48" height="48"></i></div>
+                    <p>No results found for ${searchDesc}</p>
+                </div>
+            `;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
 
-            let html = '<div class="job-search-results">';
+        function renderSearchResults(results) {
+            const container = document.getElementById('searchResults');
+            const previewContainer = document.getElementById('boxDetailPreview');
 
-            jobs.forEach(job => {
-                const jobTypeLabels = {
-                    'swap-upgrade': 'Swap/Upgrade',
-                    'install': 'Install',
-                    'deinstall': 'Deinstall'
-                };
-                const jobTypeLabel = jobTypeLabels[job.job_type] || job.job_type || 'Unknown';
+            // Hide any previous detail preview
+            previewContainer.classList.add('hidden');
+            previewContainer.innerHTML = '';
 
-                const createdDate = new Date(job.created_at).toLocaleString('en-AU', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
+            const { boxes, jobs, serials } = results;
+            let html = '<div class="search-results">';
+
+            // 1. BOXES SECTION (if any)
+            if (boxes.length > 0) {
+                html += `<div class="results-section">
+                    <h3 style="margin: 0 0 12px 0; color: var(--text-primary); font-size: 1rem;">
+                        <i data-lucide="package" width="18" height="18" style="vertical-align: middle; margin-right: 8px;"></i>
+                        Boxes (${boxes.length})
+                    </h3>
+                    <div class="box-list">`;
+
+                boxes.forEach(box => {
+                    let dateLabel;
+                    if (box._reason === 'closed') {
+                        dateLabel = `Closed: ${new Date(box.closed_at).toLocaleDateString('en-AU')}`;
+                    } else {
+                        dateLabel = `Created: ${new Date(box.created_at).toLocaleDateString('en-AU')}`;
+                    }
+
+                    html += `
+                        <div class="box-list-item" onclick="showBoxDetail(${box.id}, '${box.agent}')">
+                            <div class="box-info">
+                                <div class="box-id">${box.box_id}</div>
+                                <div class="box-meta">Agent: ${box.agent} | ${box.client} | ${dateLabel}</div>
+                            </div>
+                            <span class="badge badge-${box.status}">${box.status}</span>
+                        </div>
+                    `;
                 });
 
-                const serialsList = job.serials.length > 0
-                    ? job.serials.map(s => s.serial_number).join(', ')
-                    : '<em style="color: var(--text-muted);">No serials (Install job)</em>';
+                html += '</div></div>';
+            }
 
-                const receiptSection = job.receipt_url
-                    ? `
-                        <div class="job-search-receipt">
-                            <strong style="color: var(--text-secondary);">Receipt:</strong>
-                            <div style="display: flex; gap: 12px; margin-top: 8px;">
-                                <button class="btn btn-secondary btn-sm" onclick="viewReceipt('${job.receipt_url}')">
-                                    <i data-lucide="eye" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
-                                    View Receipt
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="downloadReceipt('${job.receipt_url}')">
-                                    <i data-lucide="download" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
-                                    Download
-                                </button>
-                            </div>
-                        </div>
-                    `
-                    : '';
+            // 2. JOBS SECTION (if any)
+            if (jobs.length > 0) {
+                html += `<div class="results-section" style="margin-top: ${boxes.length > 0 ? '24px' : '0'};">
+                    <h3 style="margin: 0 0 12px 0; color: var(--text-primary); font-size: 1rem;">
+                        <i data-lucide="clipboard" width="18" height="18" style="vertical-align: middle; margin-right: 8px;"></i>
+                        Jobs (${jobs.length})
+                    </h3>
+                    <div class="job-list">`;
 
-                html += `
-                    <div class="job-search-item">
-                        <div class="job-search-header">
-                            <div class="job-search-title">
-                                Job #${job.job_number}
-                                <span class="badge badge-info" style="margin-left: 8px;">${jobTypeLabel}</span>
-                            </div>
-                            <div class="job-search-date">${createdDate}</div>
-                        </div>
-                        <div class="job-search-details">
-                            <div class="job-search-row">
-                                <strong style="color: var(--text-secondary);">Box:</strong>
-                                <span style="font-family: var(--font-mono);">${job.box?.box_id || 'Unknown'}</span>
-                            </div>
-                            <div class="job-search-row">
-                                <strong style="color: var(--text-secondary);">Agent:</strong>
-                                <span>${job.box?.agent || 'Unknown'}</span>
-                            </div>
-                            <div class="job-search-row">
-                                <strong style="color: var(--text-secondary);">Client:</strong>
-                                <span>${job.box?.client || 'Unknown'}</span>
-                            </div>
-                            <div class="job-search-row">
-                                <strong style="color: var(--text-secondary);">Vendor:</strong>
-                                <span>${job.vendor}</span>
-                            </div>
-                            <div class="job-search-row">
-                                <strong style="color: var(--text-secondary);">Serials:</strong>
-                                <span style="word-break: break-all;">${serialsList}</span>
-                            </div>
-                            ${receiptSection}
-                        </div>
-                    </div>
-                `;
-            });
+                jobs.forEach(job => {
+                    html += renderJobListItem(job);
+                });
+
+                html += '</div></div>';
+            }
+
+            // 3. SERIALS SECTION (if any)
+            if (serials.length > 0) {
+                html += `<div class="results-section" style="margin-top: ${(boxes.length > 0 || jobs.length > 0) ? '24px' : '0'};">
+                    <h3 style="margin: 0 0 12px 0; color: var(--text-primary); font-size: 1rem;">
+                        <i data-lucide="hash" width="18" height="18" style="vertical-align: middle; margin-right: 8px;"></i>
+                        Serials (${serials.length})
+                    </h3>
+                    <div class="serial-list">`;
+
+                serials.forEach(serial => {
+                    html += renderSerialListItem(serial);
+                });
+
+                html += '</div></div>';
+            }
 
             html += '</div>';
             container.innerHTML = html;
@@ -381,12 +636,574 @@
             }
         }
 
+        function renderJobListItem(job) {
+            const jobTypeLabels = {
+                'swap-upgrade': 'Swap/Upgrade',
+                'install': 'Install',
+                'deinstall': 'Deinstall'
+            };
+            const jobTypeLabel = jobTypeLabels[job.job_type] || job.job_type || 'Unknown';
+
+            const createdDate = new Date(job.created_at).toLocaleString('en-AU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+
+            return `
+                <div class="job-list-item" onclick="showJobDetail(${job.id})">
+                    <div class="job-list-info">
+                        <div class="job-list-title">
+                            Job #${job.job_number}
+                            <span class="badge badge-info" style="margin-left: 8px; font-size: 0.7rem;">${jobTypeLabel}</span>
+                        </div>
+                        <div class="job-list-meta">
+                            ${job.box?.box_id || 'Unknown Box'} | Agent: ${job.box?.agent || '?'} | ${job.vendor}
+                        </div>
+                    </div>
+                    <div class="job-list-date">${createdDate}</div>
+                </div>
+            `;
+        }
+
+        function renderSerialListItem(serial) {
+            const createdDate = new Date(serial.created_at).toLocaleString('en-AU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+
+            return `
+                <div class="serial-list-item" onclick="showJobDetail(${serial.job_id})">
+                    <div class="serial-list-info">
+                        <div class="serial-list-title">${serial.serial_number}</div>
+                        <div class="serial-list-meta">
+                            Job #${serial.job?.job_number || '?'} | ${serial.box?.box_id || 'Unknown Box'} | ${serial.job?.vendor || '?'}
+                        </div>
+                    </div>
+                    <div class="serial-list-date">${createdDate}</div>
+                </div>
+            `;
+        }
+
+        async function showJobDetail(jobId) {
+    // 1. CAPTURE THE TARGET IMMEDIATELY 
+    // This prevents the "undefined" error after the await calls
+    const clickedElement = typeof event !== 'undefined' ? event.currentTarget : null;
+
+    // 2. HIDE RESULTS & SHOW LOADING
+    document.getElementById('searchResults').style.display = 'none';
+    showLoading(true);
+
+    try {
+        // Get job details
+        const { data: job, error: jobError } = await db
+            .from('jobs')
+            .select('*')
+            .eq('id', jobId)
+            .single();
+
+        if (jobError) throw jobError;
+
+        // Get box details
+        const { data: box, error: boxError } = await db
+            .from('boxes')
+            .select('*')
+            .eq('id', job.box_id)
+            .single();
+
+        if (boxError) throw boxError;
+
+        // Get serials for this job
+        const { data: serials, error: serialsError } = await db
+            .from('serials')
+            .select('serial_number')
+            .eq('job_id', jobId)
+            .order('created_at', { ascending: true });
+
+        if (serialsError) throw serialsError;
+
+        // Check if user can edit
+        const canEdit = currentUser.role === 'manager' || currentUser.agent_id === box.agent;
+
+        const jobTypeLabels = {
+            'swap-upgrade': 'Swap/Upgrade',
+            'install': 'Install',
+            'deinstall': 'Deinstall'
+        };
+        const jobTypeLabel = jobTypeLabels[job.job_type] || job.job_type || 'Unknown';
+
+        // Build job detail HTML
+        let html = `
+            <div class="job-detail-view">
+                <div style="margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn btn-ghost" onclick="backToSearchResults()">
+                        <i data-lucide="arrow-left" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
+                        Back to Results
+                    </button>
+                    <button class="btn btn-primary" onclick="goToBox(${box.id}, '${box.agent}')">
+                        <i data-lucide="package" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
+                        Go To Box (${box.box_id})
+                    </button>
+                </div>
+
+                <div class="export-box-list-item">
+                    <div class="export-box-header">
+                        <div class="export-box-title"><i data-lucide="clipboard"></i> Job #${job.job_number}</div>
+                        <div class="export-box-subtitle">
+                            <span class="badge badge-info">${jobTypeLabel}</span>
+                            | Box: ${box.box_id} | Agent: ${box.agent} | Client: ${box.client}
+                        </div>
+                    </div>
+
+                    <div class="job-section expanded">
+                        <div class="job-date">Created: ${new Date(job.created_at).toLocaleString()}</div>
+                        <div class="job-header">
+                            <span>Vendor: ${job.vendor} | Serials: ${serials ? serials.length : 0}</span>
+                        </div>
+                        <div class="serial-grid">
+        `;
+
+        if (serials && serials.length > 0) {
+            serials.forEach((serial, index) => {
+                const barcodeId = `job-barcode-${job.id}-${index}`;
+                html += `
+                    <div class="serial-item">
+                        <div class="serial-number">${serial.serial_number}</div>
+                        <div class="barcode-container">
+                            <svg class="barcode-svg" data-serial="${serial.serial_number}" data-id="${barcodeId}"></svg>
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            html += `<div style="padding: 16px; color: var(--text-muted); font-style: italic;">No serials for this job</div>`;
+        }
+
+        html += `</div>`; // Close serial-grid
+
+        // Add receipt buttons if job has receipt
+        if (job.receipt_url) {
+            html += `
+                <div class="job-edit-actions">
+                    <strong style="color: var(--text-secondary);">Receipt:</strong><br>
+                    <button class="btn btn-secondary btn-sm" onclick="viewReceipt('${job.receipt_url}')">
+                        <i data-lucide="eye" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
+                        View Receipt
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadReceipt('${job.receipt_url}')">
+                        <i data-lucide="download" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
+                        Download
+                    </button>
+                </div>
+            `;
+        }
+
+        // Add edit/delete actions if user can edit
+        if (canEdit) {
+            html += `
+                <div class="job-edit-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="openEditJobModal(${job.id}, event)">Edit Job</button>
+                    <button class="btn btn-danger btn-sm" onclick="openDeleteJobModal(${job.id}, event)">Delete Job</button>
+                </div>
+            `;
+        }
+
+        html += `
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: var(--spacing-xl);">
+                    <button class="btn btn-secondary" onclick="printSingleBox()">
+                        <i data-lucide="printer" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
+                        Print Job
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const preview = document.getElementById('boxDetailPreview');
+        preview.innerHTML = html;
+        preview.classList.remove('hidden');
+
+        // 3. HIGHLIGHT CLICKED ITEM (USING THE SAVED VARIABLE)
+        document.querySelectorAll('.box-list-item, .job-list-item, .serial-list-item').forEach(item => item.classList.remove('selected'));
+        if (clickedElement) {
+            clickedElement.classList.add('selected');
+        }
+
+        // Generate barcodes after DOM update
+        setTimeout(() => {
+            document.querySelectorAll('.barcode-svg').forEach(svg => {
+                const serial = svg.getAttribute('data-serial');
+                const id = svg.getAttribute('data-id');
+
+                try {
+                    svg.setAttribute('id', id);
+                    JsBarcode(`#${id}`, serial, {
+                        format: 'CODE128',
+                        width: 2,
+                        height: 50,
+                        displayValue: false,
+                        margin: 5
+                    });
+                } catch (e) {
+                    console.error('Barcode error:', e);
+                }
+            });
+
+            // Initialize Lucide icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }, 100);
+
+    } catch (error) {
+        console.error('Error loading job details:', error);
+        showAlert('Error loading job: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+        function goToBox(boxId, boxAgent) {
+            selectedBoxId = boxId;
+            selectedBoxAgent = boxAgent;
+            generateBoxPreview(boxId);
+        }
+
+        function closeJobDetail() {
+            const preview = document.getElementById('boxDetailPreview');
+            preview.classList.add('hidden');
+            preview.innerHTML = '';
+            document.querySelectorAll('.job-list-item').forEach(item => item.classList.remove('selected'));
+        }
+
+        function backToSearchResults() {
+            document.getElementById('searchResults').style.display = 'block';
+            // Hide detail preview
+            const preview = document.getElementById('boxDetailPreview');
+            preview.classList.add('hidden');
+            preview.innerHTML = '';
+
+            // Clear selections
+            document.querySelectorAll('.box-list-item, .job-list-item, .serial-list-item').forEach(item => item.classList.remove('selected'));
+            selectedBoxId = null;
+            selectedBoxAgent = null;
+
+            // Re-render search results if we have them
+            if (lastSearchResults) {
+                renderSearchResults(lastSearchResults);
+            }
+        }
+
+        async function showBoxDetail(boxId, boxAgent) {
+            document.getElementById('searchResults').style.display = 'none';
+            selectedBoxId = boxId;
+            selectedBoxAgent = boxAgent;
+
+            // Highlight selected box
+            document.querySelectorAll('.box-list-item').forEach(item => item.classList.remove('selected'));
+            event.currentTarget.classList.add('selected');
+
+            await generateBoxPreview(boxId);
+        }
+
+        async function generateBoxPreview(boxId) {
+            showLoading(true);
+
+            try {
+                // Get box details
+                const { data: box, error: boxError } = await db
+                    .from('boxes')
+                    .select('*')
+                    .eq('id', boxId)
+                    .single();
+
+                if (boxError) throw boxError;
+
+                // Get jobs for this box
+                const { data: jobs, error: jobsError } = await db
+                    .from('jobs')
+                    .select('*')
+                    .eq('box_id', boxId)
+                    .order('created_at', { ascending: false });
+
+                if (jobsError) throw jobsError;
+
+                // Check if user can edit this box
+                const canEdit = currentUser.role === 'manager' || currentUser.agent_id === box.agent;
+
+                // Build preview HTML
+                let html = `
+                    <div style="margin-bottom: 16px;">
+                        <button class="btn btn-ghost" onclick="backToSearchResults()">
+                            <i data-lucide="arrow-left" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
+                            Back to Results
+                        </button>
+                    </div>
+                    <div class="export-box-list-item">
+                        <div class="export-box-header">
+                            <div class="export-box-title"><i data-lucide="package"></i> ${box.box_id}</div>
+                            <div class="export-box-subtitle">
+                                Agent: ${box.agent} | Client: ${box.client}
+                                ${box.status === 'closed' && box.closed_at ? ` | Closed: ${new Date(box.closed_at).toLocaleDateString()}` : ''}
+                            </div>
+                        </div>
+                `;
+
+                for (let job of jobs) {
+                    // Get serials for this job
+                    const { data: serials, error: serialsError } = await db
+                        .from('serials')
+                        .select('serial_number')
+                        .eq('job_id', job.id)
+                        .order('created_at', { ascending: true });
+
+                    if (serialsError) throw serialsError;
+
+                    const serialCount = serials ? serials.length : 0;
+
+                    html += `
+                        <div class="job-section" onclick="toggleJobExpand(this, event)">
+                            <div class="job-date">Created: ${new Date(job.created_at).toLocaleString()}</div>
+                            <div class="job-header">
+                                <span>Job: ${job.job_number} | Vendor: ${job.vendor} | Serials: ${serialCount}</span>
+                                <span class="job-expand-icon">▼</span>
+                            </div>
+                            <div class="serial-grid">
+                    `;
+
+                    if (serials) {
+                        serials.forEach((serial, index) => {
+                            const barcodeId = `barcode-${job.id}-${index}`;
+                            html += `
+                                <div class="serial-item">
+                                    <div class="serial-number">${serial.serial_number}</div>
+                                    <div class="barcode-container">
+                                        <svg class="barcode-svg" data-serial="${serial.serial_number}" data-id="${barcodeId}"></svg>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    }
+
+                    html += '</div>'; // Close serial-grid
+
+                    // Add receipt buttons if job has receipt
+                    if (job.receipt_url) {
+                        html += `
+                            <div class="job-edit-actions">
+                                <strong style="color: var(--text-secondary);">Receipt:</strong><br>
+                                <button class="btn btn-secondary btn-sm" onclick="viewReceipt('${job.receipt_url}', event)">
+                                    <i data-lucide="eye" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
+                                    View Receipt
+                                </button>
+                                <button class="btn btn-secondary btn-sm" onclick="downloadReceipt('${job.receipt_url}', event)">
+                                    <i data-lucide="download" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
+                                    Download
+                                </button>
+                            </div>
+                        `;
+                    }
+
+                    // Add edit/delete actions if user can edit
+                    if (canEdit) {
+                        html += `
+                            <div class="job-edit-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="openEditJobModal(${job.id}, event)">Edit Job</button>
+                                <button class="btn btn-danger btn-sm" onclick="openDeleteJobModal(${job.id}, event)">Delete Job</button>
+                            </div>
+                        `;
+                    }
+
+                    html += '</div>'; // Close job-section
+                }
+
+                html += `
+                    </div>
+                    <div style="text-align: center; margin-top: var(--spacing-xl);">
+                        <button class="btn btn-secondary" onclick="printSingleBox()">
+                            <i data-lucide="printer" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
+                            Print / Save PDF
+                        </button>
+                     <!-- <button class="btn btn-ghost" onclick="closeBoxPreview()" style="margin-left: var(--spacing-md);">Close Preview</button> --> 
+                    </div>
+                `;
+
+                const preview = document.getElementById('boxDetailPreview');
+                preview.innerHTML = html;
+                preview.classList.remove('hidden');
+
+                // Generate barcodes and initialize icons after DOM update
+                setTimeout(() => {
+                    document.querySelectorAll('.barcode-svg').forEach(svg => {
+                        const serial = svg.getAttribute('data-serial');
+                        const id = svg.getAttribute('data-id');
+
+                        try {
+                            svg.setAttribute('id', id);
+                            JsBarcode(`#${id}`, serial, {
+                                format: 'CODE128',
+                                width: 2,
+                                height: 50,
+                                displayValue: false,
+                                margin: 5
+                            });
+                        } catch (e) {
+                            console.error('Barcode error:', e);
+                        }
+                    });
+
+                    // Initialize Lucide icons
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                }, 100);
+
+            } catch (error) {
+                console.error('Error generating preview:', error);
+                showAlert('Error generating preview: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function toggleJobExpand(element, event) {
+            // Don't toggle if clicking on buttons
+            if (event.target.closest('.btn')) return;
+            element.classList.toggle('expanded');
+        }
+
+        function closeBoxPreview() {
+            const preview = document.getElementById('boxDetailPreview');
+            preview.classList.add('hidden');
+            preview.innerHTML = '';
+            selectedBoxId = null;
+            selectedBoxAgent = null;
+            document.querySelectorAll('.box-list-item').forEach(item => item.classList.remove('selected'));
+        }
+
+        function printSingleBox() {
+            window.print();
+        }
+
+        async function printAllBoxes() {
+            if (!lastSearchResults) return;
+
+            showLoading(true);
+            const preview = document.getElementById('boxDetailPreview');
+
+            try {
+                // Group jobs by box
+                const jobsByBox = new Map();
+                lastSearchResults.jobs.forEach(job => {
+                    const boxId = job.box?.id || 'unknown';
+                    if (!jobsByBox.has(boxId)) {
+                        jobsByBox.set(boxId, { box: job.box, jobs: [] });
+                    }
+                    jobsByBox.get(boxId).jobs.push(job);
+                });
+
+                let html = '<div class="print-all-boxes">';
+
+                for (const [boxId, group] of jobsByBox) {
+                    const box = group.box;
+
+                    html += `
+                        <div class="export-box-list-item" style="page-break-after: always;">
+                            <div class="export-box-header">
+                                <div class="export-box-title">${box?.box_id || 'Unknown'}</div>
+                                <div class="export-box-subtitle">
+                                    Agent: ${box?.agent || 'Unknown'} | Client: ${box?.client || 'Unknown'}
+                                </div>
+                            </div>
+                    `;
+
+                    for (const job of group.jobs) {
+                        const serialCount = job.serials?.length || 0;
+
+                        html += `
+                            <div class="job-section expanded">
+                                <div class="job-date">Created: ${new Date(job.created_at).toLocaleString()}</div>
+                                <div class="job-header">
+                                    <span>Job: ${job.job_number} | Vendor: ${job.vendor} | Serials: ${serialCount}</span>
+                                </div>
+                                <div class="serial-grid">
+                        `;
+
+                        if (job.serials && job.serials.length > 0) {
+                            job.serials.forEach((serial, index) => {
+                                const barcodeId = `print-barcode-${job.id}-${index}`;
+                                const serialNum = typeof serial === 'string' ? serial : serial.serial_number;
+                                html += `
+                                    <div class="serial-item">
+                                        <div class="serial-number">${serialNum}</div>
+                                        <div class="barcode-container">
+                                            <svg class="barcode-svg" data-serial="${serialNum}" data-id="${barcodeId}"></svg>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                        }
+
+                        html += '</div></div>';
+                    }
+
+                    html += '</div>';
+                }
+
+                html += '</div>';
+
+                preview.innerHTML = html;
+                preview.classList.remove('hidden');
+
+                // Generate barcodes
+                setTimeout(() => {
+                    document.querySelectorAll('.barcode-svg').forEach(svg => {
+                        const serial = svg.getAttribute('data-serial');
+                        const id = svg.getAttribute('data-id');
+
+                        try {
+                            svg.setAttribute('id', id);
+                            JsBarcode(`#${id}`, serial, {
+                                format: 'CODE128',
+                                width: 2,
+                                height: 50,
+                                displayValue: false,
+                                margin: 5
+                            });
+                        } catch (e) {
+                            console.error('Barcode error:', e);
+                        }
+                    });
+
+                    showLoading(false);
+                    window.print();
+                }, 200);
+
+            } catch (error) {
+                console.error('Error printing all boxes:', error);
+                showAlert('Error preparing print: ' + error.message, 'error');
+                showLoading(false);
+            }
+        }
+
         function clearJobSearch() {
             document.getElementById('jobSearchInput').value = '';
-            document.getElementById('jobSearchResults').innerHTML = `
+            document.getElementById('searchAgent').value = '';
+            document.getElementById('searchClient').value = '';
+            clearDateFilter();
+            closeBoxPreview();
+            lastSearchResults = null;
+            document.getElementById('searchResults').innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon"><i data-lucide="search" width="48" height="48"></i></div>
-                    <p>Enter a job number to search</p>
+                    <p>Select filters or enter a search term</p>
                 </div>
             `;
             if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -450,12 +1267,12 @@
                     .from('agents')
                     .select('agent_id')
                     .order('agent_id', { ascending: true });
-                
+
                 if (error) throw error;
-                
-                const select = document.getElementById('filterAgent');
-                select.innerHTML = '<option value="">-- Select Agent --</option>';
-                
+
+                const select = document.getElementById('searchAgent');
+                select.innerHTML = '<option value="">All Agents</option>';
+
                 if (data) {
                     data.forEach(agent => {
                         const option = document.createElement('option');
@@ -476,12 +1293,12 @@
                     .from('clients')
                     .select('client_id')
                     .order('client_id', { ascending: true });
-                
+
                 if (error) throw error;
-                
-                const select = document.getElementById('filterClient');
-                select.innerHTML = '<option value="">-- Select Client --</option>';
-                
+
+                const select = document.getElementById('searchClient');
+                select.innerHTML = '<option value="">All Clients</option>';
+
                 if (data) {
                     data.forEach(client => {
                         const option = document.createElement('option');
@@ -522,265 +1339,6 @@
                 console.error('Error loading vendors:', error);
                 showAlert('Error loading vendors: ' + error.message, 'error');
             }
-        }
-        
-        // ============================================
-        // BOX LOADING & DISPLAY
-        // ============================================
-        
-        async function loadBoxes() {
-            const agentId = document.getElementById('filterAgent').value;
-            const clientId = document.getElementById('filterClient').value;
-            
-            if (!agentId || !clientId) {
-                showAlert('Please select both agent and client', 'error');
-                return;
-            }
-            
-            showLoading(true);
-            
-            try {
-                const { data: boxes, error } = await db
-                    .from('boxes')
-                    .select('*')
-                    .eq('agent', agentId)
-                    .eq('client', clientId)
-                    .order('created_at', { ascending: false });
-                
-                if (error) throw error;
-                
-                if (!boxes || boxes.length === 0) {
-                    document.getElementById('exportResults').innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">📭</div>
-                            <p>No boxes found for the selected filters</p>
-                        </div>
-                    `;
-                    showLoading(false);
-                    return;
-                }
-                
-                // Get job and serial counts for each box
-                for (let box of boxes) {
-                    const { count: jobCount } = await db
-                        .from('jobs')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('box_id', box.id);
-                    
-                    const { count: serialCount } = await db
-                        .from('serials')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('box_id', box.id);
-                    
-                    box.jobCount = jobCount || 0;
-                    box.serialCount = serialCount || 0;
-                }
-                
-                renderBoxesList(boxes);
-                
-            } catch (error) {
-                console.error('Error loading boxes:', error);
-                showAlert('Error loading boxes: ' + error.message, 'error');
-            } finally {
-                showLoading(false);
-            }
-        }
-        
-        function renderBoxesList(boxes) {
-            const container = document.getElementById('exportResults');
-            
-            let html = '<div class="box-list">';
-            
-            boxes.forEach(box => {
-                const closedDate = box.status === 'closed' && box.closed_at 
-                    ? ` | Closed: ${new Date(box.closed_at).toLocaleDateString()}` 
-                    : '';
-                
-                html += `
-                    <div class="box-item" onclick="selectBox(${box.id}, '${box.agent}')">
-                        <div class="box-info">
-                            <div class="box-id">${box.box_id}</div>
-                            <div class="box-meta">${box.jobCount} jobs | ${box.serialCount} serials${closedDate}</div>
-                        </div>
-                        <span class="badge badge-${box.status}">${box.status}</span>
-                    </div>
-                `;
-            });
-            
-            html += '</div>';
-            container.innerHTML = html;
-        }
-        
-        async function selectBox(boxId, boxAgent) {
-            // Update selection UI
-            document.querySelectorAll('.box-item').forEach(item => item.classList.remove('selected'));
-            event.currentTarget.classList.add('selected');
-            
-            selectedBoxId = boxId;
-            selectedBoxAgent = boxAgent;
-            
-            await generateBoxPreview();
-        }
-        
-        async function generateBoxPreview() {
-            if (!selectedBoxId) return;
-            
-            showLoading(true);
-            
-            try {
-                // Get box details
-                const { data: box, error: boxError } = await db
-                    .from('boxes')
-                    .select('*')
-                    .eq('id', selectedBoxId)
-                    .single();
-                
-                if (boxError) throw boxError;
-                
-                // Get jobs for this box
-                const { data: jobs, error: jobsError } = await db
-                    .from('jobs')
-                    .select('*')
-                    .eq('box_id', selectedBoxId)
-                    .order('created_at', { ascending: false });
-                
-                if (jobsError) throw jobsError;
-                
-                // Check if user can edit this box
-                const canEdit = currentUser.role === 'manager' || currentUser.agent_id === box.agent;
-                
-                // Build preview HTML
-                let html = `
-                    <div class="export-box-item">
-                        <div class="export-box-header">
-                            <div class="export-box-title">${box.box_id}</div>
-                            <div class="export-box-subtitle">
-                                Agent: ${box.agent} | Client: ${box.client}
-                                ${box.status === 'closed' && box.closed_at ? ` | Closed: ${new Date(box.closed_at).toLocaleDateString()}` : ''}
-                            </div>
-                        </div>
-                `;
-                
-                for (let job of jobs) {
-                    // Get serials for this job
-                    const { data: serials, error: serialsError } = await db
-                        .from('serials')
-                        .select('serial_number')
-                        .eq('job_id', job.id)
-                        .order('created_at', { ascending: true });
-                    
-                    if (serialsError) throw serialsError;
-                    
-                    const serialCount = serials ? serials.length : 0;
-                    
-                    html += `
-                        <div class="job-section" onclick="toggleJobExpand(this, event)">
-                            <div class="job-date">Created: ${new Date(job.created_at).toLocaleString()}</div>
-                            <div class="job-header">
-                                <span>Job: ${job.job_number} | Vendor: ${job.vendor} | Serials: ${serialCount}</span>
-                                <span class="job-expand-icon">▼</span>
-                            </div>
-                            <div class="serial-grid">
-                    `;
-                    
-                    if (serials) {
-                        serials.forEach((serial, index) => {
-                            const barcodeId = `barcode-${job.id}-${index}`;
-                            html += `
-                                <div class="serial-item">
-                                    <div class="serial-number">${serial.serial_number}</div>
-                                    <div class="barcode-container">
-                                        <svg class="barcode-svg" data-serial="${serial.serial_number}" data-id="${barcodeId}"></svg>
-                                    </div>
-                                </div>
-                            `;
-                        });
-                    }
-                    
-                    html += '</div>'; // Close serial-grid
-
-                    // Add receipt view/download buttons if job has receipt
-                    if (job.receipt_url) {
-                        html += `
-                            <div class="job-edit-actions">
-                                 <strong style="color: var(--text-secondary);">Receipt:</strong><br>
-                                <button class="btn btn-secondary btn-sm" onclick="viewReceipt('${job.receipt_url}', event)">
-                                    <i data-lucide="eye" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
-                                    View Receipt
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="downloadReceipt('${job.receipt_url}', event)">
-                                    <i data-lucide="download" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
-                                    Download
-                                </button>
-                            </div>
-                        `;
-                    }
-
-                    // Add edit actions if user can edit
-                    if (canEdit) {
-                        html += `
-                            <div class="job-edit-actions">
-                                <button class="btn btn-secondary btn-sm" onclick="openEditJobModal(${job.id}, event)">Edit Job</button>
-                                <button class="btn btn-danger btn-sm" onclick="openDeleteJobModal(${job.id}, event)">Delete Job</button>
-                            </div>
-                        `;
-                    }
-                    
-                    html += '</div>'; // Close job-section
-                }
-                
-                html += `
-                    </div>
-                    <div style="text-align: center; margin-top: var(--spacing-xl);">
-                        <button class="btn btn-secondary" onclick="window.print()">Print / Save PDF</button>
-                        <button class="btn btn-ghost" onclick="clearPreview()" style="margin-left: var(--spacing-md);">Close Preview</button>
-                    </div>
-                `;
-                
-                const preview = document.getElementById('exportPreview');
-                preview.innerHTML = html;
-                preview.classList.remove('hidden');
-                
-                // Generate barcodes and initialize icons after DOM update
-                setTimeout(() => {
-                    document.querySelectorAll('.barcode-svg').forEach(svg => {
-                        const serial = svg.getAttribute('data-serial');
-                        const id = svg.getAttribute('data-id');
-
-                        try {
-                            svg.setAttribute('id', id);
-                            JsBarcode(`#${id}`, serial, {
-                                format: 'CODE128',
-                                width: 2,
-                                height: 50,
-                                displayValue: false,
-                                margin: 5
-                            });
-                        } catch (e) {
-                            console.error('Barcode error:', e);
-                        }
-                    });
-
-                    // Initialize Lucide icons
-                    if (typeof lucide !== 'undefined') {
-                        lucide.createIcons();
-                    }
-                }, 100);
-                
-                showAlert('✓ Box preview generated', 'success');
-                
-            } catch (error) {
-                console.error('Error generating preview:', error);
-                showAlert('Error generating preview: ' + error.message, 'error');
-            } finally {
-                showLoading(false);
-            }
-        }
-        
-        function toggleJobExpand(element, event) {
-            // Don't toggle if clicking on buttons
-            if (event.target.closest('.btn')) return;
-            element.classList.toggle('expanded');
         }
         
         // ============================================
@@ -855,110 +1413,133 @@
             container.appendChild(row);
         }
         
-        async function handleSaveJob(event) {
-            event.preventDefault();
+async function handleSaveJob(event) {
+    event.preventDefault();
+    
+    const jobId = document.getElementById('editJobId').value;
+    const boxId = document.getElementById('editBoxId').value;
+    const jobNumber = document.getElementById('editJobNumber').value.trim();
+    const vendor = document.getElementById('editJobVendor').value;
+    
+    // Collect serials
+    const serialInputs = document.querySelectorAll('#editSerialsContainer .serial-input');
+    const serials = [];
+    serialInputs.forEach(input => {
+        const value = input.value.trim();
+        if (value) serials.push(value);
+    });
+    
+    if (!jobNumber || !vendor) {
+        showAlert('Please fill in job number and vendor', 'error');
+        return;
+    }
+    
+    if (serials.length === 0) {
+        showAlert('Please add at least one serial', 'error');
+        return;
+    }
+    
+    // Check for duplicates within the input
+    const uniqueSerials = [...new Set(serials)];
+    if (uniqueSerials.length !== serials.length) {
+        showAlert('Duplicate serials found in your input', 'warning');
+        return;
+    }
+    
+    // Check for duplicates in database (excluding current job's serials)
+    const { data: existingSerials, error: checkError } = await db
+        .from('serials')
+        .select('serial_number')
+        .in('serial_number', serials)
+        .neq('job_id', jobId);
+    
+    if (checkError) {
+        showAlert('Error checking for duplicates: ' + checkError.message, 'error');
+        return;
+    }
+    
+    if (existingSerials && existingSerials.length > 0) {
+        const dupes = existingSerials.map(s => s.serial_number).join(', ');
+        showAlert(`These serials already exist elsewhere: ${dupes}`, 'warning');
+        return;
+    }
+    
+    showLoading(true);
+    showSyncStatus('Saving...', 'syncing');
+    
+    try {
+        // Update job details
+        const { error: jobError } = await db
+            .from('jobs')
+            .update({
+                job_number: jobNumber,
+                vendor: vendor
+            })
+            .eq('id', jobId);
+        
+        if (jobError) throw jobError;
+        
+        // Delete existing serials for this job
+        const { error: deleteError } = await db
+            .from('serials')
+            .delete()
+            .eq('job_id', jobId);
+        
+        if (deleteError) throw deleteError;
+        
+        // Insert new serials
+        const serialRecords = serials.map(serial => ({
+            job_id: parseInt(jobId),
+            box_id: parseInt(boxId),
+            serial_number: serial,
+            created_at: new Date().toISOString()
+        }));
+        
+        const { error: insertError } = await db
+            .from('serials')
+            .insert(serialRecords);
+        
+        if (insertError) throw insertError;
+        
+        showAlert('✓ Job updated successfully', 'success');
+        showSyncStatus('✓ Saved', 'synced');
+        
+    } catch (error) {
+        console.error('Error saving job:', error);
+        showAlert('Error saving job: ' + error.message, 'error');
+        showSyncStatus('✗ Error', 'error');
+        showLoading(false);
+        return; // Don't proceed with refresh if there was an error
+    }
+    
+    // Close modal and refresh view AFTER successful save
+    closeEditJobModal();
+    
+    // Refresh the current view
+    try {
+        const preview = document.getElementById('boxDetailPreview');
+        
+        if (preview && !preview.classList.contains('hidden')) {
+            // Check if we're in box detail view or job detail view
+            const hasBoxViewElements = preview.querySelector('.export-box-list-item');
+            const hasJobViewElements = preview.querySelector('.job-detail-view');
             
-            const jobId = document.getElementById('editJobId').value;
-            const boxId = document.getElementById('editBoxId').value;
-            const jobNumber = document.getElementById('editJobNumber').value.trim();
-            const vendor = document.getElementById('editJobVendor').value;
-            
-            // Collect serials
-            const serialInputs = document.querySelectorAll('#editSerialsContainer .serial-input');
-            const serials = [];
-            serialInputs.forEach(input => {
-                const value = input.value.trim();
-                if (value) serials.push(value);
-            });
-            
-            if (!jobNumber || !vendor) {
-                showAlert('Please fill in job number and vendor', 'error');
-                return;
-            }
-            
-            if (serials.length === 0) {
-                showAlert('Please add at least one serial', 'error');
-                return;
-            }
-            
-            // Check for duplicates within the input
-            const uniqueSerials = [...new Set(serials)];
-            if (uniqueSerials.length !== serials.length) {
-                showAlert('Duplicate serials found in your input', 'warning');
-                return;
-            }
-            
-            // Check for duplicates in database (excluding current job's serials)
-            const { data: existingSerials, error: checkError } = await db
-                .from('serials')
-                .select('serial_number')
-                .in('serial_number', serials)
-                .neq('job_id', jobId);
-            
-            if (checkError) {
-                showAlert('Error checking for duplicates: ' + checkError.message, 'error');
-                return;
-            }
-            
-            if (existingSerials && existingSerials.length > 0) {
-                const dupes = existingSerials.map(s => s.serial_number).join(', ');
-                showAlert(`These serials already exist elsewhere: ${dupes}`, 'warning');
-                return;
-            }
-            
-            showLoading(true);
-            showSyncStatus('Saving...', 'syncing');
-            
-            try {
-                // Update job details
-                const { error: jobError } = await db
-                    .from('jobs')
-                    .update({
-                        job_number: jobNumber,
-                        vendor: vendor
-                    })
-                    .eq('id', jobId);
-                
-                if (jobError) throw jobError;
-                
-                // Delete existing serials for this job
-                const { error: deleteError } = await db
-                    .from('serials')
-                    .delete()
-                    .eq('job_id', jobId);
-                
-                if (deleteError) throw deleteError;
-                
-                // Insert new serials
-                const serialRecords = serials.map(serial => ({
-                    job_id: parseInt(jobId),
-                    box_id: parseInt(boxId),
-                    serial_number: serial,
-                    created_at: new Date().toISOString()
-                }));
-                
-                const { error: insertError } = await db
-                    .from('serials')
-                    .insert(serialRecords);
-                
-                if (insertError) throw insertError;
-                
-                showAlert('✓ Job updated successfully', 'success');
-                showSyncStatus('✓ Saved', 'synced');
-                closeEditJobModal();
-                
-                // Refresh the preview
-                await generateBoxPreview();
-                
-            } catch (error) {
-                console.error('Error saving job:', error);
-                showAlert('Error saving job: ' + error.message, 'error');
-                showSyncStatus('✗ Error', 'error');
-            } finally {
-                showLoading(false);
+            if (hasBoxViewElements && selectedBoxId) {
+                // We're in box detail view - refresh the entire box
+                await generateBoxPreview(selectedBoxId);
+            } else if (hasJobViewElements) {
+                // We're in job detail view - refresh just this job
+                await showJobDetail(parseInt(jobId));
             }
         }
-        
+    } catch (refreshError) {
+        console.error('Error refreshing view:', refreshError);
+        // Don't show alert for refresh error - the data was saved successfully
+    } finally {
+        showLoading(false);
+    }
+}
+
         // ============================================
         // DELETE JOB FUNCTIONALITY
         // ============================================
@@ -977,75 +1558,98 @@
             deleteJobId = null;
         }
         
-        async function confirmDeleteJob() {
-            if (!deleteJobId) return;
+async function confirmDeleteJob() {
+    if (!deleteJobId) return;
+    
+    showLoading(true);
+    showSyncStatus('Deleting...', 'syncing');
+    
+    try {
+        // 1. Delete serials first
+        const { error: serialsError } = await db
+            .from('serials')
+            .delete()
+            .eq('job_id', deleteJobId);
+        
+        if (serialsError) throw serialsError;
+        
+        // 2. Delete the job
+        const { error: jobError } = await db
+            .from('jobs')
+            .delete()
+            .eq('id', deleteJobId);
+        
+        if (jobError) throw jobError;
+        
+        showAlert('✓ Job deleted successfully', 'success');
+        showSyncStatus('✓ Deleted', 'synced');
+        closeDeleteJobModal();
+
+        // 3. Clear the detail preview UI
+        const preview = document.getElementById('boxDetailPreview');
+        preview.innerHTML = '';
+        preview.classList.add('hidden');
+
+        // 4. IMPORTANT: RE-RUN THE SEARCH to get fresh results
+        const searchBtn = document.getElementById('searchJobBtn');
+        if (searchBtn) {
+            // First, show the search results container
+            document.getElementById('searchResults').style.display = 'block';
             
-            showLoading(true);
-            showSyncStatus('Deleting...', 'syncing');
+            // Check if we have search criteria to re-run the search
+            const searchInput = document.getElementById('jobSearchInput').value.trim();
+            const selectedAgent = document.getElementById('searchAgent').value;
+            const selectedClient = document.getElementById('searchClient').value;
+            const hasTextSearch = searchInput.length > 0;
+            const hasDateFilter = activeDateRange !== null;
+            const hasAgentFilter = selectedAgent.length > 0;
+            const hasClientFilter = selectedClient.length > 0;
             
-            try {
-                // Delete serials first (foreign key constraint)
-                const { error: serialsError } = await db
-                    .from('serials')
-                    .delete()
-                    .eq('job_id', deleteJobId);
-                
-                if (serialsError) throw serialsError;
-                
-                // Delete the job
-                const { error: jobError } = await db
-                    .from('jobs')
-                    .delete()
-                    .eq('id', deleteJobId);
-                
-                if (jobError) throw jobError;
-                
-                showAlert('✓ Job deleted successfully', 'success');
-                showSyncStatus('✓ Deleted', 'synced');
-                closeDeleteJobModal();
-                
-                // Refresh the preview
-                await generateBoxPreview();
-                
-            } catch (error) {
-                console.error('Error deleting job:', error);
-                showAlert('Error deleting job: ' + error.message, 'error');
-                showSyncStatus('✗ Error', 'error');
-            } finally {
-                showLoading(false);
+            // Only re-run if we have search criteria
+            if (hasTextSearch || hasDateFilter || hasAgentFilter || hasClientFilter) {
+                await searchJob(); // Re-run the search
+            } else {
+                // If no search criteria, clear and show empty state
+                clearJobSearch();
             }
         }
         
+    } catch (error) {
+        console.error('Error deleting job:', error);
+        showAlert('Error deleting job: ' + error.message, 'error');
+        showSyncStatus('✗ Error', 'error');
+    } finally {
+        showLoading(false);
+    }
+}     
         // ============================================
         // UI HELPERS
         // ============================================
-        
-        function clearFilters() {
-            document.getElementById('filterAgent').value = '';
-            document.getElementById('filterClient').value = '';
-            document.getElementById('exportResults').innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📦</div>
-                    <p>Select an agent and client, then click "Load Boxes"</p>
-                </div>
-            `;
-            clearPreview();
-        }
-        
-        function clearPreview() {
-            document.getElementById('exportPreview').innerHTML = '';
-            document.getElementById('exportPreview').classList.add('hidden');
-            selectedBoxId = null;
-            selectedBoxAgent = null;
-            document.querySelectorAll('.box-item').forEach(item => item.classList.remove('selected'));
-        }
-        
+
         function showSyncStatus(message, type) {
             const status = document.getElementById('syncStatus');
             status.textContent = message;
             status.className = `sync-status active ${type}`;
             setTimeout(() => status.classList.remove('active'), 3000);
         }
+
+    async function refreshCurrentView(jobId, boxId) {
+    const preview = document.getElementById('boxDetailPreview');
+    
+    if (preview && !preview.classList.contains('hidden')) {
+        // Check which view is currently active
+        const isJobDetailView = preview.querySelector('.job-detail-view');
+        const isBoxDetailView = preview.querySelector('.export-box-list-item');
+        
+        if (isJobDetailView && jobId) {
+            // Refresh job detail view
+            await showJobDetail(jobId);
+        } else if (isBoxDetailView && boxId) {
+            // Refresh box detail view
+            await generateBoxPreview(boxId);
+        }
+    }
+}    
     </script>
 </body>
 </html>

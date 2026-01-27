@@ -16,25 +16,38 @@ function showLoading(show) {
 }
 
 /**
- * Display an alert message
+ * Display a toast notification
  * @param {string} message - The message to display
  * @param {string} type - Alert type: 'success', 'error', 'warning', 'info'
- * @param {string} containerId - ID of the container element (default: 'alertContainer')
  */
-function showAlert(message, type = 'info', containerId = 'alertContainer') {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type}`;
+function showAlert(message, type = 'info') {
+    // Get or create the toast container
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
     const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
-    
-    alert.innerHTML = `<span class="alert-icon">${icons[type] || 'ℹ'}</span><span>${message}</span>`;
-    container.appendChild(alert);
-    
+
+    toast.innerHTML = `
+        <span class="toast-icon">${icons[type] || 'ℹ'}</span>
+        <span class="toast-message">${message}</span>
+        <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+    `;
+    container.appendChild(toast);
+
+    // Trigger animation
+    requestAnimationFrame(() => toast.classList.add('show'));
+
+    // Auto-remove after 5 seconds
     setTimeout(() => {
-        alert.style.opacity = '0';
-        setTimeout(() => alert.remove(), 500);
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
     }, 5000);
 }
 

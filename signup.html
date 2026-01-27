@@ -9,6 +9,7 @@
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="icons.js"></script>
+    <script src="utils.js"></script>
 </head>
 <body>
     <div class="app-wrapper" style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
@@ -103,18 +104,6 @@
 
         let invitationToken = null;
         let invitationEmail = null;
-
-        function showAlert(message, type) {
-            const container = document.getElementById('alertContainer');
-            const alert = document.createElement('div');
-            alert.className = `alert alert-${type}`;
-            
-            const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
-            alert.innerHTML = `<span class="alert-icon">${icons[type] || 'ℹ'}</span><span>${message}</span>`;
-            
-            container.appendChild(alert);
-            setTimeout(() => alert.remove(), 5000);
-        }
 
         function showInvalidToken(message) {
             document.getElementById('loadingState').style.display = 'none';

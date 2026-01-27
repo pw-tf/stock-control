@@ -12,6 +12,7 @@
     <!-- Login Script-->
     <script src="auth.js"></script>
     <script src="sidebar.js"></script>
+    <script src="utils.js"></script>
 </head>
 <body>
     <!-- Loading Overlay -->
@@ -527,15 +528,37 @@ async function getLastShiftCloseTime() {
             .eq('status', 'completed')
             .order('end_time', { ascending: false })
             .limit(1);
-        
+
         if (error) throw error;
-        
+
         if (shifts && shifts.length > 0) {
             return new Date(shifts[0].end_time);
         }
         return null;
     } catch (error) {
         console.error('Error getting last shift close time:', error);
+        return null;
+    }
+}
+
+async function getLastShiftEndKms() {
+    try {
+        const { data: shifts, error } = await db
+            .from('shifts')
+            .select('end_kms')
+            .eq('user_id', currentUserId)
+            .eq('status', 'completed')
+            .order('end_time', { ascending: false })
+            .limit(1);
+
+        if (error) throw error;
+
+        if (shifts && shifts.length > 0 && shifts[0].end_kms) {
+            return shifts[0].end_kms;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error getting last shift end kms:', error);
         return null;
     }
 }
@@ -614,10 +637,14 @@ function updateShiftDisplay() {
     }
 }
 
-function openStartShiftModal() {
+async function openStartShiftModal() {
     document.getElementById('startShiftTime').value = formatDateTimeLocal(new Date());
-    document.getElementById('startShiftKms').value = '';
     document.getElementById('startShiftAlertContainer').innerHTML = '';
+
+    // Auto-fill with last shift's ending KMs
+    const lastEndKms = await getLastShiftEndKms();
+    document.getElementById('startShiftKms').value = lastEndKms || '';
+
     document.getElementById('startShiftModal').classList.add('active');
 }
 
@@ -632,7 +659,7 @@ async function handleStartShift(e) {
     const startKms = parseInt(document.getElementById('startShiftKms').value);
     
     if (!startTime || isNaN(startKms)) {
-        showAlert('Please fill in all required fields', 'error', 'startShiftAlertContainer');
+        showAlert('Please fill in all required fields', 'error');
         return;
     }
     
@@ -640,7 +667,7 @@ async function handleStartShift(e) {
     
     const lastCloseTime = await getLastShiftCloseTime();
     if (lastCloseTime && startDateTime <= lastCloseTime) {
-        showAlert(`Start time must be after your last shift ended (${formatDateTime(lastCloseTime)})`, 'error', 'startShiftAlertContainer');
+        showAlert(`Start time must be after your last shift ended (${formatDateTime(lastCloseTime)})`, 'error');
         return;
     }
     
@@ -668,7 +695,7 @@ async function handleStartShift(e) {
         showSyncStatus('✓ Synced', 'synced');
     } catch (error) {
         console.error('Error starting shift:', error);
-        showAlert('Error starting shift: ' + error.message, 'error', 'startShiftAlertContainer');
+        showAlert('Error starting shift: ' + error.message, 'error');
     } finally {
         showLoading(false);
     }
@@ -676,10 +703,13 @@ async function handleStartShift(e) {
 
 function openEndShiftModal() {
     document.getElementById('endShiftTime').value = formatDateTimeLocal(new Date());
-    document.getElementById('endShiftKms').value = '';
     document.getElementById('extraJobs').value = '0';
     document.getElementById('shiftNotes').value = '';
     document.getElementById('endShiftAlertContainer').innerHTML = '';
+
+    // Auto-fill with shift's starting KMs as minimum reference
+    document.getElementById('endShiftKms').value = activeShift?.start_kms || '';
+
     document.getElementById('endShiftModal').classList.add('active');
 }
 
@@ -696,12 +726,12 @@ async function handleEndShift(e) {
     const shiftNotes = document.getElementById('shiftNotes').value.trim();
     
     if (!endTime || isNaN(endKms)) {
-        showAlert('Please fill in all required fields', 'error', 'endShiftAlertContainer');
+        showAlert('Please fill in all required fields', 'error');
         return;
     }
     
     if (endKms < activeShift.start_kms) {
-        showAlert('End kilometres cannot be less than start kilometres', 'error', 'endShiftAlertContainer');
+        showAlert('End kilometres cannot be less than start kilometres', 'error');
         return;
     }
     
@@ -709,21 +739,35 @@ async function handleEndShift(e) {
     const startDateTime = new Date(activeShift.start_time);
     
     if (!isSameDay(startDateTime, endDateTime)) {
-        showAlert('End time must be on the same day as the shift started.', 'error', 'endShiftAlertContainer');
+        showAlert('End time must be on the same day as the shift started.', 'error');
         return;
     }
     
     const lastJobTime = await getLastJobEntryTime();
     if (lastJobTime && endDateTime < lastJobTime) {
-        showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error', 'endShiftAlertContainer');
+        showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error');
         return;
     }
     
     if (endDateTime <= startDateTime) {
-        showAlert('End time must be after the shift start time', 'error', 'endShiftAlertContainer');
+        showAlert('End time must be after the shift start time', 'error');
         return;
     }
-    
+
+    const kmsTravelled = endKms - activeShift.start_kms;
+
+    // Warn if 0km travelled
+    if (kmsTravelled === 0) {
+        const confirmZero = confirm('You entered 0 km travelled for this shift. Are you sure this is correct?');
+        if (!confirmZero) return;
+    }
+
+    // Confirm if over 200km travelled
+    if (kmsTravelled > 200) {
+        const confirmHighKms = confirm(`You entered ${kmsTravelled} km for this shift. This seems high. Are you sure this is correct?`);
+        if (!confirmHighKms) return;
+    }
+
     showLoading(true);
     
     try {
@@ -750,7 +794,7 @@ async function handleEndShift(e) {
         showSyncStatus('✓ Synced', 'synced');
     } catch (error) {
         console.error('Error ending shift:', error);
-        showAlert('Error ending shift: ' + error.message, 'error', 'endShiftAlertContainer');
+        showAlert('Error ending shift: ' + error.message, 'error');
     } finally {
         showLoading(false);
     }
@@ -773,7 +817,7 @@ function showStaleShiftModal() {
     defaultEndTime.setHours(23, 59, 0, 0);
     document.getElementById('staleShiftEndTime').value = formatDateTimeLocal(defaultEndTime);
     
-    document.getElementById('staleShiftEndKms').value = '';
+    document.getElementById('staleShiftEndKms').value = shift.start_kms || '';
     document.getElementById('staleExtraJobs').value = '0';
     document.getElementById('staleShiftNotes').value = '';
     document.getElementById('staleShiftAlertContainer').innerHTML = '';
@@ -789,12 +833,12 @@ async function handleStaleShift(e) {
     const shiftNotes = document.getElementById('staleShiftNotes').value.trim();
     
     if (!endTime || isNaN(endKms)) {
-        showAlert('Please fill in all required fields', 'error', 'staleShiftAlertContainer');
+        showAlert('Please fill in all required fields', 'error');
         return;
     }
     
     if (endKms < staleShift.start_kms) {
-        showAlert('End kilometres cannot be less than start kilometres', 'error', 'staleShiftAlertContainer');
+        showAlert('End kilometres cannot be less than start kilometres', 'error');
         return;
     }
     
@@ -802,12 +846,12 @@ async function handleStaleShift(e) {
     const startDateTime = new Date(staleShift.start_time);
     
     if (!isSameDay(startDateTime, endDateTime)) {
-        showAlert('End time must be on the same day as the shift started (' + startDateTime.toLocaleDateString('en-AU') + ')', 'error', 'staleShiftAlertContainer');
+        showAlert('End time must be on the same day as the shift started (' + startDateTime.toLocaleDateString('en-AU') + ')', 'error');
         return;
     }
     
     if (endDateTime <= startDateTime) {
-        showAlert('End time must be after the shift start time', 'error', 'staleShiftAlertContainer');
+        showAlert('End time must be after the shift start time', 'error');
         return;
     }
     
@@ -817,12 +861,26 @@ async function handleStaleShift(e) {
     activeShift = tempActiveShift;
     
     if (lastJobTime && endDateTime < lastJobTime) {
-        showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error', 'staleShiftAlertContainer');
+        showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error');
         return;
     }
-    
+
+    const kmsTravelled = endKms - staleShift.start_kms;
+
+    // Warn if 0km travelled
+    if (kmsTravelled === 0) {
+        const confirmZero = confirm('You entered 0 km travelled for this shift. Are you sure this is correct?');
+        if (!confirmZero) return;
+    }
+
+    // Confirm if over 200km travelled
+    if (kmsTravelled > 200) {
+        const confirmHighKms = confirm(`You entered ${kmsTravelled} km for this shift. This seems high. Are you sure this is correct?`);
+        if (!confirmHighKms) return;
+    }
+
     showLoading(true);
-    
+
     try {
         const { data, error } = await db
             .from('shifts')
@@ -848,7 +906,7 @@ async function handleStaleShift(e) {
         showSyncStatus('✓ Synced', 'synced');
     } catch (error) {
         console.error('Error closing stale shift:', error);
-        showAlert('Error closing shift: ' + error.message, 'error', 'staleShiftAlertContainer');
+        showAlert('Error closing shift: ' + error.message, 'error');
     } finally {
         showLoading(false);
     }
@@ -1708,11 +1766,6 @@ async function getNextBoxNumber(client) {
     }
 }
 
-function formatBoxId(agent, client, boxNumber) {
-    const clientPrefix = client.substring(0, 3).toUpperCase();
-    return `${agent}-${clientPrefix}-${boxNumber}`;
-}
-
 function updateCurrentBoxDisplay() {
     const boxIdEl = document.getElementById("currentBoxId");
     const boxClientEl = document.getElementById("currentBoxClient");
@@ -1799,18 +1852,6 @@ function clearJobForm() {
 
     // Update display to show no active box
     updateCurrentBoxDisplay();
-}
-
-function showAlert(message, type, containerId = "alertContainer") {
-    const container = document.getElementById(containerId);
-    const alert = document.createElement("div");
-    alert.className = `alert alert-${type}`;
-    
-    const icons = { success: "✓", error: "✕", warning: "⚠", info: "ℹ" };
-    alert.innerHTML = `<span class="alert-icon">${icons[type] || "ℹ"}</span><span>${message}</span>`;
-    
-    container.appendChild(alert);
-    setTimeout(() => alert.remove(), 5000);
 }
 
 function showLoading(show) {
