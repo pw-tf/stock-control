@@ -1708,6 +1708,11 @@ async function getNextBoxNumber(client) {
     }
 }
 
+function formatBoxId(agent, client, boxNumber) {
+    const clientPrefix = client.substring(0, 3).toUpperCase();
+    return `${agent}-${clientPrefix}-${boxNumber}`;
+}
+
 function updateCurrentBoxDisplay() {
     const boxIdEl = document.getElementById("currentBoxId");
     const boxClientEl = document.getElementById("currentBoxClient");
