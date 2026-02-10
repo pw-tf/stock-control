@@ -2012,6 +2012,15 @@ tr:hover td {
     .shift-summary-grid {
         grid-template-columns: 1fr;
     }
+
+    .app-wrapper {
+        padding: 0;
+    }
+
+    .container {
+        border-radius: 0;
+        border: none;
+    }
 }
 
 
@@ -2089,36 +2098,63 @@ tr:hover td {
         --spacing-lg: 20px;
         --spacing-xl: 24px;
     }
-    
+
     .app-wrapper {
-        padding: var(--spacing-md);
+        padding: var(--spacing-sm);
     }
-    
+
     .container {
-        border-radius: var(--radius-lg);
+        border-radius: var(--radius-md);
+        border-left: none;
+        border-right: none;
     }
-    
+
     .header {
-        padding: var(--spacing-lg);
+        padding: var(--spacing-md);
         flex-direction: column;
         text-align: center;
     }
-    
+
     .content {
-        padding: var(--spacing-lg);
+        padding: var(--spacing-md);
     }
-    
+
     .button-group {
         flex-direction: column;
     }
-    
+
     .button-group .btn {
         width: 100%;
     }
-    
+
+    /* Status card - compact on mobile */
     .status-card {
         flex-direction: column;
         text-align: center;
+        padding: var(--spacing-md);
+        gap: var(--spacing-sm);
+        margin-bottom: var(--spacing-md);
+    }
+
+    .status-card-content h3 {
+        font-size: 1rem;
+        margin-bottom: 2px;
+    }
+
+    .status-card-content p {
+        font-size: 0.8125rem;
+    }
+
+    .status-card-meta {
+        font-size: 0.75rem;
+        margin-top: var(--spacing-xs);
+    }
+
+    .status-card .btn {
+        padding: 8px 16px;
+        font-size: 0.8125rem;
+        width: auto;
+        align-self: center;
     }
     
     .filter-row {
