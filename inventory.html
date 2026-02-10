@@ -409,13 +409,14 @@
                     }
                     const { data: jobs, error } = await jobQuery;
                     if (error) throw error;
-                    if (jobs) {
+                    if (jobs && jobs.length > 0) {
+                        // Batch fetch all uncached boxes in one query
+                        const uncachedBoxIds = [...new Set(jobs.map(j => j.box_id))].filter(id => !boxCache.has(id));
+                        if (uncachedBoxIds.length > 0) {
+                            const { data: boxes } = await db.from('boxes').select('*').in('id', uncachedBoxIds);
+                            if (boxes) boxes.forEach(box => boxCache.set(box.id, box));
+                        }
                         for (const job of jobs) {
-                            // Get box info if not cached
-                            if (!boxCache.has(job.box_id)) {
-                                const { data: box } = await db.from('boxes').select('*').eq('id', job.box_id).single();
-                                if (box) boxCache.set(box.id, box);
-                            }
                             job.box = boxCache.get(job.box_id);
                             matchingJobs.set(job.id, job);
                         }
@@ -450,28 +451,28 @@
                 if (!hasTextSearch && (hasAgentFilter || hasClientFilter || hasDateFilter)) {
                     // Get boxes matching filters
                     if (hasDateFilter) {
-                        // Boxes created in date range
+                        // Fetch boxes created and closed in date range in parallel
                         let createdQuery = db.from('boxes').select('*')
                             .gte('created_at', activeDateRange.from.toISOString())
                             .lte('created_at', activeDateRange.to.toISOString());
                         if (hasAgentFilter) createdQuery = createdQuery.eq('agent', selectedAgent);
                         if (hasClientFilter) createdQuery = createdQuery.eq('client', selectedClient);
-                        const { data: createdBoxes } = await createdQuery;
-                        if (createdBoxes) {
-                            createdBoxes.forEach(box => {
-                                box._reason = 'created';
-                                matchingBoxes.set(box.id, box);
-                            });
-                        }
 
-                        // Boxes closed in date range
                         let closedQuery = db.from('boxes').select('*')
                             .not('closed_at', 'is', null)
                             .gte('closed_at', activeDateRange.from.toISOString())
                             .lte('closed_at', activeDateRange.to.toISOString());
                         if (hasAgentFilter) closedQuery = closedQuery.eq('agent', selectedAgent);
                         if (hasClientFilter) closedQuery = closedQuery.eq('client', selectedClient);
-                        const { data: closedBoxes } = await closedQuery;
+
+                        const [{ data: createdBoxes }, { data: closedBoxes }] = await Promise.all([createdQuery, closedQuery]);
+
+                        if (createdBoxes) {
+                            createdBoxes.forEach(box => {
+                                box._reason = 'created';
+                                matchingBoxes.set(box.id, box);
+                            });
+                        }
                         if (closedBoxes) {
                             closedBoxes.forEach(box => {
                                 if (!matchingBoxes.has(box.id)) {
@@ -501,12 +502,14 @@
                     }
                     jobsQuery = jobsQuery.order('created_at', { ascending: false }).limit(200);
                     const { data: jobs } = await jobsQuery;
-                    if (jobs) {
+                    if (jobs && jobs.length > 0) {
+                        // Batch fetch all uncached boxes in one query
+                        const uncachedBoxIds = [...new Set(jobs.map(j => j.box_id))].filter(id => !boxCache.has(id));
+                        if (uncachedBoxIds.length > 0) {
+                            const { data: boxes } = await db.from('boxes').select('*').in('id', uncachedBoxIds);
+                            if (boxes) boxes.forEach(box => boxCache.set(box.id, box));
+                        }
                         for (const job of jobs) {
-                            if (!boxCache.has(job.box_id)) {
-                                const { data: box } = await db.from('boxes').select('*').eq('id', job.box_id).single();
-                                if (box) boxCache.set(box.id, box);
-                            }
                             job.box = boxCache.get(job.box_id);
                             matchingJobs.set(job.id, job);
                         }
@@ -956,17 +959,26 @@
                         </div>
                 `;
 
-                for (let job of jobs) {
-                    // Get serials for this job
-                    const { data: serials, error: serialsError } = await db
+                // Batch fetch all serials for all jobs in one query
+                const jobIds = jobs.map(j => j.id);
+                const serialsByJobId = {};
+                if (jobIds.length > 0) {
+                    const { data: allSerials, error: serialsError } = await db
                         .from('serials')
-                        .select('serial_number')
-                        .eq('job_id', job.id)
+                        .select('serial_number, job_id')
+                        .in('job_id', jobIds)
                         .order('created_at', { ascending: true });
 
                     if (serialsError) throw serialsError;
+                    (allSerials || []).forEach(s => {
+                        if (!serialsByJobId[s.job_id]) serialsByJobId[s.job_id] = [];
+                        serialsByJobId[s.job_id].push(s);
+                    });
+                }
 
-                    const serialCount = serials ? serials.length : 0;
+                for (let job of jobs) {
+                    const serials = serialsByJobId[job.id] || [];
+                    const serialCount = serials.length;
 
                     html += `
                         <div class="job-section" onclick="toggleJobExpand(this, event)">
@@ -1350,22 +1362,13 @@
             showLoading(true);
             
             try {
-                // Get job details
-                const { data: job, error: jobError } = await db
-                    .from('jobs')
-                    .select('*')
-                    .eq('id', jobId)
-                    .single();
-                
+                // Fetch job details and serials in parallel
+                const [{ data: job, error: jobError }, { data: serials, error: serialsError }] = await Promise.all([
+                    db.from('jobs').select('*').eq('id', jobId).single(),
+                    db.from('serials').select('serial_number').eq('job_id', jobId).order('created_at', { ascending: true })
+                ]);
+
                 if (jobError) throw jobError;
-                
-                // Get serials for this job
-                const { data: serials, error: serialsError } = await db
-                    .from('serials')
-                    .select('serial_number')
-                    .eq('job_id', jobId)
-                    .order('created_at', { ascending: true });
-                
                 if (serialsError) throw serialsError;
                 
                 // Populate form
