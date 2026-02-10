@@ -151,15 +151,27 @@
                         <div id="receiptUploadControls">
                             <input
                                 type="file"
+                                id="receiptCameraInput"
+                                accept="image/*"
+                                capture="environment"
+                                style="display: none;"
+                                onchange="handleReceiptFileSelect(event)"
+                            >
+                            <input
+                                type="file"
                                 id="receiptFileInput"
                                 accept="image/*"
                                 style="display: none;"
                                 onchange="handleReceiptFileSelect(event)"
                             >
                             <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('receiptFileInput').click()">
+                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('receiptCameraInput').click()">
                                     <i data-lucide="camera" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
-                                    Take/Upload Photo
+                                    Take Photo
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('receiptFileInput').click()">
+                                    <i data-lucide="upload" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
+                                    Upload Photo
                                 </button>
                             </div>
                         </div>
@@ -1261,6 +1273,7 @@ async function handleReceiptFileSelect(event) {
 function clearReceiptUpload() {
     currentReceiptFile = null;
     currentReceiptUrl = null;
+    document.getElementById('receiptCameraInput').value = '';
     document.getElementById('receiptFileInput').value = '';
     document.getElementById('receiptPreviewImg').src = '';
     document.getElementById('receiptUploadControls').style.display = '';
