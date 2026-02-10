@@ -450,6 +450,72 @@ let isReceiptRequired = false;
 let currentClientSettings = null;
 
 // ============================================
+// IMAGE COMPRESSION
+// ============================================
+
+/**
+ * Compress an image file to approximately targetSizeKB using canvas.
+ * Returns a compressed Blob (JPEG).
+ */
+async function compressImage(file, targetSizeKB = 100) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                // Calculate dimensions - scale down if larger than max
+                const MAX_DIMENSION = 1200;
+                let { width, height } = img;
+                if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+                    const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
+                    width = Math.round(width * ratio);
+                    height = Math.round(height * ratio);
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Iteratively reduce quality to hit target size
+                const targetBytes = targetSizeKB * 1024;
+                let quality = 0.7;
+                let blob = null;
+
+                const tryCompress = () => {
+                    canvas.toBlob((result) => {
+                        if (!result) {
+                            reject(new Error('Canvas compression failed'));
+                            return;
+                        }
+                        if (result.size > targetBytes && quality > 0.1) {
+                            // Still too large - reduce quality and try again
+                            quality -= 0.1;
+                            tryCompress();
+                        } else {
+                            console.log(`Compressed: ${(file.size / 1024).toFixed(0)}KB → ${(result.size / 1024).toFixed(0)}KB (quality: ${quality.toFixed(1)})`);
+                            resolve(result);
+                        }
+                    }, 'image/jpeg', quality);
+                };
+
+                tryCompress();
+            } catch (err) {
+                reject(err);
+            }
+        };
+        img.onerror = () => reject(new Error('Failed to load image for compression'));
+
+        // Load image from file
+        const reader = new FileReader();
+        reader.onload = (e) => { img.src = e.target.result; };
+        reader.onerror = () => reject(new Error('Failed to read image file'));
+        reader.readAsDataURL(file);
+    });
+}
+
+// ============================================
 // SHIFT MANAGEMENT FUNCTIONS
 // ============================================
 
@@ -1152,7 +1218,7 @@ async function checkReceiptRequirement() {
     }
 }
 
-function handleReceiptFileSelect(event) {
+async function handleReceiptFileSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -1162,28 +1228,35 @@ function handleReceiptFileSelect(event) {
         return;
     }
 
-    // Validate file size (5MB limit)
-    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    // Validate file size (15MB limit for raw input - will be compressed)
+    const maxSize = 15 * 1024 * 1024;
     if (file.size > maxSize) {
-        showAlert('Image size must be less than 5MB', 'error');
+        showAlert('Image size must be less than 15MB', 'error');
         return;
     }
 
-    currentReceiptFile = file;
+    try {
+        // Compress the image to ~100KB JPEG
+        showSyncStatus('Compressing image...', 'syncing');
+        const compressedBlob = await compressImage(file, 100);
+        currentReceiptFile = compressedBlob;
 
-    // Show preview
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        document.getElementById('receiptPreviewImg').src = e.target.result;
+        // Show preview from the compressed blob
+        const previewUrl = URL.createObjectURL(compressedBlob);
+        document.getElementById('receiptPreviewImg').src = previewUrl;
         document.getElementById('receiptUploadControls').style.display = 'none';
         document.getElementById('receiptPreview').style.display = '';
+
+        showSyncStatus(`Compressed: ${(file.size / 1024).toFixed(0)}KB → ${(compressedBlob.size / 1024).toFixed(0)}KB`, 'success');
 
         // Initialize icons for the preview section
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+        console.error('Image compression failed:', err);
+        showAlert('Failed to process image. Please try again.', 'error');
+    }
 }
 
 function clearReceiptUpload() {
@@ -1201,16 +1274,15 @@ async function uploadReceiptToStorage(jobId) {
     }
 
     try {
-        // Generate unique filename: timestamp-jobId.extension
+        // Always .jpg since compression converts to JPEG
         const timestamp = Date.now();
-        const extension = currentReceiptFile.name.split('.').pop() || 'jpg';
-        const filename = `${timestamp}-${jobId}.${extension}`;
+        const filename = `${timestamp}-${jobId}.jpg`;
 
         // Upload to Supabase Storage using the existing db client from auth.js
         const { data, error } = await db.storage
             .from('job-receipts')
             .upload(filename, currentReceiptFile, {
-                contentType: currentReceiptFile.type,
+                contentType: 'image/jpeg',
                 upsert: false
             });
 
