@@ -254,51 +254,59 @@
                     });
                 }
                 
-                // Calculate jobs for each shift (broken down by client)
-                for (let shift of allShifts) {
-                    shift.userInfo = userMap[shift.user_id] || { email: 'Unknown', agent_id: 'N/A' };
-                    
+                // Batch fetch boxes for all unique agents (1 query per agent instead of per shift)
+                const agentIds = [...new Set(allShifts.map(s => s.agent_id))];
+                const agentBoxesMap = {};
+                await Promise.all(agentIds.map(async (agentId) => {
                     const { data: boxes } = await db
                         .from('boxes')
                         .select('id, client')
-                        .eq('agent', shift.agent_id);
-                    
-                    // Initialize job counts per client
+                        .eq('agent', agentId);
+                    agentBoxesMap[agentId] = boxes || [];
+                }));
+
+                // Calculate jobs for each shift in parallel
+                await Promise.all(allShifts.map(async (shift) => {
+                    shift.userInfo = userMap[shift.user_id] || { email: 'Unknown', agent_id: 'N/A' };
+
                     shift.jobsByClient = {};
                     allClients.forEach(client => {
                         shift.jobsByClient[client] = 0;
                     });
-                    
-                    if (boxes && boxes.length > 0) {
-                        // Group boxes by client
-                        const boxesByClient = {};
-                        boxes.forEach(box => {
-                            if (!boxesByClient[box.client]) {
-                                boxesByClient[box.client] = [];
-                            }
-                            boxesByClient[box.client].push(box.id);
-                        });
-                        
-                        // Count jobs per client
-                        let totalSystemJobs = 0;
-                        for (const client of Object.keys(boxesByClient)) {
-                            const clientBoxIds = boxesByClient[client];
-                            const { count } = await db
-                                .from('jobs')
-                                .select('*', { count: 'exact', head: true })
-                                .in('box_id', clientBoxIds)
-                                .gte('created_at', shift.start_time)
-                                .lte('created_at', shift.end_time);
-                            
-                            shift.jobsByClient[client] = count || 0;
-                            totalSystemJobs += count || 0;
-                        }
-                        shift.systemJobs = totalSystemJobs;
-                    } else {
+
+                    const boxes = agentBoxesMap[shift.agent_id] || [];
+                    if (boxes.length === 0) {
                         shift.systemJobs = 0;
+                        shift.totalJobs = shift.extra_jobs || 0;
+                        return;
                     }
-                    shift.totalJobs = shift.systemJobs + (shift.extra_jobs || 0);
-                }
+
+                    // Group boxes by client
+                    const boxesByClient = {};
+                    boxes.forEach(box => {
+                        if (!boxesByClient[box.client]) boxesByClient[box.client] = [];
+                        boxesByClient[box.client].push(box.id);
+                    });
+
+                    // Count jobs per client in parallel
+                    const clientEntries = Object.entries(boxesByClient);
+                    const counts = await Promise.all(clientEntries.map(([client, clientBoxIds]) =>
+                        db.from('jobs')
+                            .select('*', { count: 'exact', head: true })
+                            .in('box_id', clientBoxIds)
+                            .gte('created_at', shift.start_time)
+                            .lte('created_at', shift.end_time)
+                            .then(({ count }) => ({ client, count: count || 0 }))
+                    ));
+
+                    let totalSystemJobs = 0;
+                    counts.forEach(({ client, count }) => {
+                        shift.jobsByClient[client] = count;
+                        totalSystemJobs += count;
+                    });
+                    shift.systemJobs = totalSystemJobs;
+                    shift.totalJobs = totalSystemJobs + (shift.extra_jobs || 0);
+                }));
                 
                 renderShifts();
                 renderSummary();

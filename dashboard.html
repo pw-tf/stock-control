@@ -1035,18 +1035,19 @@ async function generateShiftReport(shift) {
                 boxesByClient[box.client].push(box.id);
             });
             
-            for (const client of Object.keys(boxesByClient)) {
-                const clientBoxIds = boxesByClient[client];
-                const { count } = await db
-                    .from('jobs')
+            const clientEntries = Object.entries(boxesByClient);
+            const counts = await Promise.all(clientEntries.map(([client, clientBoxIds]) =>
+                db.from('jobs')
                     .select('*', { count: 'exact', head: true })
                     .in('box_id', clientBoxIds)
                     .gte('created_at', shift.start_time)
-                    .lte('created_at', shift.end_time);
-                
-                jobsByClient[client] = count || 0;
-                systemJobs += count || 0;
-            }
+                    .lte('created_at', shift.end_time)
+                    .then(({ count }) => ({ client, count: count || 0 }))
+            ));
+            counts.forEach(({ client, count }) => {
+                jobsByClient[client] = count;
+                systemJobs += count;
+            });
         }
     } catch (error) {
         console.error('Error counting jobs:', error);
@@ -1544,9 +1545,8 @@ function addSerialRow() {
 async function handleClientChange() {
     const client = document.getElementById("clientSelect").value;
 
-    await updateVendorsByClient(client);
-
     if (!client) {
+        updateVendorsByClient(client);
         currentBox = null;
         currentJobType = null;
         updateCurrentBoxDisplay();
@@ -1556,14 +1556,17 @@ async function handleClientChange() {
     showLoading(true);
 
     try {
-        const { data, error } = await db
-            .from("boxes")
-            .select("*")
-            .eq("agent", currentAgent)
-            .eq("client", client)
-            .eq("status", "open")
-            .order("created_at", { ascending: false })
-            .limit(1);
+        // Run vendor load and box query in parallel
+        const [, { data, error }] = await Promise.all([
+            updateVendorsByClient(client),
+            db.from("boxes")
+                .select("*")
+                .eq("agent", currentAgent)
+                .eq("client", client)
+                .eq("status", "open")
+                .order("created_at", { ascending: false })
+                .limit(1)
+        ]);
 
         if (error) throw error;
 
@@ -1594,11 +1597,11 @@ async function handleClientChange() {
         }
 
         updateCurrentBoxDisplay();
-        await loadBoxesForAgent();
         showSyncStatus("✓ Synced", "synced");
 
-        // Show job type selection modal
+        // Show job type selection modal immediately, refresh boxes in background
         showJobTypeModal();
+        loadBoxesForAgent();
     } catch (error) {
         showAlert("Error loading box: " + error.message, "error");
         showSyncStatus("✕ Sync failed", "error");
@@ -1798,18 +1801,28 @@ async function loadJobsForBox(boxId) {
             .select("*")
             .eq("box_id", boxId)
             .order("created_at", { ascending: true });
-            
+
         if (error) throw error;
-        
-        for (let job of jobs) {
-            const { data: serials } = await db
+
+        // Batch fetch all serials for all jobs in one query
+        const jobIds = jobs.map(j => j.id);
+        let serialsByJob = {};
+        if (jobIds.length > 0) {
+            const { data: allSerials } = await db
                 .from("serials")
-                .select("serial_number")
-                .eq("job_id", job.id);
-                
-            job.serials = serials ? serials.map(s => s.serial_number) : [];
+                .select("serial_number, job_id")
+                .in("job_id", jobIds);
+
+            (allSerials || []).forEach(s => {
+                if (!serialsByJob[s.job_id]) serialsByJob[s.job_id] = [];
+                serialsByJob[s.job_id].push(s.serial_number);
+            });
         }
-        
+
+        for (let job of jobs) {
+            job.serials = serialsByJob[job.id] || [];
+        }
+
         currentBox.jobs = jobs;
     } catch (error) {
         currentBox.jobs = [];
