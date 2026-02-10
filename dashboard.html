@@ -1247,8 +1247,6 @@ async function handleReceiptFileSelect(event) {
         document.getElementById('receiptUploadControls').style.display = 'none';
         document.getElementById('receiptPreview').style.display = '';
 
-        showSyncStatus(`Compressed: ${(file.size / 1024).toFixed(0)}KB → ${(compressedBlob.size / 1024).toFixed(0)}KB`, 'success');
-
         // Initialize icons for the preview section
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
