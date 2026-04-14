@@ -417,7 +417,43 @@
                     <i data-lucide="download" width="18" height="18"></i>
                     <span>Download CSV</span>
                 </button>
+                <button type="button" class="btn btn-ghost" onclick="openEditLastShift()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i data-lucide="pencil" width="18" height="18"></i>
+                    <span>Edit Shift</span>
+                </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Edit Last Shift Modal -->
+    <div class="modal" id="editLastShiftModal">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3>Edit Shift</h3>
+            </div>
+            <div id="editLastShiftAlertContainer"></div>
+            <form id="editLastShiftForm" onsubmit="saveEditLastShift(event)">
+                <div class="form-group">
+                    <label class="form-label">End Time</label>
+                    <input type="datetime-local" id="techEditShiftEndTime" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">End Kilometres</label>
+                    <input type="number" id="techEditShiftEndKms" class="form-input" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Extra Jobs</label>
+                    <input type="number" id="techEditShiftExtraJobs" class="form-input" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Shift Notes</label>
+                    <textarea id="techEditShiftNotes" class="form-input" rows="3" style="resize: vertical;"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeEditLastShiftModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -938,8 +974,8 @@ async function handleStaleShift(e) {
     activeShift = tempActiveShift;
     
     if (lastJobTime && endDateTime < lastJobTime) {
-        showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error');
-        return;
+        const proceed = confirm(`The end time you entered is before the last job entry (${formatDateTime(lastJobTime)}). This may mean jobs were added after the shift ended. Continue anyway?`);
+        if (!proceed) return;
     }
 
     const kmsTravelled = endKms - staleShift.start_kms;
@@ -1068,6 +1104,10 @@ async function generateShiftReport(shift) {
     const totalJobs = systemJobs + (shift.extra_jobs || 0);
     
     lastShiftReport = {
+        shiftId: shift.id,
+        shiftStartTimeRaw: shift.start_time,
+        shiftEndTimeRaw: shift.end_time,
+        shiftStartKms: shift.start_kms,
         date: startTime.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
         dateShort: startTime.toLocaleDateString('en-AU'),
         startTime: formatDateTime(shift.start_time),
@@ -1133,6 +1173,76 @@ function showShiftReportModal() {
 
 function closeShiftReportModal() {
     document.getElementById('shiftReportModal').classList.remove('active');
+}
+
+function openEditLastShift() {
+    if (!lastShiftReport) return;
+    document.getElementById('techEditShiftEndTime').value = formatDateTimeLocal(new Date(lastShiftReport.shiftEndTimeRaw));
+    document.getElementById('techEditShiftEndKms').value = lastShiftReport.endKms;
+    document.getElementById('techEditShiftExtraJobs').value = lastShiftReport.extraJobs || 0;
+    document.getElementById('techEditShiftNotes').value = lastShiftReport.shiftNotes || '';
+    document.getElementById('editLastShiftAlertContainer').innerHTML = '';
+    document.getElementById('editLastShiftModal').classList.add('active');
+}
+
+function closeEditLastShiftModal() {
+    document.getElementById('editLastShiftModal').classList.remove('active');
+}
+
+async function saveEditLastShift(e) {
+    e.preventDefault();
+
+    const endTime = document.getElementById('techEditShiftEndTime').value;
+    const endKms = parseInt(document.getElementById('techEditShiftEndKms').value);
+    const extraJobs = parseInt(document.getElementById('techEditShiftExtraJobs').value) || 0;
+    const shiftNotes = document.getElementById('techEditShiftNotes').value.trim();
+    const alertContainer = document.getElementById('editLastShiftAlertContainer');
+
+    function showEditAlert(msg, type) {
+        alertContainer.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+    }
+
+    if (!endTime || isNaN(endKms)) {
+        showEditAlert('Please fill in all required fields', 'error');
+        return;
+    }
+
+    const endDateTime = new Date(endTime);
+    const startDateTime = new Date(lastShiftReport.shiftStartTimeRaw);
+
+    if (endDateTime <= startDateTime) {
+        showEditAlert('End time must be after the shift start time', 'error');
+        return;
+    }
+
+    if (endKms < lastShiftReport.shiftStartKms) {
+        showEditAlert('End kilometres cannot be less than start kilometres', 'error');
+        return;
+    }
+
+    showLoading(true);
+    try {
+        const { error } = await db
+            .from('shifts')
+            .update({
+                end_time: endDateTime.toISOString(),
+                end_kms: endKms,
+                extra_jobs: extraJobs,
+                shift_notes: shiftNotes
+            })
+            .eq('id', lastShiftReport.shiftId);
+
+        if (error) throw error;
+
+        closeEditLastShiftModal();
+        closeShiftReportModal();
+        showSyncStatus('✓ Synced', 'synced');
+    } catch (error) {
+        console.error('Error updating shift:', error);
+        showEditAlert('Error updating shift: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 // ============================================

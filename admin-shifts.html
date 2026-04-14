@@ -110,7 +110,40 @@
             <div class="modal-actions">
                 <button type="button" class="btn btn-ghost" onclick="closeShiftDetailModal()">Close</button>
                 <button type="button" class="btn btn-secondary" onclick="copyShiftDetail()"><i data-lucide="clipboard" width="20" height="20"></i> Copy</button>
+                <button type="button" class="btn btn-secondary" onclick="openEditShift()"><i data-lucide="pencil" width="20" height="20"></i> Edit</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Edit Shift Modal -->
+    <div class="modal" id="editShiftModal">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3>Edit Shift</h3>
+            </div>
+            <div id="editShiftAlertContainer"></div>
+            <form id="editShiftForm" onsubmit="saveEditShift(event)">
+                <div class="form-group">
+                    <label class="form-label">End Time</label>
+                    <input type="datetime-local" id="editShiftEndTime" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">End Kilometres</label>
+                    <input type="number" id="editShiftEndKms" class="form-input" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Extra Jobs</label>
+                    <input type="number" id="editShiftExtraJobs" class="form-input" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Shift Notes</label>
+                    <textarea id="editShiftNotes" class="form-input" rows="3" style="resize: vertical;"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeEditShiftModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -633,6 +666,79 @@ Total: ${shift.totalJobs}`;
             document.body.removeChild(link);
             
             showAlert('✓ CSV downloaded', 'success');
+        }
+
+        function openEditShift() {
+            if (!selectedShiftDetail) return;
+            const shift = selectedShiftDetail;
+            document.getElementById('editShiftEndTime').value = formatDateTimeLocal(new Date(shift.end_time));
+            document.getElementById('editShiftEndKms').value = shift.end_kms;
+            document.getElementById('editShiftExtraJobs').value = shift.extra_jobs || 0;
+            document.getElementById('editShiftNotes').value = shift.shift_notes || '';
+            document.getElementById('editShiftAlertContainer').innerHTML = '';
+            document.getElementById('editShiftModal').classList.add('active');
+        }
+
+        function closeEditShiftModal() {
+            document.getElementById('editShiftModal').classList.remove('active');
+        }
+
+        async function saveEditShift(e) {
+            e.preventDefault();
+
+            const endTime = document.getElementById('editShiftEndTime').value;
+            const endKms = parseInt(document.getElementById('editShiftEndKms').value);
+            const extraJobs = parseInt(document.getElementById('editShiftExtraJobs').value) || 0;
+            const shiftNotes = document.getElementById('editShiftNotes').value.trim();
+
+            if (!endTime || isNaN(endKms)) {
+                showAlertIn('editShiftAlertContainer', 'Please fill in all required fields', 'error');
+                return;
+            }
+
+            const endDateTime = new Date(endTime);
+            const startDateTime = new Date(selectedShiftDetail.start_time);
+
+            if (endDateTime <= startDateTime) {
+                showAlertIn('editShiftAlertContainer', 'End time must be after the shift start time', 'error');
+                return;
+            }
+
+            if (endKms < selectedShiftDetail.start_kms) {
+                showAlertIn('editShiftAlertContainer', 'End kilometres cannot be less than start kilometres', 'error');
+                return;
+            }
+
+            showLoading(true);
+            try {
+                const { error } = await db
+                    .from('shifts')
+                    .update({
+                        end_time: endDateTime.toISOString(),
+                        end_kms: endKms,
+                        extra_jobs: extraJobs,
+                        shift_notes: shiftNotes
+                    })
+                    .eq('id', selectedShiftDetail.id);
+
+                if (error) throw error;
+
+                closeEditShiftModal();
+                closeShiftDetailModal();
+                await loadShifts();
+                showAlert('✓ Shift updated', 'success');
+            } catch (error) {
+                console.error('Error updating shift:', error);
+                showAlertIn('editShiftAlertContainer', 'Error updating shift: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function showAlertIn(containerId, message, type) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
         }
     </script>
 </body>
