@@ -327,8 +327,7 @@
                         db.from('jobs')
                             .select('*', { count: 'exact', head: true })
                             .in('box_id', clientBoxIds)
-                            .gte('created_at', shift.start_time)
-                            .lte('created_at', shift.end_time)
+                            .eq('shift_id', shift.id)
                             .then(({ count }) => ({ client, count: count || 0 }))
                     ));
 

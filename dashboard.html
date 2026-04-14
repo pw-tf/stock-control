@@ -601,27 +601,17 @@ function isSameDay(date1, date2) {
 
 async function getLastJobEntryTime() {
     if (!activeShift) return null;
-    
+
     try {
-        const { data: boxesData } = await db
-            .from('boxes')
-            .select('id')
-            .eq('agent', currentAgent);
-        
-        if (!boxesData || boxesData.length === 0) return null;
-        
-        const boxIds = boxesData.map(b => b.id);
-        
         const { data: jobs, error } = await db
             .from('jobs')
             .select('created_at')
-            .in('box_id', boxIds)
-            .gte('created_at', activeShift.start_time)
+            .eq('shift_id', activeShift.id)
             .order('created_at', { ascending: false })
             .limit(1);
-        
+
         if (error) throw error;
-        
+
         if (jobs && jobs.length > 0) {
             return new Date(jobs[0].created_at);
         }
@@ -1088,8 +1078,7 @@ async function generateShiftReport(shift) {
                 db.from('jobs')
                     .select('*', { count: 'exact', head: true })
                     .in('box_id', clientBoxIds)
-                    .gte('created_at', shift.start_time)
-                    .lte('created_at', shift.end_time)
+                    .eq('shift_id', shift.id)
                     .then(({ count }) => ({ client, count: count || 0 }))
             ));
             counts.forEach(({ client, count }) => {
