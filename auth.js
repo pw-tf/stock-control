@@ -28,7 +28,7 @@ async function getCurrentUser() {
     try {
         const { data, error } = await db
             .from('user_roles')
-            .select('role, agent_id, email')
+            .select('role, agent_id, email, depot_id, shifts_enabled')
             .eq('user_id', session.user.id)
             .single();
         
@@ -44,7 +44,9 @@ async function getCurrentUser() {
             id: session.user.id,
             email: session.user.email,
             role: data.role,
-            agent_id: data.agent_id
+            agent_id: data.agent_id,
+            depot_id: data.depot_id,
+            shifts_enabled: data.shifts_enabled
         };
     } catch (error) {
         console.error('Error getting user:', error);
@@ -81,13 +83,20 @@ async function logout() {
 
 // Show/hide elements based on role
 function restrictByRole(userRole) {
-    // Hide manager-only elements from non-managers
-    if (userRole !== 'manager') {
+    // Hide manager-only elements from non-managers/non-super_admins
+    if (userRole !== 'manager' && userRole !== 'super_admin') {
         document.querySelectorAll('[data-role="manager"]').forEach(el => {
             el.style.display = 'none';
         });
     }
     
+    // Hide super_admin-only elements from non-super_admins
+    if (userRole !== 'super_admin') {
+        document.querySelectorAll('[data-role="super_admin"]').forEach(el => {
+            el.style.display = 'none';
+        });
+    }
+
     // Hide technician+ elements from merchants
     if (userRole === 'merchant') {
         document.querySelectorAll('[data-role="technician"]').forEach(el => {
@@ -105,8 +114,8 @@ async function initAuth(requiredRoles = null) {
         return null;
     }
     
-    // Check if user has been assigned to an agent
-    if (!user.agent_id) {
+    // Check if user has been assigned to an agent (super_admin may not have one)
+    if (!user.agent_id && user.role !== 'super_admin') {
         window.location.href = 'pending.html';
         return null;
     }

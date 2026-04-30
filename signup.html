@@ -104,6 +104,7 @@
 
         let invitationToken = null;
         let invitationEmail = null;
+        let invitationDepotId = null;
 
         function showInvalidToken(message) {
             document.getElementById('loadingState').style.display = 'none';
@@ -168,7 +169,8 @@
                     return;
                 }
 
-                // Valid token - show signup form
+                // Valid token - store depot and show signup form
+                invitationDepotId = data.depot_id;
                 showSignupForm(data.email);
 
             } catch (error) {
@@ -218,7 +220,8 @@
                         user_id: authData.user.id,
                         email: invitationEmail,
                         role: 'technician',
-                        agent_id: null
+                        agent_id: null,
+                        depot_id: invitationDepotId
                     }]);
                 
                 if (roleError) throw roleError;

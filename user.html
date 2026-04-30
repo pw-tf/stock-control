@@ -168,7 +168,7 @@
         }
         
         document.addEventListener('DOMContentLoaded', async () => {
-            currentUser = await initAuth(['manager', 'technician']);
+            currentUser = await initAuth(['super_admin', 'manager', 'technician']);
             if (!currentUser) return;
             
             // Set default date range (today)
@@ -272,7 +272,8 @@
                     const { data: boxes } = await db
                         .from('boxes')
                         .select('id, client')
-                        .eq('agent', agentId);
+                        .eq('agent', agentId)
+                        .eq('depot_id', currentUser.depot_id);
                     agentBoxes = boxes || [];
                 }
 

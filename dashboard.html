@@ -467,6 +467,7 @@
 let currentAgent, boxes = [], currentBox;
 let currentUserRole = null;
 let currentUserId = null;
+let currentDepotId = null;
 let shiftsEnabled = false;
 let activeShift = null;
 let staleShift = null;
@@ -764,7 +765,8 @@ async function handleStartShift(e) {
                 agent_id: currentAgent,
                 start_time: startDateTime.toISOString(),
                 start_kms: startKms,
-                status: 'active'
+                status: 'active',
+                depot_id: currentDepotId
             }])
             .select()
             .single();
@@ -1493,7 +1495,7 @@ async function updateVendorsByClient(clientId) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    const user = await initAuth(['manager', 'technician']);
+    const user = await initAuth(['super_admin', 'manager', 'technician']);
     if (!user) return;
     
     // Initialize sidebar
@@ -1502,21 +1504,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     currentAgent = user.agent_id;
     currentUserRole = user.role;
     currentUserId = user.id;
-    
-    // Check if shifts are enabled for this user
-    try {
-        const { data: userData, error } = await db
-            .from('user_roles')
-            .select('shifts_enabled')
-            .eq('user_id', currentUserId)
-            .single();
-        
-        if (!error && userData) {
-            shiftsEnabled = userData.shifts_enabled || false;
-        }
-    } catch (error) {
-        console.error('Error checking shift settings:', error);
-    }
+    currentDepotId = user.depot_id;
+    shiftsEnabled = user.shifts_enabled || false;
     
     await Promise.all([
         loadClients(),
@@ -1586,6 +1575,7 @@ async function handleClientChange() {
                 .eq("agent", currentAgent)
                 .eq("client", client)
                 .eq("status", "open")
+                .eq("depot_id", currentDepotId)
                 .order("created_at", { ascending: false })
                 .limit(1)
         ]);
@@ -1607,7 +1597,8 @@ async function handleClientChange() {
                     client: client,
                     box_number: boxNumber,
                     status: "open",
-                    created_at: new Date().toISOString()
+                    created_at: new Date().toISOString(),
+                    depot_id: currentDepotId
                 }])
                 .select()
                 .single();
@@ -1708,7 +1699,8 @@ async function handleAddJob() {
             vendor: vendor,
             job_type: currentJobType,
             shift_id: activeShift?.id || null,
-            created_at: jobTimestamp
+            created_at: jobTimestamp,
+            depot_id: currentDepotId
         };
 
         const { data: job, error: jobError } = await db
@@ -1739,7 +1731,8 @@ async function handleAddJob() {
                 job_id: job.id,
                 box_id: currentBox.id,
                 serial_number: serial,
-                created_at: jobTimestamp
+                created_at: jobTimestamp,
+                depot_id: currentDepotId
             }));
 
             const { error: serialError } = await db.from("serials").insert(serialRecords);
@@ -1799,13 +1792,14 @@ async function handleNewBox() {
                 client: client,
                 box_number: boxNumber,
                 status: "open",
-                created_at: new Date().toISOString()
+                created_at: new Date().toISOString(),
+                depot_id: currentDepotId
             }])
             .select()
             .single();
-            
+
         if (error) throw error;
-        
+
         currentBox = newBox;
         currentBox.jobs = [];
         updateCurrentBoxDisplay();
@@ -1862,6 +1856,7 @@ async function getNextBoxNumber(client) {
             .select("box_number")
             .eq("agent", currentAgent)
             .eq("client", client)
+            .eq("depot_id", currentDepotId)
             .order("box_number", { ascending: false })
             .limit(1);
             
@@ -1903,8 +1898,9 @@ async function checkDuplicates(serials) {
         const { data } = await db
             .from("serials")
             .select("serial_number")
-            .in("serial_number", serials);
-            
+            .in("serial_number", serials)
+            .eq("depot_id", currentDepotId);
+
         return data ? data.map(s => s.serial_number) : [];
     } catch (error) {
         return [];
@@ -1917,6 +1913,7 @@ async function loadBoxesForAgent() {
             .from("boxes")
             .select("*")
             .eq("agent", currentAgent)
+            .eq("depot_id", currentDepotId)
             .order("created_at", { ascending: false });
             
         boxes = data || [];

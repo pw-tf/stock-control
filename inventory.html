@@ -171,6 +171,7 @@
 
     <script>
         let currentUser = null;
+        let currentDepotId = null;
         let selectedBoxId = null;
         let selectedBoxAgent = null;
         let allVendors = [];
@@ -179,8 +180,9 @@
         let lastSearchResults = null; // Store last search results for print all
 
         document.addEventListener('DOMContentLoaded', async () => {
-            currentUser = await initAuth(['manager', 'technician']);
+            currentUser = await initAuth(['super_admin', 'manager', 'technician']);
             if (!currentUser) return;
+            currentDepotId = currentUser.depot_id;
 
             // Initialize sidebar
             initSidebar(currentUser);
@@ -367,7 +369,7 @@
                 // Get valid box IDs if agent/client filter is set
                 let validBoxIds = null;
                 if (hasAgentFilter || hasClientFilter) {
-                    let boxQuery = db.from('boxes').select('*');
+                    let boxQuery = db.from('boxes').select('*').eq('depot_id', currentDepotId);
                     if (hasAgentFilter) boxQuery = boxQuery.eq('agent', selectedAgent);
                     if (hasClientFilter) boxQuery = boxQuery.eq('client', selectedClient);
                     const { data: filteredBoxes, error } = await boxQuery;
@@ -385,7 +387,7 @@
 
                 // 1. Search for BOXES by box_id pattern
                 if (hasTextSearch) {
-                    let boxQuery = db.from('boxes').select('*').ilike('box_id', pattern);
+                    let boxQuery = db.from('boxes').select('*').ilike('box_id', pattern).eq('depot_id', currentDepotId);
                     if (hasAgentFilter) boxQuery = boxQuery.eq('agent', selectedAgent);
                     if (hasClientFilter) boxQuery = boxQuery.eq('client', selectedClient);
                     const { data: boxes, error } = await boxQuery;
@@ -400,7 +402,7 @@
 
                 // 2. Search for JOBS by job_number pattern
                 if (hasTextSearch) {
-                    let jobQuery = db.from('jobs').select('*').ilike('job_number', pattern);
+                    let jobQuery = db.from('jobs').select('*').ilike('job_number', pattern).eq('depot_id', currentDepotId);
                     if (validBoxIds) jobQuery = jobQuery.in('box_id', validBoxIds);
                     if (hasDateFilter) {
                         jobQuery = jobQuery
@@ -425,7 +427,7 @@
 
                 // 3. Search for SERIALS by serial_number pattern
                 if (hasTextSearch) {
-                    let serialQuery = db.from('serials').select('*, jobs(*, boxes(*))').ilike('serial_number', pattern);
+                    let serialQuery = db.from('serials').select('*, jobs(*, boxes(*))').ilike('serial_number', pattern).eq('depot_id', currentDepotId);
                     if (validBoxIds) serialQuery = serialQuery.in('box_id', validBoxIds);
                     const { data: serials, error } = await serialQuery;
                     if (error) throw error;
@@ -453,12 +455,14 @@
                     if (hasDateFilter) {
                         // Fetch boxes created and closed in date range in parallel
                         let createdQuery = db.from('boxes').select('*')
+                            .eq('depot_id', currentDepotId)
                             .gte('created_at', activeDateRange.from.toISOString())
                             .lte('created_at', activeDateRange.to.toISOString());
                         if (hasAgentFilter) createdQuery = createdQuery.eq('agent', selectedAgent);
                         if (hasClientFilter) createdQuery = createdQuery.eq('client', selectedClient);
 
                         let closedQuery = db.from('boxes').select('*')
+                            .eq('depot_id', currentDepotId)
                             .not('closed_at', 'is', null)
                             .gte('closed_at', activeDateRange.from.toISOString())
                             .lte('closed_at', activeDateRange.to.toISOString());
@@ -493,7 +497,7 @@
                     }
 
                     // Get jobs matching filters
-                    let jobsQuery = db.from('jobs').select('*');
+                    let jobsQuery = db.from('jobs').select('*').eq('depot_id', currentDepotId);
                     if (validBoxIds) jobsQuery = jobsQuery.in('box_id', validBoxIds);
                     if (hasDateFilter) {
                         jobsQuery = jobsQuery
@@ -1278,6 +1282,7 @@
                 const { data, error } = await db
                     .from('agents')
                     .select('agent_id')
+                    .eq('depot_id', currentDepotId)
                     .order('agent_id', { ascending: true });
 
                 if (error) throw error;
@@ -1454,7 +1459,8 @@ async function handleSaveJob(event) {
         .from('serials')
         .select('serial_number')
         .in('serial_number', serials)
-        .neq('job_id', jobId);
+        .neq('job_id', jobId)
+        .eq('depot_id', currentDepotId);
     
     if (checkError) {
         showAlert('Error checking for duplicates: ' + checkError.message, 'error');
@@ -1495,7 +1501,8 @@ async function handleSaveJob(event) {
             job_id: parseInt(jobId),
             box_id: parseInt(boxId),
             serial_number: serial,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            depot_id: currentDepotId
         }));
         
         const { error: insertError } = await db

@@ -15,10 +15,17 @@ function initSidebar(user) {
     setActivePage();
     
     // Apply role-based visibility
-    if (user && user.role !== 'manager') {
+    if (user && user.role !== 'manager' && user.role !== 'super_admin') {
         hideAdminMenu();
     }
-    
+
+    // Hide super_admin-only sidebar items from non-super_admins
+    if (user && user.role !== 'super_admin') {
+        document.querySelectorAll('#sidebar [data-role="super_admin"]').forEach(el => {
+            el.style.display = 'none';
+        });
+    }
+
     // Setup event listeners
     setupSidebarEvents();
 }
@@ -93,6 +100,10 @@ function injectSidebarHTML() {
                         <span><i data-lucide="bar-chart-2" width="20" height="20"></i></span>
                         <span>Shift Reports</span>
                     </a>
+                    <a href="manage-depots.html" class="sidebar-menu-item sub-item" data-page="manage-depots" data-role="super_admin" id="manageDepotsLink">
+                        <span><i data-lucide="building-2" width="20" height="20"></i></span>
+                        <span>Manage Depots</span>
+                    </a>
                 </div>
             </div>
 
@@ -139,6 +150,9 @@ function setActivePage() {
         isAdminPage = true;
     } else if (filename === 'admin-shifts.html') {
         activePage = 'admin-shifts';
+        isAdminPage = true;
+    } else if (filename === 'manage-depots.html') {
+        activePage = 'manage-depots';
         isAdminPage = true;
     } else if (filename === 'admin.html') {
         // Legacy admin.html - redirect to admin-depot

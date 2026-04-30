@@ -149,6 +149,7 @@
 
     <script>
         let currentUser = null;
+        let currentDepotId = null;
         let allShifts = [];
         let allClients = [];
         let selectedShiftDetail = null;
@@ -174,8 +175,9 @@
         }
         
         document.addEventListener('DOMContentLoaded', async () => {
-            currentUser = await initAuth('manager');
+            currentUser = await initAuth(['manager', 'super_admin']);
             if (!currentUser) return;
+            currentDepotId = currentUser.depot_id;
             
             // Set default date range (today)
             const today = new Date();
@@ -212,6 +214,7 @@
                     .from('user_roles')
                     .select('user_id, email, agent_id')
                     .eq('shifts_enabled', true)
+                    .eq('depot_id', currentDepotId)
                     .order('agent_id', { ascending: true });
                 
                 if (error) throw error;
@@ -249,6 +252,7 @@
                     .from('shifts')
                     .select('*')
                     .eq('status', 'completed')
+                    .eq('depot_id', currentDepotId)
                     .gte('start_time', new Date(dateFrom + 'T00:00:00').toISOString())
                     .lte('start_time', new Date(dateTo + 'T23:59:59').toISOString())
                     .order('start_time', { ascending: false });

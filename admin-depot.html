@@ -132,6 +132,7 @@
                         </table>
                     </div>
                 </div>
+
             </div>
         </div>
     </div>
@@ -303,7 +304,7 @@
     <div class="modal" id="viewUserModal">
         <div class="modal-content" style="max-width: 640px;">
             <div class="modal-header">
-                <h3>👤 User Details</h3>
+                <h3>User Details</h3>
             </div>
             <div id="viewUserContent">
             </div>
@@ -315,11 +316,13 @@
 
     <script>
         let currentUser = null;
+        let currentDepotId = null;
         let viewingUserId = null;
-        
+
         document.addEventListener('DOMContentLoaded', async () => {
-            currentUser = await initAuth('manager');
+            currentUser = await initAuth(['manager', 'super_admin']);
             if (!currentUser) return;
+            currentDepotId = currentUser.depot_id;
             
             // Initialize sidebar
             initSidebar(currentUser);
@@ -330,7 +333,7 @@
                 loadClients(),
                 loadVendors()
             ]);
-            
+
             // Setup tabs
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.addEventListener('click', () => {
@@ -340,14 +343,13 @@
                     document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
                 });
             });
-            
+
             // Setup forms
             document.getElementById('addAgentForm').addEventListener('submit', handleAddAgent);
             document.getElementById('addClientForm').addEventListener('submit', handleAddClient);
             document.getElementById('addVendorForm').addEventListener('submit', handleAddVendor);
             document.getElementById('inviteUserForm').addEventListener('submit', handleInviteUser);
             document.getElementById('assignAgentForm').addEventListener('submit', handleAssignAgent);
-            
             showLoading(false);
         });
         
@@ -357,10 +359,12 @@
         
         async function loadUsers() {
             try {
-                const { data, error } = await db
+                let usersQuery = db
                     .from('user_roles')
                     .select('*')
+                    .eq('depot_id', currentDepotId)
                     .order('agent_id', { ascending: true });
+                const { data, error } = await usersQuery;
                 
                 if (error) throw error;
                 
@@ -409,11 +413,12 @@
                 const { data, error } = await db
                     .from('agents')
                     .select('agent_id')
+                    .eq('depot_id', currentDepotId)
                     .order('agent_id', { ascending: true });
-                
+
                 if (error) throw error;
-                
-                const { data: userCounts } = await db.from('user_roles').select('agent_id');
+
+                const { data: userCounts } = await db.from('user_roles').select('agent_id').eq('depot_id', currentDepotId);
                 
                 const counts = {};
                 userCounts?.forEach(u => {
@@ -544,7 +549,7 @@
             const agentId = document.getElementById('agentId').value;
             
             try {
-                const { error } = await db.from('agents').insert([{ agent_id: agentId }]);
+                const { error } = await db.from('agents').insert([{ agent_id: agentId, depot_id: currentDepotId }]);
                 if (error) throw error;
                 
                 showAlert('Agent added successfully!', 'success');
@@ -811,7 +816,8 @@
                         token: token,
                         email: email,
                         expires_at: expiresAt.toISOString(),
-                        created_by: currentUser.id
+                        created_by: currentUser.id,
+                        depot_id: currentDepotId
                     }]);
                 
                 if (tokenError) throw tokenError;
@@ -857,10 +863,11 @@
                 const { data: agents, error } = await db
                     .from('agents')
                     .select('agent_id')
+                    .eq('depot_id', currentDepotId)
                     .order('agent_id', { ascending: true });
-                
+
                 if (error) throw error;
-                
+
                 const select = document.getElementById('assignAgentSelect');
                 select.innerHTML = '<option value="">Choose an agent...</option>' +
                     agents.map(a => `<option value="${a.agent_id}">Agent ${a.agent_id}</option>`).join('');
@@ -1049,6 +1056,7 @@
             // Navigate to admin-shifts page with the user_id to filter
             window.location.href = 'admin-shifts.html?user=' + userId;
         }
+
     </script>
 </body>
 </html>

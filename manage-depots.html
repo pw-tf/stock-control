@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Depots - Super Admin</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script src="sidebar.js"></script>
+    <script src="utils.js"></script>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Sync Status -->
+    <div class="sync-status" id="syncStatus"></div>
+
+    <!-- Main Container -->
+    <div class="app-wrapper">
+        <div class="container container-wide">
+            <div class="header">
+                <div class="header-content">
+                    <div class="header-icon">🏗</div>
+                    <div>
+                        <h1>Manage Depots</h1>
+                        <div class="header-subtitle">Create and manage depots across the platform</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content">
+                <div id="alertContainer"></div>
+
+                <!-- Depot Selector -->
+                <div style="margin-bottom: 24px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 2px solid var(--border-primary);">
+                    <label class="form-label" style="margin-bottom: 8px;">Viewing Depot</label>
+                    <select id="depotSelector" class="form-input" onchange="handleDepotSwitch(this.value)">
+                    </select>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+                        Switching depots changes the Users and Agents sections below.
+                    </p>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab active" data-tab="depots">Depots</button>
+                    <button class="tab" data-tab="depot-users">Users</button>
+                    <button class="tab" data-tab="depot-agents">Agents</button>
+                </div>
+
+                <!-- Depots Tab -->
+                <div class="tab-content active" id="depots-tab">
+                    <div class="section-header">
+                        <h2>All Depots</h2>
+                        <button class="btn btn-primary" onclick="openAddDepotModal()">+ Add Depot</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Depot ID</th>
+                                    <th>Depot Name</th>
+                                    <th>Agents</th>
+                                    <th>Users</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="depotsTableBody">
+                                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Depot Users Tab -->
+                <div class="tab-content" id="depot-users-tab">
+                    <div class="section-header">
+                        <h2>Users in <span id="depotUsersLabel"></span></h2>
+                        <button class="btn btn-primary" onclick="openInviteUserModal()">+ Invite User</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Agent ID</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Shifts</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="depotUsersTableBody">
+                                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">Select a depot above</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Depot Agents Tab -->
+                <div class="tab-content" id="depot-agents-tab">
+                    <div class="section-header">
+                        <h2>Agents in <span id="depotAgentsLabel"></span></h2>
+                        <button class="btn btn-primary" onclick="openAddAgentModal()">+ Add Agent</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Agent ID</th>
+                                    <th>Assigned Users</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="depotAgentsTableBody">
+                                <tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">Select a depot above</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Depot Modal -->
+    <div class="modal" id="addDepotModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Depot</h3>
+            </div>
+            <form id="addDepotForm">
+                <div class="form-group">
+                    <label class="form-label">Depot ID</label>
+                    <input type="text" id="newDepotId" class="form-input" required placeholder="e.g. techmate">
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+                        Lowercase identifier, no spaces. Used internally.
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Depot Name</label>
+                    <input type="text" id="newDepotName" class="form-input" required placeholder="e.g. TechMate">
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+                        Display name for the depot.
+                    </p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeAddDepotModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Depot</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Move User Depot Modal -->
+    <div class="modal" id="moveUserDepotModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Move User to Another Depot</h3>
+            </div>
+            <form id="moveUserDepotForm">
+                <div class="form-group">
+                    <label class="form-label">User</label>
+                    <input type="text" id="moveUserEmail" class="form-input" disabled>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Move to Depot</label>
+                    <select id="moveUserDepotSelect" class="form-input" required>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeMoveUserDepotModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Move User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Invite User Modal -->
+    <div class="modal" id="inviteUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Invite User to <span id="inviteDepotLabel"></span></h3>
+            </div>
+            <form id="inviteUserForm">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" id="inviteEmail" class="form-input" required placeholder="user@example.com">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeInviteUserModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Send Invitation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Role Modal -->
+    <div class="modal" id="changeRoleModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Change Role</h3>
+            </div>
+            <form id="changeRoleForm">
+                <div class="form-group">
+                    <label class="form-label">User</label>
+                    <input type="text" id="changeRoleEmail" class="form-input" disabled>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <select id="changeRoleSelect" class="form-input" required>
+                        <option value="technician">Technician</option>
+                        <option value="manager">Manager</option>
+                        <option value="merchant">Merchant</option>
+                        <option value="super_admin">Super Admin</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeChangeRoleModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Role</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Agent Modal -->
+    <div class="modal" id="addAgentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Agent to <span id="addAgentDepotLabel"></span></h3>
+            </div>
+            <form id="addAgentForm">
+                <div class="form-group">
+                    <label class="form-label">Agent ID</label>
+                    <input type="text" id="newAgentId" class="form-input" required placeholder="e.g. 803">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeAddAgentModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Agent</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Assign Agent Modal -->
+    <div class="modal" id="assignAgentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Assign Agent to <span id="assignAgentEmail"></span></h3>
+            </div>
+            <form id="assignAgentForm">
+                <div class="form-group">
+                    <label class="form-label">Agent</label>
+                    <select id="assignAgentSelect" class="form-input" required>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeAssignAgentModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Assign</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let selectedDepotId = null;
+        let allDepots = [];
+        let moveUserId = null;
+        let changeRoleUserId = null;
+        let assignAgentUserId = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await initAuth('super_admin');
+            if (!currentUser) return;
+
+            initSidebar(currentUser);
+
+            await loadDepots();
+
+            // Setup tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+                });
+            });
+
+            document.getElementById('addDepotForm').addEventListener('submit', handleAddDepot);
+            document.getElementById('moveUserDepotForm').addEventListener('submit', handleMoveUserDepot);
+            document.getElementById('inviteUserForm').addEventListener('submit', handleInviteUser);
+            document.getElementById('changeRoleForm').addEventListener('submit', handleChangeRole);
+            document.getElementById('addAgentForm').addEventListener('submit', handleAddAgent);
+            document.getElementById('assignAgentForm').addEventListener('submit', handleAssignAgent);
+
+            showLoading(false);
+        });
+
+        function showLoading(show) {
+            document.getElementById("loading").classList.toggle("active", show);
+        }
+
+        function showAlert(message, type = 'info') {
+            const container = document.getElementById('alertContainer');
+            container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            setTimeout(() => { container.innerHTML = ''; }, 4000);
+        }
+
+        // ============================================
+        // DEPOT CRUD
+        // ============================================
+
+        async function loadDepots() {
+            try {
+                const { data: depots, error } = await db
+                    .from('depots')
+                    .select('*')
+                    .order('depot_id', { ascending: true });
+
+                if (error) throw error;
+                allDepots = depots || [];
+
+                // Get agent and user counts per depot
+                const { data: allAgents } = await db.from('agents').select('depot_id');
+                const { data: allUsers } = await db.from('user_roles').select('depot_id');
+
+                const agentCounts = {};
+                const userCounts = {};
+                allAgents?.forEach(a => { agentCounts[a.depot_id] = (agentCounts[a.depot_id] || 0) + 1; });
+                allUsers?.forEach(u => { userCounts[u.depot_id] = (userCounts[u.depot_id] || 0) + 1; });
+
+                const tbody = document.getElementById('depotsTableBody');
+                if (!allDepots.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">No depots found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = allDepots.map(depot => `
+                    <tr>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${depot.depot_id}</td>
+                        <td>${depot.depot_name}</td>
+                        <td>${agentCounts[depot.depot_id] || 0}</td>
+                        <td>${userCounts[depot.depot_id] || 0}</td>
+                        <td>${new Date(depot.created_at).toLocaleDateString()}</td>
+                        <td>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteDepot('${depot.depot_id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                // Update depot selector dropdown
+                const selector = document.getElementById('depotSelector');
+                const previousValue = selectedDepotId;
+                selector.innerHTML = allDepots.map(d =>
+                    `<option value="${d.depot_id}" ${d.depot_id === (previousValue || allDepots[0]?.depot_id) ? 'selected' : ''}>${d.depot_name} (${d.depot_id})</option>`
+                ).join('');
+
+                // Set selectedDepotId if not already set
+                if (!selectedDepotId && allDepots.length > 0) {
+                    selectedDepotId = allDepots[0].depot_id;
+                }
+
+                await loadDepotDetails();
+            } catch (error) {
+                console.error('Error loading depots:', error);
+                showAlert('Error loading depots: ' + error.message, 'error');
+            }
+        }
+
+        function openAddDepotModal() {
+            document.getElementById('addDepotModal').classList.add('active');
+        }
+
+        function closeAddDepotModal() {
+            document.getElementById('addDepotModal').classList.remove('active');
+            document.getElementById('addDepotForm').reset();
+        }
+
+        async function handleAddDepot(e) {
+            e.preventDefault();
+            const depotId = document.getElementById('newDepotId').value.trim().toLowerCase().replace(/\s+/g, '-');
+            const depotName = document.getElementById('newDepotName').value.trim();
+
+            try {
+                const { error } = await db.from('depots').insert([{
+                    depot_id: depotId,
+                    depot_name: depotName
+                }]);
+                if (error) throw error;
+
+                showAlert(`Depot "${depotName}" created successfully!`, 'success');
+                closeAddDepotModal();
+                await loadDepots();
+            } catch (error) {
+                showAlert('Error creating depot: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteDepot(depotId) {
+            if (!confirm(`Delete depot "${depotId}"? This will fail if there are agents, users, or data still assigned to it.`)) return;
+
+            try {
+                const { error } = await db.from('depots').delete().eq('depot_id', depotId);
+                if (error) throw error;
+
+                showAlert('Depot deleted successfully!', 'success');
+                if (selectedDepotId === depotId) {
+                    selectedDepotId = null;
+                }
+                await loadDepots();
+            } catch (error) {
+                showAlert('Error deleting depot: ' + error.message, 'error');
+            }
+        }
+
+        // ============================================
+        // DEPOT DETAIL VIEWS (Users & Agents for selected depot)
+        // ============================================
+
+        async function handleDepotSwitch(depotId) {
+            selectedDepotId = depotId;
+            await loadDepotDetails();
+        }
+
+        async function loadDepotDetails() {
+            if (!selectedDepotId) return;
+
+            const depotName = allDepots.find(d => d.depot_id === selectedDepotId)?.depot_name || selectedDepotId;
+            document.getElementById('depotUsersLabel').textContent = depotName;
+            document.getElementById('depotAgentsLabel').textContent = depotName;
+
+            await Promise.all([loadDepotUsers(), loadDepotAgents()]);
+        }
+
+        async function loadDepotUsers() {
+            try {
+                const { data, error } = await db
+                    .from('user_roles')
+                    .select('*')
+                    .eq('depot_id', selectedDepotId)
+                    .order('agent_id', { ascending: true });
+
+                if (error) throw error;
+
+                const tbody = document.getElementById('depotUsersTableBody');
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">No users in this depot</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.map(user => {
+                    const agentDisplay = user.agent_id
+                        ? `<span style="font-family: var(--font-mono);">${user.agent_id}</span>`
+                        : '<span style="color: var(--text-muted); font-style: italic;">Not assigned</span>';
+
+                    const shiftsDisplay = user.shifts_enabled
+                        ? '<span style="color: var(--success);">Enabled</span>'
+                        : '<span style="color: var(--text-muted);">—</span>';
+
+                    const assignBtn = !user.agent_id
+                        ? `<button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="openAssignAgentModal('${user.user_id}', '${user.email}')">Assign Agent</button>`
+                        : '';
+
+                    return `
+                        <tr>
+                            <td>${agentDisplay}</td>
+                            <td>${user.email || 'N/A'}</td>
+                            <td><span class="badge badge-${user.role}">${user.role}</span></td>
+                            <td>${shiftsDisplay}</td>
+                            <td style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                ${assignBtn}
+                                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="openChangeRoleModal('${user.user_id}', '${user.email}', '${user.role}')">Role</button>
+                                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="openMoveUserDepotModal('${user.user_id}', '${user.email}')">Move</button>
+                                <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading depot users:', error);
+                showAlert('Error loading users: ' + error.message, 'error');
+            }
+        }
+
+        async function loadDepotAgents() {
+            try {
+                const { data: agents, error } = await db
+                    .from('agents')
+                    .select('agent_id')
+                    .eq('depot_id', selectedDepotId)
+                    .order('agent_id', { ascending: true });
+
+                if (error) throw error;
+
+                const { data: userCounts } = await db.from('user_roles').select('agent_id').eq('depot_id', selectedDepotId);
+                const counts = {};
+                userCounts?.forEach(u => {
+                    if (u.agent_id) counts[u.agent_id] = (counts[u.agent_id] || 0) + 1;
+                });
+
+                const tbody = document.getElementById('depotAgentsTableBody');
+                if (!agents || agents.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">No agents in this depot</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = agents.map(agent => `
+                    <tr>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${agent.agent_id}</td>
+                        <td>${counts[agent.agent_id] || 0} user(s)</td>
+                        <td>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteAgent('${agent.agent_id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading depot agents:', error);
+                showAlert('Error loading agents: ' + error.message, 'error');
+            }
+        }
+
+        // ============================================
+        // MOVE USER BETWEEN DEPOTS
+        // ============================================
+
+        function openMoveUserDepotModal(userId, email) {
+            moveUserId = userId;
+            document.getElementById('moveUserEmail').value = email;
+
+            const select = document.getElementById('moveUserDepotSelect');
+            select.innerHTML = allDepots
+                .filter(d => d.depot_id !== selectedDepotId)
+                .map(d => `<option value="${d.depot_id}">${d.depot_name} (${d.depot_id})</option>`)
+                .join('');
+
+            document.getElementById('moveUserDepotModal').classList.add('active');
+        }
+
+        function closeMoveUserDepotModal() {
+            document.getElementById('moveUserDepotModal').classList.remove('active');
+            document.getElementById('moveUserDepotForm').reset();
+            moveUserId = null;
+        }
+
+        async function handleMoveUserDepot(e) {
+            e.preventDefault();
+            const targetDepotId = document.getElementById('moveUserDepotSelect').value;
+
+            if (!moveUserId || !targetDepotId) return;
+
+            try {
+                const { error } = await db
+                    .from('user_roles')
+                    .update({ depot_id: targetDepotId, agent_id: null })
+                    .eq('user_id', moveUserId);
+
+                if (error) throw error;
+
+                showAlert('User moved successfully. Their agent assignment has been cleared.', 'success');
+                closeMoveUserDepotModal();
+                await Promise.all([loadDepots(), loadDepotDetails()]);
+            } catch (error) {
+                showAlert('Error moving user: ' + error.message, 'error');
+            }
+        }
+
+        // ============================================
+        // INVITE USER
+        // ============================================
+
+        function openInviteUserModal() {
+            if (!selectedDepotId) {
+                showAlert('Select a depot first', 'error');
+                return;
+            }
+            const depotName = allDepots.find(d => d.depot_id === selectedDepotId)?.depot_name || selectedDepotId;
+            document.getElementById('inviteDepotLabel').textContent = depotName;
+            document.getElementById('inviteUserModal').classList.add('active');
+        }
+
+        function closeInviteUserModal() {
+            document.getElementById('inviteUserModal').classList.remove('active');
+            document.getElementById('inviteUserForm').reset();
+        }
+
+        function generateToken() {
+            const array = new Uint8Array(32);
+            crypto.getRandomValues(array);
+            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function handleInviteUser(e) {
+            e.preventDefault();
+            const email = document.getElementById('inviteEmail').value.trim();
+
+            try {
+                const token = generateToken();
+                const expiresAt = new Date();
+                expiresAt.setHours(expiresAt.getHours() + 1);
+
+                const { error } = await db
+                    .from('invitation_tokens')
+                    .insert([{
+                        token: token,
+                        email: email,
+                        expires_at: expiresAt.toISOString(),
+                        created_by: currentUser.id,
+                        depot_id: selectedDepotId
+                    }]);
+
+                if (error) throw error;
+
+                const signupLink = `${window.location.origin}/signup.html?token=${token}`;
+
+                const depotName = allDepots.find(d => d.depot_id === selectedDepotId)?.depot_name || selectedDepotId;
+                const message = `Invitation link for ${email} (Depot: ${depotName}):\n\n` +
+                    `${signupLink}\n\n` +
+                    `This link expires in 1 hour and can only be used once.\n` +
+                    `After signup, assign them to an agent in the Users tab.`;
+
+                try {
+                    await navigator.clipboard.writeText(signupLink);
+                    showAlert('Invitation link created and copied to clipboard!', 'success');
+                    alert(message + '\n\nLink copied to clipboard!');
+                } catch (err) {
+                    showAlert('Invitation link created!', 'success');
+                    alert(message);
+                }
+
+                closeInviteUserModal();
+            } catch (error) {
+                showAlert('Error creating invitation: ' + error.message, 'error');
+            }
+        }
+
+        // ============================================
+        // CHANGE ROLE
+        // ============================================
+
+        function openChangeRoleModal(userId, email, currentRole) {
+            changeRoleUserId = userId;
+            document.getElementById('changeRoleEmail').value = email;
+            document.getElementById('changeRoleSelect').value = currentRole;
+            document.getElementById('changeRoleModal').classList.add('active');
+        }
+
+        function closeChangeRoleModal() {
+            document.getElementById('changeRoleModal').classList.remove('active');
+            changeRoleUserId = null;
+        }
+
+        async function handleChangeRole(e) {
+            e.preventDefault();
+            const newRole = document.getElementById('changeRoleSelect').value;
+
+            if (!changeRoleUserId) return;
+
+            try {
+                const { error } = await db
+                    .from('user_roles')
+                    .update({ role: newRole })
+                    .eq('user_id', changeRoleUserId);
+
+                if (error) throw error;
+
+                showAlert('Role updated successfully', 'success');
+                closeChangeRoleModal();
+                await loadDepotUsers();
+            } catch (error) {
+                showAlert('Error updating role: ' + error.message, 'error');
+            }
+        }
+
+        // ============================================
+        // DELETE USER
+        // ============================================
+
+        async function deleteUser(userId, email) {
+            if (!confirm(`Delete user ${email}? They will lose access to the system.`)) return;
+
+            try {
+                const { error } = await db.from('user_roles').delete().eq('user_id', userId);
+                if (error) throw error;
+
+                showAlert(`User ${email} removed.`, 'success');
+                await Promise.all([loadDepots(), loadDepotUsers()]);
+            } catch (error) {
+                showAlert('Error deleting user: ' + error.message, 'error');
+            }
+        }
+
+        // ============================================
+        // ADD AGENT
+        // ============================================
+
+        function openAddAgentModal() {
+            if (!selectedDepotId) {
+                showAlert('Select a depot first', 'error');
+                return;
+            }
+            const depotName = allDepots.find(d => d.depot_id === selectedDepotId)?.depot_name || selectedDepotId;
+            document.getElementById('addAgentDepotLabel').textContent = depotName;
+            document.getElementById('addAgentModal').classList.add('active');
+        }
+
+        function closeAddAgentModal() {
+            document.getElementById('addAgentModal').classList.remove('active');
+            document.getElementById('addAgentForm').reset();
+        }
+
+        async function handleAddAgent(e) {
+            e.preventDefault();
+            const agentId = document.getElementById('newAgentId').value.trim();
+
+            try {
+                const { error } = await db.from('agents').insert([{
+                    agent_id: agentId,
+                    depot_id: selectedDepotId
+                }]);
+                if (error) throw error;
+
+                showAlert('Agent added successfully!', 'success');
+                closeAddAgentModal();
+                await Promise.all([loadDepots(), loadDepotAgents()]);
+            } catch (error) {
+                showAlert('Error adding agent: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteAgent(agentId) {
+            if (!confirm(`Delete agent ${agentId}? This will also delete all associated boxes, jobs, and serials.`)) return;
+
+            try {
+                const { error } = await db.from('agents').delete().eq('agent_id', agentId);
+                if (error) throw error;
+
+                showAlert('Agent deleted successfully!', 'success');
+                await Promise.all([loadDepots(), loadDepotAgents()]);
+            } catch (error) {
+                showAlert('Error deleting agent: ' + error.message, 'error');
+            }
+        }
+
+        // ============================================
+        // ASSIGN AGENT TO USER
+        // ============================================
+
+        async function openAssignAgentModal(userId, email) {
+            assignAgentUserId = userId;
+            document.getElementById('assignAgentEmail').textContent = email;
+
+            try {
+                const { data: agents, error } = await db
+                    .from('agents')
+                    .select('agent_id')
+                    .eq('depot_id', selectedDepotId)
+                    .order('agent_id', { ascending: true });
+
+                if (error) throw error;
+
+                const select = document.getElementById('assignAgentSelect');
+                select.innerHTML = '<option value="">Choose an agent...</option>' +
+                    (agents || []).map(a => `<option value="${a.agent_id}">Agent ${a.agent_id}</option>`).join('');
+
+                document.getElementById('assignAgentModal').classList.add('active');
+            } catch (error) {
+                showAlert('Error loading agents: ' + error.message, 'error');
+            }
+        }
+
+        function closeAssignAgentModal() {
+            document.getElementById('assignAgentModal').classList.remove('active');
+            assignAgentUserId = null;
+        }
+
+        async function handleAssignAgent(e) {
+            e.preventDefault();
+            const agentId = document.getElementById('assignAgentSelect').value;
+
+            if (!agentId || !assignAgentUserId) return;
+
+            try {
+                const { error } = await db
+                    .from('user_roles')
+                    .update({ agent_id: agentId })
+                    .eq('user_id', assignAgentUserId);
+
+                if (error) throw error;
+
+                showAlert(`Agent ${agentId} assigned successfully`, 'success');
+                closeAssignAgentModal();
+                await loadDepotUsers();
+            } catch (error) {
+                showAlert('Error assigning agent: ' + error.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

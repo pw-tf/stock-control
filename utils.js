@@ -161,21 +161,26 @@ function downloadCSV(content, filename) {
  * Check for duplicate serial numbers in the database
  * @param {string[]} serials - Array of serial numbers to check
  * @param {number|null} excludeJobId - Optional job ID to exclude from check
+ * @param {string|null} depotId - Depot ID to scope the check to
  * @returns {Promise<string[]>} Array of duplicate serials found
  */
-async function checkDuplicateSerials(serials, excludeJobId = null) {
+async function checkDuplicateSerials(serials, excludeJobId = null, depotId = null) {
     try {
         let query = db
             .from('serials')
             .select('serial_number')
             .in('serial_number', serials);
-        
+
         if (excludeJobId) {
             query = query.neq('job_id', excludeJobId);
         }
-        
+
+        if (depotId) {
+            query = query.eq('depot_id', depotId);
+        }
+
         const { data, error } = await query;
-        
+
         if (error) throw error;
         return data ? data.map(s => s.serial_number) : [];
     } catch (error) {
