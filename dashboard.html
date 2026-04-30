@@ -196,6 +196,22 @@
                         </div>
                     </div>
                                         
+                    <!-- Custom Time Section -->
+                    <div class="form-group">
+                        <label class="form-label" for="jobTimeInput">
+                            Time <span style="font-weight: normal; color: var(--text-secondary);">(optional)</span>
+                        </label>
+                        <input
+                            type="datetime-local"
+                            id="jobTimeInput"
+                            class="form-input"
+                            placeholder="Defaults to current time"
+                        >
+                        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+                            Leave blank to use the current time
+                        </p>
+                    </div>
+
                     <div class="button-group">
                         <button class="btn btn-primary" id="addJobBtn">
                             Add Job to Box
@@ -1787,6 +1803,10 @@ async function handleAddJob() {
     showSyncStatus("Syncing...", "syncing");
 
     try {
+        // Use custom time if provided, otherwise default to current time
+        const jobTimeInput = document.getElementById('jobTimeInput').value;
+        const jobTimestamp = jobTimeInput ? new Date(jobTimeInput).toISOString() : new Date().toISOString();
+
         // Create job with job_type (receipt_url will be added after upload if needed)
         const jobData = {
             box_id: currentBox.id,
@@ -1794,7 +1814,7 @@ async function handleAddJob() {
             vendor: vendor,
             job_type: currentJobType,
             shift_id: activeShift?.id || null,
-            created_at: new Date().toISOString()
+            created_at: jobTimestamp
         };
 
         const { data: job, error: jobError } = await db
@@ -1825,7 +1845,7 @@ async function handleAddJob() {
                 job_id: job.id,
                 box_id: currentBox.id,
                 serial_number: serial,
-                created_at: new Date().toISOString()
+                created_at: jobTimestamp
             }));
 
             const { error: serialError } = await db.from("serials").insert(serialRecords);
@@ -2019,6 +2039,7 @@ function clearJobForm() {
     document.getElementById("jobNumber").value = "";
     document.getElementById("jobTypeLabel").textContent = "";
     document.getElementById("bulkSerials").value = "";
+    document.getElementById("jobTimeInput").value = "";
     document.getElementById("bulkToggle").checked = false;
     document.getElementById("bulkToggle2").checked = false;
     document.getElementById("serialInputs").innerHTML = `
