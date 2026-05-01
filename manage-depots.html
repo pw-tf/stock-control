@@ -81,7 +81,7 @@
                 <div class="tab-content" id="depot-users-tab">
                     <div class="section-header">
                         <h2>Users in <span id="depotUsersLabel"></span></h2>
-                        <button class="btn btn-primary" onclick="openInviteUserModal()">+ Invite User</button>
+                        <button class="btn btn-primary" onclick="openCreateUserModal()">+ Create User</button>
                     </div>
                     <div class="table-container">
                         <table>
@@ -179,20 +179,41 @@
         </div>
     </div>
 
-    <!-- Invite User Modal -->
-    <div class="modal" id="inviteUserModal">
+    <!-- Create User Modal -->
+    <div class="modal" id="createUserModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Invite User to <span id="inviteDepotLabel"></span></h3>
+                <h3>Create User in <span id="createUserDepotLabel"></span></h3>
             </div>
-            <form id="inviteUserForm">
+            <form id="createUserForm">
                 <div class="form-group">
                     <label class="form-label">Email Address</label>
-                    <input type="email" id="inviteEmail" class="form-input" required placeholder="user@example.com">
+                    <input type="email" id="createUserEmail" class="form-input" required placeholder="user@example.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="text" id="createUserPassword" class="form-input" required placeholder="Generic password" minlength="6">
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+                        User will be forced to change this on first login.
+                    </p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <select id="createUserRole" class="form-input" required>
+                        <option value="technician">Technician</option>
+                        <option value="manager">Manager</option>
+                        <option value="merchant">Merchant</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Agent (optional)</label>
+                    <select id="createUserAgent" class="form-input">
+                        <option value="">Assign later</option>
+                    </select>
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-ghost" onclick="closeInviteUserModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Send Invitation</button>
+                    <button type="button" class="btn btn-ghost" onclick="closeCreateUserModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create User</button>
                 </div>
             </form>
         </div>
@@ -293,7 +314,7 @@
 
             document.getElementById('addDepotForm').addEventListener('submit', handleAddDepot);
             document.getElementById('moveUserDepotForm').addEventListener('submit', handleMoveUserDepot);
-            document.getElementById('inviteUserForm').addEventListener('submit', handleInviteUser);
+            document.getElementById('createUserForm').addEventListener('submit', handleCreateUser);
             document.getElementById('changeRoleForm').addEventListener('submit', handleChangeRole);
             document.getElementById('addAgentForm').addEventListener('submit', handleAddAgent);
             document.getElementById('assignAgentForm').addEventListener('submit', handleAssignAgent);
@@ -475,6 +496,7 @@
                             <td style="display: flex; gap: 6px; flex-wrap: wrap;">
                                 ${assignBtn}
                                 <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="openChangeRoleModal('${user.user_id}', '${user.email}', '${user.role}')">Role</button>
+                                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="resetUserPassword('${user.email}')">Reset PW</button>
                                 <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="openMoveUserDepotModal('${user.user_id}', '${user.email}')">Move</button>
                                 <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>
                             </td>
@@ -570,71 +592,131 @@
         }
 
         // ============================================
-        // INVITE USER
+        // CREATE USER
         // ============================================
 
-        function openInviteUserModal() {
+        async function openCreateUserModal() {
             if (!selectedDepotId) {
                 showAlert('Select a depot first', 'error');
                 return;
             }
             const depotName = allDepots.find(d => d.depot_id === selectedDepotId)?.depot_name || selectedDepotId;
-            document.getElementById('inviteDepotLabel').textContent = depotName;
-            document.getElementById('inviteUserModal').classList.add('active');
+            document.getElementById('createUserDepotLabel').textContent = depotName;
+
+            // Load agents for the agent dropdown
+            try {
+                const { data: agents } = await db
+                    .from('agents')
+                    .select('agent_id')
+                    .eq('depot_id', selectedDepotId)
+                    .order('agent_id', { ascending: true });
+
+                const select = document.getElementById('createUserAgent');
+                select.innerHTML = '<option value="">Assign later</option>' +
+                    (agents || []).map(a => `<option value="${a.agent_id}">Agent ${a.agent_id}</option>`).join('');
+            } catch (error) {
+                console.error('Error loading agents:', error);
+            }
+
+            document.getElementById('createUserModal').classList.add('active');
         }
 
-        function closeInviteUserModal() {
-            document.getElementById('inviteUserModal').classList.remove('active');
-            document.getElementById('inviteUserForm').reset();
+        function closeCreateUserModal() {
+            document.getElementById('createUserModal').classList.remove('active');
+            document.getElementById('createUserForm').reset();
         }
 
-        function generateToken() {
-            const array = new Uint8Array(32);
-            crypto.getRandomValues(array);
-            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-        }
-
-        async function handleInviteUser(e) {
+        async function handleCreateUser(e) {
             e.preventDefault();
-            const email = document.getElementById('inviteEmail').value.trim();
+            const email = document.getElementById('createUserEmail').value.trim();
+            const password = document.getElementById('createUserPassword').value;
+            const role = document.getElementById('createUserRole').value;
+            const agentId = document.getElementById('createUserAgent').value || null;
+
+            if (password.length < 6) {
+                showAlert('Password must be at least 6 characters', 'error');
+                return;
+            }
+
+            // Save admin session before creating user
+            const { data: { session: adminSession } } = await db.auth.getSession();
+            if (!adminSession) {
+                showAlert('Session expired. Please refresh the page.', 'error');
+                return;
+            }
+
+            let newUserId = null;
 
             try {
-                const token = generateToken();
-                const expiresAt = new Date();
-                expiresAt.setHours(expiresAt.getHours() + 1);
+                // Create auth user (this switches session to new user)
+                const { data: signUpData, error: signUpError } = await db.auth.signUp({
+                    email: email,
+                    password: password
+                });
 
-                const { error } = await db
-                    .from('invitation_tokens')
+                if (signUpError) throw signUpError;
+                if (!signUpData.user) throw new Error('Failed to create user');
+
+                newUserId = signUpData.user.id;
+
+                // Sign out new user and restore admin session BEFORE inserting user_roles
+                // This way the insert runs with admin's managers_full_access policy
+                await db.auth.signOut();
+                await db.auth.setSession({
+                    access_token: adminSession.access_token,
+                    refresh_token: adminSession.refresh_token
+                });
+
+                // Insert user_roles as admin
+                const { error: roleError } = await db
+                    .from('user_roles')
                     .insert([{
-                        token: token,
+                        user_id: newUserId,
                         email: email,
-                        expires_at: expiresAt.toISOString(),
-                        created_by: currentUser.id,
-                        depot_id: selectedDepotId
+                        role: role,
+                        agent_id: agentId,
+                        depot_id: selectedDepotId,
+                        must_change_password: true
                     }]);
 
+                if (roleError) throw roleError;
+
+                showAlert(`User ${email} created successfully!`, 'success');
+                closeCreateUserModal();
+                await loadDepotUsers();
+                await loadDepots();
+            } catch (error) {
+                showAlert('Error creating user: ' + error.message, 'error');
+
+                // Make sure admin session is restored on error
+                try {
+                    await db.auth.signOut();
+                    await db.auth.setSession({
+                        access_token: adminSession.access_token,
+                        refresh_token: adminSession.refresh_token
+                    });
+                } catch (restoreErr) {
+                    console.error('Failed to restore admin session:', restoreErr);
+                }
+            }
+        }
+
+        // ============================================
+        // RESET USER PASSWORD
+        // ============================================
+
+        async function resetUserPassword(email) {
+            if (!confirm(`Send a password reset email to ${email}?`)) return;
+
+            try {
+                const { error } = await db.auth.resetPasswordForEmail(email, {
+                    redirectTo: window.location.origin + '/reset-password.html'
+                });
                 if (error) throw error;
 
-                const signupLink = `${window.location.origin}/signup.html?token=${token}`;
-
-                const depotName = allDepots.find(d => d.depot_id === selectedDepotId)?.depot_name || selectedDepotId;
-                const message = `Invitation link for ${email} (Depot: ${depotName}):\n\n` +
-                    `${signupLink}\n\n` +
-                    `This link expires in 1 hour and can only be used once.\n` +
-                    `After signup, assign them to an agent in the Users tab.`;
-
-                try {
-                    await navigator.clipboard.writeText(signupLink);
-                    showAlert('Invitation link created and copied to clipboard!', 'success');
-                    alert(message + '\n\nLink copied to clipboard!');
-                } catch (err) {
-                    showAlert('Invitation link created!', 'success');
-                    alert(message);
-                }
-
-                closeInviteUserModal();
+                showAlert(`Password reset email sent to ${email}`, 'success');
             } catch (error) {
-                showAlert('Error creating invitation: ' + error.message, 'error');
+                showAlert('Error sending reset email: ' + error.message, 'error');
             }
         }
 

@@ -1307,8 +1307,9 @@
         async function loadClients() {
             try {
                 const { data, error } = await db
-                    .from('clients')
+                    .from('depot_clients')
                     .select('client_id')
+                    .eq('depot_id', currentDepotId)
                     .order('client_id', { ascending: true });
 
                 if (error) throw error;

@@ -47,7 +47,6 @@
                 <div class="tab-content active" id="users-tab">
                     <div class="section-header">
                         <h2>User Management</h2>
-                        <button class="btn btn-primary" onclick="openInviteUserModal()">+ Invite User</button>
                     </div>
                     <div class="table-container">
                         <table>
@@ -253,31 +252,6 @@
         </div>
     </div>
 
-    <!-- Invite User Modal -->
-    <div class="modal" id="inviteUserModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Invite New User</h3>
-            </div>
-            <form id="inviteUserForm">
-                <div class="form-group">
-                    <label class="form-label">Email Address</label>
-                    <input type="email" id="inviteEmail" class="form-input" required placeholder="user@example.com">
-                </div>
-                <div class="help-box" style="margin-top: 16px;">
-                    <p style="margin: 0; font-size: 0.875rem;">
-                        The user will receive an invitation email to create their account. 
-                        They will be assigned the <strong>Technician</strong> role by default. 
-                        You can assign them to an agent after they sign up.
-                    </p>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-ghost" onclick="closeInviteUserModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Send Invitation</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
     <!-- Assign Agent Modal -->
     <div class="modal" id="assignAgentModal">
@@ -348,7 +322,6 @@
             document.getElementById('addAgentForm').addEventListener('submit', handleAddAgent);
             document.getElementById('addClientForm').addEventListener('submit', handleAddClient);
             document.getElementById('addVendorForm').addEventListener('submit', handleAddVendor);
-            document.getElementById('inviteUserForm').addEventListener('submit', handleInviteUser);
             document.getElementById('assignAgentForm').addEventListener('submit', handleAssignAgent);
             showLoading(false);
         });
@@ -449,27 +422,29 @@
         async function loadClients() {
             try {
                 const { data, error } = await db
-                    .from('clients')
-                    .select('client_id')
+                    .from('depot_clients')
+                    .select('client_id, receipt_swap_upgrade_enabled, receipt_install_enabled, receipt_deinstall_enabled')
+                    .eq('depot_id', currentDepotId)
                     .order('client_id', { ascending: true });
-                
+
                 if (error) throw error;
-                
+
                 const tbody = document.getElementById('clientsTableBody');
                 if (!data || data.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">No clients found</td></tr>';
                     return;
                 }
-                
+
                 const clientVendorCounts = {};
                 for (const client of data) {
                     const { count } = await db
                         .from('clients_vendors')
                         .select('*', { count: 'exact', head: true })
-                        .eq('client_id', client.client_id);
+                        .eq('client_id', client.client_id)
+                        .eq('depot_id', currentDepotId);
                     clientVendorCounts[client.client_id] = count || 0;
                 }
-                
+
                 tbody.innerHTML = data.map(client => `
                     <tr>
                         <td style="font-family: var(--font-mono); font-weight: 600;">${client.client_id}</td>
@@ -563,11 +538,40 @@
         async function handleAddClient(e) {
             e.preventDefault();
             const clientId = document.getElementById('clientId').value.toUpperCase();
-            
+
             try {
-                const { error } = await db.from('clients').insert([{ client_id: clientId }]);
+                // Check if this depot already has this client
+                const { data: existing } = await db
+                    .from('depot_clients')
+                    .select('client_id')
+                    .eq('depot_id', currentDepotId)
+                    .eq('client_id', clientId)
+                    .maybeSingle();
+
+                if (existing) {
+                    showAlert('This depot already has client ' + clientId, 'error');
+                    return;
+                }
+
+                // Check if client exists globally, create if not
+                const { data: globalClient } = await db
+                    .from('clients')
+                    .select('client_id')
+                    .eq('client_id', clientId)
+                    .maybeSingle();
+
+                if (!globalClient) {
+                    const { error: createErr } = await db.from('clients').insert([{ client_id: clientId }]);
+                    if (createErr) throw createErr;
+                }
+
+                // Add client to this depot
+                const { error } = await db.from('depot_clients').insert([{
+                    depot_id: currentDepotId,
+                    client_id: clientId
+                }]);
                 if (error) throw error;
-                
+
                 showAlert('Client added successfully!', 'success');
                 closeAddClientModal();
                 await loadClients();
@@ -607,16 +611,26 @@
         }
         
         async function deleteClient(clientId) {
-            if (!confirm(`Delete client ${clientId}?`)) return;
-            
+            if (!confirm(`Remove client ${clientId} from this depot?`)) return;
+
             try {
-                const { error } = await db.from('clients').delete().eq('client_id', clientId);
+                // Remove depot vendor links for this client
+                await db.from('clients_vendors')
+                    .delete()
+                    .eq('depot_id', currentDepotId)
+                    .eq('client_id', clientId);
+
+                // Remove client from this depot
+                const { error } = await db.from('depot_clients')
+                    .delete()
+                    .eq('depot_id', currentDepotId)
+                    .eq('client_id', clientId);
                 if (error) throw error;
-                
-                showAlert('Client deleted successfully!', 'success');
+
+                showAlert('Client removed from depot successfully!', 'success');
                 await loadClients();
             } catch (error) {
-                showAlert('Error deleting client: ' + error.message, 'error');
+                showAlert('Error removing client: ' + error.message, 'error');
             }
         }
         
@@ -680,10 +694,11 @@
             switchClientModalTab('clientSettings');
 
             try {
-                // Load client settings
+                // Load client settings from depot_clients
                 const { data: client, error: clientError } = await db
-                    .from('clients')
+                    .from('depot_clients')
                     .select('receipt_swap_upgrade_enabled, receipt_install_enabled, receipt_deinstall_enabled')
+                    .eq('depot_id', currentDepotId)
                     .eq('client_id', clientId)
                     .single();
 
@@ -705,7 +720,8 @@
                 const { data: clientVendors, error: cvError } = await db
                     .from('clients_vendors')
                     .select('vendor_id')
-                    .eq('client_id', clientId);
+                    .eq('client_id', clientId)
+                    .eq('depot_id', currentDepotId);
 
                 if (cvError) throw cvError;
 
@@ -749,8 +765,9 @@
                 };
 
                 const { error: settingsError } = await db
-                    .from('clients')
+                    .from('depot_clients')
                     .update(receiptSettings)
+                    .eq('depot_id', currentDepotId)
                     .eq('client_id', currentEditingClient);
 
                 if (settingsError) throw settingsError;
@@ -764,14 +781,16 @@
                 const { error: deleteError } = await db
                     .from('clients_vendors')
                     .delete()
-                    .eq('client_id', currentEditingClient);
+                    .eq('client_id', currentEditingClient)
+                    .eq('depot_id', currentDepotId);
 
                 if (deleteError) throw deleteError;
 
                 if (selectedVendors.length > 0) {
                     const relationships = selectedVendors.map(vendorId => ({
                         client_id: currentEditingClient,
-                        vendor_id: vendorId
+                        vendor_id: vendorId,
+                        depot_id: currentDepotId
                     }));
 
                     const { error: insertError } = await db
@@ -788,68 +807,6 @@
                 console.error('Error saving client settings:', error);
                 showAlert('Error saving settings: ' + error.message, 'error');
             }
-        }
-        
-        // User Invitation Functions
-        function openInviteUserModal() {
-            document.getElementById('inviteUserModal').classList.add('active');
-        }
-        
-        function closeInviteUserModal() {
-            document.getElementById('inviteUserModal').classList.remove('active');
-            document.getElementById('inviteUserForm').reset();
-        }
-        
-        async function handleInviteUser(e) {
-            e.preventDefault();
-            const email = document.getElementById('inviteEmail').value.trim();
-            
-            try {
-                const token = generateToken();
-                
-                const expiresAt = new Date();
-                expiresAt.setHours(expiresAt.getHours() + 1);
-                
-                const { error: tokenError } = await db
-                    .from('invitation_tokens')
-                    .insert([{
-                        token: token,
-                        email: email,
-                        expires_at: expiresAt.toISOString(),
-                        created_by: currentUser.id,
-                        depot_id: currentDepotId
-                    }]);
-                
-                if (tokenError) throw tokenError;
-                
-                const signupLink = `${window.location.origin}/signup.html?token=${token}`;
-                
-                const message = `Invitation link for ${email}:\n\n` +
-                    `${signupLink}\n\n` +
-                    `⚠️ This link expires in 1 hour and can only be used once.\n` +
-                    `The user's email will be pre-filled - they only need to create a password.\n\n` +
-                    `After signup, assign them to an agent in the Users tab.`;
-                
-                try {
-                    await navigator.clipboard.writeText(signupLink);
-                    showAlert(`✓ Invitation link created and copied to clipboard!`, 'success');
-                    alert(message + '\n\n✓ Link copied to clipboard!');
-                } catch (err) {
-                    showAlert(`✓ Invitation link created!`, 'success');
-                    alert(message);
-                }
-                
-                closeInviteUserModal();
-            } catch (error) {
-                console.error('Error creating invitation:', error);
-                showAlert('Error creating invitation: ' + error.message, 'error');
-            }
-        }
-        
-        function generateToken() {
-            const array = new Uint8Array(32);
-            crypto.getRandomValues(array);
-            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
         }
         
         // Agent Assignment Functions

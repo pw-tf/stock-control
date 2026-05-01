@@ -1207,8 +1207,9 @@ async function checkReceiptRequirement() {
         // Load client settings if not already loaded
         if (!currentClientSettings || currentClientSettings.client_id !== currentBox.client) {
             const { data: client, error } = await db
-                .from('clients')
+                .from('depot_clients')
                 .select('*')
+                .eq('depot_id', currentDepotId)
                 .eq('client_id', currentBox.client)
                 .single();
 
@@ -1433,13 +1434,14 @@ function downloadShiftReportCSV() {
 async function loadClients() {
     try {
         const { data, error } = await db
-            .from('clients')
+            .from('depot_clients')
             .select('client_id')
+            .eq('depot_id', currentDepotId)
             .order('client_id', { ascending: true });
-        
+
         if (error) throw new Error(error.message);
         if (!data || data.length === 0) return;
-        
+
         const clientSelect = document.getElementById('clientSelect');
         if (clientSelect) {
             clientSelect.innerHTML = '<option value="">Select a client...</option>';
@@ -1469,7 +1471,8 @@ async function updateVendorsByClient(clientId) {
         const { data, error } = await db
             .from('clients_vendors')
             .select('vendor_id')
-            .eq('client_id', clientId);
+            .eq('client_id', clientId)
+            .eq('depot_id', currentDepotId);
         
         if (error) throw new Error(error.message);
         

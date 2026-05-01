@@ -55,7 +55,7 @@
                 </form>
                 
                 <div class="login-footer">
-                    <a href="#" onclick="resetPassword(event)">Forgot your password?</a>
+                    <a href="forgot-password.html">Forgot your password?</a>
                 </div>
             </div>
         </div>
@@ -101,23 +101,29 @@
                 // Get user role
                 const { data: roleData, error: roleError } = await db
                     .from('user_roles')
-                    .select('role, agent_id')
+                    .select('role, agent_id, must_change_password')
                     .eq('user_id', authData.user.id)
                     .single();
-                
+
                 if (roleError) {
                     // Account exists but signup was incomplete
                     await db.auth.signOut();
-                    throw new Error('Account setup incomplete. Please contact your administrator for a new invitation link.');
+                    throw new Error('Account setup incomplete. Please contact your administrator.');
                 }
-                
+
                 // Store role and agent_id in session storage
                 sessionStorage.setItem('userRole', roleData.role);
                 sessionStorage.setItem('userAgent', roleData.agent_id);
                 sessionStorage.setItem('userEmail', email);
-                
+
+                // Force password change on first login
+                if (roleData.must_change_password) {
+                    window.location.href = 'change-password.html';
+                    return;
+                }
+
                 showAlert('Login successful! Redirecting...', 'success');
-                
+
                 // Redirect based on role
                 setTimeout(() => {
                     if (roleData.role === 'merchant') {
@@ -138,24 +144,6 @@
             }
         });
 
-        async function resetPassword(e) {
-            e.preventDefault();
-            const email = prompt('Enter your email address:');
-            if (!email) return;
-            
-            try {
-                const { error } = await db.auth.resetPasswordForEmail(email, {
-                    redirectTo: window.location.origin + '/reset-password.html'
-                });
-                
-                if (error) throw error;
-                
-                showAlert('Password reset email sent! Check your inbox.', 'success');
-            } catch (error) {
-                console.error('Password reset error:', error);
-                showAlert('Error: ' + error.message, 'error');
-            }
-        }
     </script>
 </body>
 </html>
