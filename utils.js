@@ -17,6 +17,30 @@ function escapeHTML(str) {
 }
 
 // ============================================
+// THEME MANAGEMENT
+// ============================================
+
+function getTheme() {
+    return {
+        theme: localStorage.getItem('theme') || 'ocean',
+        mode: localStorage.getItem('mode') || 'dark'
+    };
+}
+
+function setTheme(theme, mode) {
+    localStorage.setItem('theme', theme);
+    localStorage.setItem('mode', mode);
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-mode', mode);
+}
+
+function applyTheme() {
+    const { theme, mode } = getTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-mode', mode);
+}
+
+// ============================================
 // UI HELPERS
 // ============================================
 

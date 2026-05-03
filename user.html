@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+    <script>(function(){var t=localStorage.getItem("theme")||"ocean";var m=localStorage.getItem("mode")||"dark";document.documentElement.setAttribute("data-theme",t);document.documentElement.setAttribute("data-mode",m);})();</script>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Icons -->
@@ -121,6 +122,58 @@
                     </div>
                     
                     <div class="card" style="margin-top: 24px;">
+                        <h3 style="margin-bottom: 16px; color: var(--text-primary);">Appearance</h3>
+                        <div style="margin-bottom: 20px;">
+                            <label class="form-label" style="margin-bottom: 12px; display: block;">Theme</label>
+                            <div id="themePicker" style="display: flex; gap: 16px; flex-wrap: wrap;">
+                                <button class="theme-swatch" data-theme-value="ocean" onclick="selectTheme('ocean')" title="Ocean">
+                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #2B4F63, #3d6b80);"></span>
+                                    <span class="theme-swatch-label">Ocean</span>
+                                </button>
+                                <button class="theme-swatch" data-theme-value="forest" onclick="selectTheme('forest')" title="Forest">
+                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #2d6b45, #3d8a5e);"></span>
+                                    <span class="theme-swatch-label">Forest</span>
+                                </button>
+                                <button class="theme-swatch" data-theme-value="sunset" onclick="selectTheme('sunset')" title="Sunset">
+                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #8b4528, #d4804e);"></span>
+                                    <span class="theme-swatch-label">Sunset</span>
+                                </button>
+                                <button class="theme-swatch" data-theme-value="slate" onclick="selectTheme('slate')" title="Slate">
+                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #5a6270, #8e9aab);"></span>
+                                    <span class="theme-swatch-label">Slate</span>
+                                </button>
+                                <button class="theme-swatch" data-theme-value="cherry" onclick="selectTheme('cherry')" title="Cherry">
+                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #8b2252, #d44e85);"></span>
+                                    <span class="theme-swatch-label">Cherry</span>
+                                </button>
+                                <button class="theme-swatch" data-theme-value="lavender" onclick="selectTheme('lavender')" title="Lavender">
+                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #6b52a8, #a388e0);"></span>
+                                    <span class="theme-swatch-label">Lavender</span>
+                                </button>
+                                <button class="theme-swatch" data-theme-value="teal" onclick="selectTheme('teal')" title="Teal">
+                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #1a8a8a, #40c8c4);"></span>
+                                    <span class="theme-swatch-label">Teal</span>
+                                </button>
+                                <button class="theme-swatch" data-theme-value="sand" onclick="selectTheme('sand')" title="Sand">
+                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #8a7440, #c8ae68);"></span>
+                                    <span class="theme-swatch-label">Sand</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label" style="margin-bottom: 12px; display: block;">Mode</label>
+                            <div id="modePicker" style="display: flex; gap: 0; border-radius: var(--radius-md); overflow: hidden; width: fit-content; border: 1px solid var(--border-primary);">
+                                <button class="mode-btn" data-mode-value="dark" onclick="selectMode('dark')" style="padding: 8px 20px; border: none; cursor: pointer; font-family: var(--font-sans); font-size: 0.875rem; font-weight: 500; transition: var(--transition-fast); background: var(--bg-tertiary); color: var(--text-secondary);">
+                                    <i data-lucide="moon" width="14" height="14" style="vertical-align: -2px; margin-right: 4px;"></i> Dark
+                                </button>
+                                <button class="mode-btn" data-mode-value="light" onclick="selectMode('light')" style="padding: 8px 20px; border: none; cursor: pointer; font-family: var(--font-sans); font-size: 0.875rem; font-weight: 500; transition: var(--transition-fast); background: var(--bg-tertiary); color: var(--text-secondary);">
+                                    <i data-lucide="sun" width="14" height="14" style="vertical-align: -2px; margin-right: 4px;"></i> Light
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 24px;">
                         <h3 style="margin-bottom: 16px; color: var(--text-primary);">Change Password</h3>
                         <form id="changePasswordForm" style="max-width: 400px;">
                             <div class="form-group">
@@ -164,7 +217,33 @@
         let allShifts = [];
         let allClients = [];
         let selectedShiftDetail = null;
-        
+
+        function selectTheme(theme) {
+            const { mode } = getTheme();
+            setTheme(theme, mode);
+            updateThemePickerUI();
+        }
+
+        function selectMode(mode) {
+            const { theme } = getTheme();
+            setTheme(theme, mode);
+            updateThemePickerUI();
+            lucide.createIcons();
+        }
+
+        function updateThemePickerUI() {
+            const { theme, mode } = getTheme();
+            document.querySelectorAll('.theme-swatch').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.themeValue === theme);
+            });
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                const isActive = btn.dataset.modeValue === mode;
+                btn.classList.toggle('active', isActive);
+                btn.style.background = isActive ? 'var(--accent-primary)' : 'var(--bg-tertiary)';
+                btn.style.color = isActive ? '#fff' : 'var(--text-secondary)';
+            });
+        }
+
         // Helper function to format date for input fields (avoids UTC timezone issues)
         function formatLocalDate(date) {
             const year = date.getFullYear();
@@ -218,6 +297,9 @@
             
             // Apply role-based restrictions
             restrictByRole(currentUser.role);
+
+            // Initialize theme picker UI
+            updateThemePickerUI();
         });
         
         function showLoading(show) {
