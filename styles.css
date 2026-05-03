@@ -3,8 +3,7 @@
    Premium Enterprise SaaS Aesthetic
    ============================================ */
 
-/* Import Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Google Fonts loaded via <link> tags in HTML for better performance */
 
 /* CSS Variables for consistent theming */
 :root {
@@ -1551,8 +1550,12 @@ tr:hover td {
     background: var(--bg-elevated);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-md);
-    cursor: pointer;
     transition: var(--transition-base);
+}
+
+.job-section .job-header,
+.job-section .job-date {
+    cursor: pointer;
 }
 
 .job-section:hover {
@@ -1609,6 +1612,8 @@ tr:hover td {
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: var(--spacing-sm);
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .barcode-container {
@@ -2242,7 +2247,6 @@ tr:hover td {
     body {
         background: white;
         color: black;
-		zoom: 40%;
     }
     
     body::before {
@@ -2282,6 +2286,7 @@ tr:hover td {
     
     .export-box-header {
         border-bottom-color: black;
+        page-break-after: avoid;
     }
     
     .export-box-title,
@@ -2292,11 +2297,13 @@ tr:hover td {
     .job-section {
         background: none;
         border: 1px solid #ccc;
-		padding: none;
+		padding: 4px 8px;
+        margin: 4px 0;
+        page-break-inside: avoid;
     }
 
     .job-header {
-        font-size: 1.5rem;
+        font-size: 0.875rem;
         font-weight: 700;
         color: black;
     }
@@ -2308,15 +2315,107 @@ tr:hover td {
     .serial-grid {
         display: grid !important;
         grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
+        gap: 4px;
     }
-    
+
     .serial-item {
         border: 1px solid #ccc;
+        padding: 2px 4px;
         page-break-inside: avoid;
     }
     
     .serial-number {
         color: black;
+    }
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+.text-center { text-align: center; }
+
+.table-empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px;
+}
+
+.btn-sm-action {
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+/* Keyboard navigation focus indicator */
+:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* ============================================
+   ADDITIONAL RESPONSIVE BREAKPOINTS
+   ============================================ */
+
+/* Tablet breakpoint */
+@media (max-width: 1024px) {
+    .shift-report-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .shift-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .serial-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Small phone / landscape phone breakpoint */
+@media (max-width: 600px) {
+    .shift-report-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .shift-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .serial-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .export-box-subtitle {
+        font-size: 0.75rem;
+    }
+}
+
+/* Touch-friendly targets on mobile */
+@media (max-width: 768px) {
+    .btn,
+    button,
+    select,
+    .form-input {
+        min-height: 44px;
+    }
+
+    .table-container {
+        -webkit-overflow-scrolling: touch;
     }
 }

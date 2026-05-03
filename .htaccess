@@ -13,9 +13,24 @@ DirectoryIndex index.html
     RewriteCond %{THE_REQUEST} ^[A-Z]{3,9}\ /index\.html\ HTTP/
     RewriteRule ^index\.html$ https://dev.mbsa.com.au/ [R=301,L]
 
-    # 2. (Optional) Force HTTPS 
+    # 2. (Optional) Force HTTPS
     # Uncomment the following lines if your server doesn't do this automatically
     # RewriteCond %{HTTPS} off
     # RewriteRule ^(.*)$ https://dev.mbsa.com.au/$1 [R=301,L]
 
+</IfModule>
+
+# Cache static assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js)$">
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
 </IfModule>

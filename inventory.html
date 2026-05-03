@@ -4,10 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inventory - Stock Submission</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/lucide@0.460.0"></script>
     <script src="icons.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="auth.js"></script>
@@ -540,7 +543,7 @@
 
             } catch (error) {
                 console.error('Error searching:', error);
-                showAlert('Error searching: ' + error.message, 'error');
+                showAlert('Error searching. Please try again.', 'error');
             } finally {
                 showLoading(false);
             }
@@ -556,7 +559,7 @@
             document.getElementById('searchResults').innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon"><i data-lucide="search" width="48" height="48"></i></div>
-                    <p>No results found for ${searchDesc}</p>
+                    <p>No results found for ${escapeHTML(searchDesc)}</p>
                 </div>
             `;
             if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -591,12 +594,12 @@
                     }
 
                     html += `
-                        <div class="box-list-item" onclick="showBoxDetail(${box.id}, '${box.agent}')">
+                        <div class="box-list-item" onclick="showBoxDetail(${box.id}, '${escapeHTML(box.agent)}')">
                             <div class="box-info">
-                                <div class="box-id">${box.box_id}</div>
-                                <div class="box-meta">Agent: ${box.agent} | ${box.client} | ${dateLabel}</div>
+                                <div class="box-id">${escapeHTML(box.box_id)}</div>
+                                <div class="box-meta">Agent: ${escapeHTML(box.agent)} | ${escapeHTML(box.client)} | ${dateLabel}</div>
                             </div>
-                            <span class="badge badge-${box.status}">${box.status}</span>
+                            <span class="badge badge-${escapeHTML(box.status)}">${escapeHTML(box.status)}</span>
                         </div>
                     `;
                 });
@@ -666,11 +669,11 @@
                 <div class="job-list-item" onclick="showJobDetail(${job.id})">
                     <div class="job-list-info">
                         <div class="job-list-title">
-                            Job #${job.job_number}
-                            <span class="badge badge-info" style="margin-left: 8px; font-size: 0.7rem;">${jobTypeLabel}</span>
+                            Job #${escapeHTML(job.job_number)}
+                            <span class="badge badge-info" style="margin-left: 8px; font-size: 0.7rem;">${escapeHTML(jobTypeLabel)}</span>
                         </div>
                         <div class="job-list-meta">
-                            ${job.box?.box_id || 'Unknown Box'} | Agent: ${job.box?.agent || '?'} | ${job.vendor}
+                            ${escapeHTML(job.box?.box_id || 'Unknown Box')} | Agent: ${escapeHTML(job.box?.agent || '?')} | ${escapeHTML(job.vendor)}
                         </div>
                     </div>
                     <div class="job-list-date">${createdDate}</div>
@@ -691,9 +694,9 @@
             return `
                 <div class="serial-list-item" onclick="showJobDetail(${serial.job_id})">
                     <div class="serial-list-info">
-                        <div class="serial-list-title">${serial.serial_number}</div>
+                        <div class="serial-list-title">${escapeHTML(serial.serial_number)}</div>
                         <div class="serial-list-meta">
-                            Job #${serial.job?.job_number || '?'} | ${serial.box?.box_id || 'Unknown Box'} | ${serial.job?.vendor || '?'}
+                            Job #${escapeHTML(serial.job?.job_number || '?')} | ${escapeHTML(serial.box?.box_id || 'Unknown Box')} | ${escapeHTML(serial.job?.vendor || '?')}
                         </div>
                     </div>
                     <div class="serial-list-date">${createdDate}</div>
@@ -756,25 +759,25 @@
                         <i data-lucide="arrow-left" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
                         Back to Results
                     </button>
-                    <button class="btn btn-primary" onclick="goToBox(${box.id}, '${box.agent}')">
+                    <button class="btn btn-primary" onclick="goToBox(${box.id}, '${escapeHTML(box.agent)}')">
                         <i data-lucide="package" width="16" height="16" style="vertical-align: middle; margin-right: 6px;"></i>
-                        Go To Box (${box.box_id})
+                        Go To Box (${escapeHTML(box.box_id)})
                     </button>
                 </div>
 
                 <div class="export-box-list-item">
                     <div class="export-box-header">
-                        <div class="export-box-title"><i data-lucide="clipboard"></i> Job #${job.job_number}</div>
+                        <div class="export-box-title"><i data-lucide="clipboard"></i> Job #${escapeHTML(job.job_number)}</div>
                         <div class="export-box-subtitle">
-                            <span class="badge badge-info">${jobTypeLabel}</span>
-                            | Box: ${box.box_id} | Agent: ${box.agent} | Client: ${box.client}
+                            <span class="badge badge-info">${escapeHTML(jobTypeLabel)}</span>
+                            | Box: ${escapeHTML(box.box_id)} | Agent: ${escapeHTML(box.agent)} | Client: ${escapeHTML(box.client)}
                         </div>
                     </div>
 
                     <div class="job-section expanded">
                         <div class="job-date">Created: ${new Date(job.created_at).toLocaleString()}</div>
                         <div class="job-header">
-                            <span>Vendor: ${job.vendor} | Serials: ${serials ? serials.length : 0}</span>
+                            <span>Vendor: ${escapeHTML(job.vendor)} | Serials: ${serials ? serials.length : 0}</span>
                         </div>
                         <div class="serial-grid">
         `;
@@ -784,9 +787,9 @@
                 const barcodeId = `job-barcode-${job.id}-${index}`;
                 html += `
                     <div class="serial-item">
-                        <div class="serial-number">${serial.serial_number}</div>
+                        <div class="serial-number">${escapeHTML(serial.serial_number)}</div>
                         <div class="barcode-container">
-                            <svg class="barcode-svg" data-serial="${serial.serial_number}" data-id="${barcodeId}"></svg>
+                            <svg class="barcode-svg" data-serial="${escapeHTML(serial.serial_number)}" data-id="${barcodeId}"></svg>
                         </div>
                     </div>
                 `;
@@ -802,11 +805,11 @@
             html += `
                 <div class="job-edit-actions">
                     <strong style="color: var(--text-secondary);">Receipt:</strong><br>
-                    <button class="btn btn-secondary btn-sm" onclick="viewReceipt('${job.receipt_url}')">
+                    <button class="btn btn-secondary btn-sm" onclick="viewReceipt('${escapeHTML(job.receipt_url)}')">
                         <i data-lucide="eye" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
                         View Receipt
                     </button>
-                    <button class="btn btn-secondary btn-sm" onclick="downloadReceipt('${job.receipt_url}')">
+                    <button class="btn btn-secondary btn-sm" onclick="downloadReceipt('${escapeHTML(job.receipt_url)}')">
                         <i data-lucide="download" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
                         Download
                     </button>
@@ -874,7 +877,7 @@
 
     } catch (error) {
         console.error('Error loading job details:', error);
-        showAlert('Error loading job: ' + error.message, 'error');
+        showAlert('Error loading job. Please try again.', 'error');
     } finally {
         showLoading(false);
     }
@@ -957,9 +960,9 @@
                     </div>
                     <div class="export-box-list-item">
                         <div class="export-box-header">
-                            <div class="export-box-title"><i data-lucide="package"></i> ${box.box_id}</div>
+                            <div class="export-box-title"><i data-lucide="package"></i> ${escapeHTML(box.box_id)}</div>
                             <div class="export-box-subtitle">
-                                Agent: ${box.agent} | Client: ${box.client}
+                                Agent: ${escapeHTML(box.agent)} | Client: ${escapeHTML(box.client)}
                                 ${box.status === 'closed' && box.closed_at ? ` | Closed: ${new Date(box.closed_at).toLocaleDateString()}` : ''}
                             </div>
                         </div>
@@ -987,10 +990,10 @@
                     const serialCount = serials.length;
 
                     html += `
-                        <div class="job-section" onclick="toggleJobExpand(this, event)">
-                            <div class="job-date">Created: ${new Date(job.created_at).toLocaleString()}</div>
-                            <div class="job-header">
-                                <span>Job: ${job.job_number} | Vendor: ${job.vendor} | Serials: ${serialCount}</span>
+                        <div class="job-section">
+                            <div class="job-date" onclick="toggleJobExpand(this.parentElement, event)">Created: ${new Date(job.created_at).toLocaleString()}</div>
+                            <div class="job-header" onclick="toggleJobExpand(this.parentElement, event)">
+                                <span>Job: ${escapeHTML(job.job_number)} | Vendor: ${escapeHTML(job.vendor)} | Serials: ${serialCount}</span>
                                 <span class="job-expand-icon">▼</span>
                             </div>
                             <div class="serial-grid">
@@ -1001,9 +1004,9 @@
                             const barcodeId = `barcode-${job.id}-${index}`;
                             html += `
                                 <div class="serial-item">
-                                    <div class="serial-number">${serial.serial_number}</div>
+                                    <div class="serial-number">${escapeHTML(serial.serial_number)}</div>
                                     <div class="barcode-container">
-                                        <svg class="barcode-svg" data-serial="${serial.serial_number}" data-id="${barcodeId}"></svg>
+                                        <svg class="barcode-svg" data-serial="${escapeHTML(serial.serial_number)}" data-id="${barcodeId}"></svg>
                                     </div>
                                 </div>
                             `;
@@ -1017,11 +1020,11 @@
                         html += `
                             <div class="job-edit-actions">
                                 <strong style="color: var(--text-secondary);">Receipt:</strong><br>
-                                <button class="btn btn-secondary btn-sm" onclick="viewReceipt('${job.receipt_url}', event)">
+                                <button class="btn btn-secondary btn-sm" onclick="viewReceipt('${escapeHTML(job.receipt_url)}', event)">
                                     <i data-lucide="eye" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
                                     View Receipt
                                 </button>
-                                <button class="btn btn-secondary btn-sm" onclick="downloadReceipt('${job.receipt_url}', event)">
+                                <button class="btn btn-secondary btn-sm" onclick="downloadReceipt('${escapeHTML(job.receipt_url)}', event)">
                                     <i data-lucide="download" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
                                     Download
                                 </button>
@@ -1085,14 +1088,13 @@
 
             } catch (error) {
                 console.error('Error generating preview:', error);
-                showAlert('Error generating preview: ' + error.message, 'error');
+                showAlert('Error generating preview. Please try again.', 'error');
             } finally {
                 showLoading(false);
             }
         }
 
         function toggleJobExpand(element, event) {
-            // Don't toggle if clicking on buttons
             if (event.target.closest('.btn')) return;
             element.classList.toggle('expanded');
         }
@@ -1135,9 +1137,9 @@
                     html += `
                         <div class="export-box-list-item" style="page-break-after: always;">
                             <div class="export-box-header">
-                                <div class="export-box-title">${box?.box_id || 'Unknown'}</div>
+                                <div class="export-box-title">${escapeHTML(box?.box_id || 'Unknown')}</div>
                                 <div class="export-box-subtitle">
-                                    Agent: ${box?.agent || 'Unknown'} | Client: ${box?.client || 'Unknown'}
+                                    Agent: ${escapeHTML(box?.agent || 'Unknown')} | Client: ${escapeHTML(box?.client || 'Unknown')}
                                 </div>
                             </div>
                     `;
@@ -1154,7 +1156,7 @@
                             <div class="job-section expanded">
                                 <div class="job-date">Created: ${new Date(job.created_at).toLocaleString()}</div>
                                 <div class="job-header">
-                                    <span>Job: ${job.job_number} | Vendor: ${job.vendor} | Serials: ${serialCount}</span>
+                                    <span>Job: ${escapeHTML(job.job_number)} | Vendor: ${escapeHTML(job.vendor)} | Serials: ${serialCount}</span>
                                 </div>
                                 <div class="serial-grid">
                         `;
@@ -1165,9 +1167,9 @@
                                 const serialNum = typeof serial === 'string' ? serial : serial.serial_number;
                                 html += `
                                     <div class="serial-item">
-                                        <div class="serial-number">${serialNum}</div>
+                                        <div class="serial-number">${escapeHTML(serialNum)}</div>
                                         <div class="barcode-container">
-                                            <svg class="barcode-svg" data-serial="${serialNum}" data-id="${barcodeId}"></svg>
+                                            <svg class="barcode-svg" data-serial="${escapeHTML(serialNum)}" data-id="${barcodeId}"></svg>
                                         </div>
                                     </div>
                                 `;
@@ -1211,7 +1213,7 @@
 
             } catch (error) {
                 console.error('Error printing all boxes:', error);
-                showAlert('Error preparing print: ' + error.message, 'error');
+                showAlert('Error preparing print. Please try again.', 'error');
                 showLoading(false);
             }
         }
@@ -1242,7 +1244,7 @@
                 return data;
             } catch (error) {
                 console.error('Error downloading receipt:', error);
-                showAlert('Error loading receipt: ' + error.message, 'error');
+                showAlert('Error loading receipt. Please try again.', 'error');
                 return null;
             }
         }
@@ -1307,7 +1309,7 @@
                 }
             } catch (error) {
                 console.error('Error loading agents:', error);
-                showAlert('Error loading agents: ' + error.message, 'error');
+                showAlert('Error loading agents. Please try again.', 'error');
             }
         }
         
@@ -1334,7 +1336,7 @@
                 }
             } catch (error) {
                 console.error('Error loading clients:', error);
-                showAlert('Error loading clients: ' + error.message, 'error');
+                showAlert('Error loading clients. Please try again.', 'error');
             }
         }
         
@@ -1362,7 +1364,7 @@
                 }
             } catch (error) {
                 console.error('Error loading vendors:', error);
-                showAlert('Error loading vendors: ' + error.message, 'error');
+                showAlert('Error loading vendors. Please try again.', 'error');
             }
         }
         
@@ -1406,7 +1408,7 @@
                 
             } catch (error) {
                 console.error('Error loading job:', error);
-                showAlert('Error loading job: ' + error.message, 'error');
+                showAlert('Error loading job. Please try again.', 'error');
             } finally {
                 showLoading(false);
             }
@@ -1524,7 +1526,7 @@ async function handleSaveJob(event) {
         
     } catch (error) {
         console.error('Error saving job:', error);
-        showAlert('Error saving job: ' + error.message, 'error');
+        showAlert('Error saving job. Please try again.', 'error');
         showSyncStatus('✗ Error', 'error');
         showLoading(false);
         return; // Don't proceed with refresh if there was an error
@@ -1634,7 +1636,7 @@ async function confirmDeleteJob() {
         
     } catch (error) {
         console.error('Error deleting job:', error);
-        showAlert('Error deleting job: ' + error.message, 'error');
+        showAlert('Error deleting job. Please try again.', 'error');
         showSyncStatus('✗ Error', 'error');
     } finally {
         showLoading(false);

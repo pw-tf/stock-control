@@ -3,6 +3,20 @@
 // Note: Supabase client (db) is initialized in auth.js which must be loaded first
 
 // ============================================
+// SECURITY HELPERS
+// ============================================
+
+/**
+ * Escape a string for safe insertion into HTML
+ * @param {*} str - The value to escape
+ * @returns {string} HTML-safe string
+ */
+function escapeHTML(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ============================================
 // UI HELPERS
 // ============================================
 
@@ -36,7 +50,7 @@ function showAlert(message, type = 'info') {
 
     toast.innerHTML = `
         <span class="toast-icon">${icons[type] || 'ℹ'}</span>
-        <span class="toast-message">${message}</span>
+        <span class="toast-message">${escapeHTML(message)}</span>
         <button class="toast-close" onclick="this.parentElement.remove()">×</button>
     `;
     container.appendChild(toast);

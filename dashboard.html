@@ -4,10 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Stock Submission</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/lucide@0.460.0"></script>
     <script src="icons.js"></script>
     <!-- Login Script-->
     <script src="auth.js"></script>
@@ -780,7 +783,7 @@ async function handleStartShift(e) {
         showSyncStatus('✓ Synced', 'synced');
     } catch (error) {
         console.error('Error starting shift:', error);
-        showAlert('Error starting shift: ' + error.message, 'error');
+        showAlert('Error starting shift. Please try again.', 'error');
     } finally {
         showLoading(false);
     }
@@ -879,7 +882,7 @@ async function handleEndShift(e) {
         showSyncStatus('✓ Synced', 'synced');
     } catch (error) {
         console.error('Error ending shift:', error);
-        showAlert('Error ending shift: ' + error.message, 'error');
+        showAlert('Error ending shift. Please try again.', 'error');
     } finally {
         showLoading(false);
     }
@@ -991,7 +994,7 @@ async function handleStaleShift(e) {
         showSyncStatus('✓ Synced', 'synced');
     } catch (error) {
         console.error('Error closing stale shift:', error);
-        showAlert('Error closing shift: ' + error.message, 'error');
+        showAlert('Error closing shift. Please try again.', 'error');
     } finally {
         showLoading(false);
     }
@@ -1110,8 +1113,8 @@ function showShiftReportModal() {
     const html = `
         <div class="shift-report-card">
             <div class="shift-report-header">
-                <div class="shift-report-date">${report.date}</div>
-                <div class="shift-report-agent">Agent ${report.agentId}</div>
+                <div class="shift-report-date">${escapeHTML(report.date)}</div>
+                <div class="shift-report-agent">Agent ${escapeHTML(report.agentId)}</div>
             </div>
             
             <div class="shift-report-grid">
@@ -1278,7 +1281,7 @@ async function handleReceiptFileSelect(event) {
         }
     } catch (err) {
         console.error('Image compression failed:', err);
-        showAlert('Failed to process image. Please try again.', 'error');
+        showAlert('Failed to process image.. Please try again.', 'error');
     }
 }
 
@@ -1454,7 +1457,7 @@ async function loadClients() {
         }
     } catch (error) {
         console.error('Error loading clients:', error);
-        showAlert('Error loading clients: ' + error.message, 'error');
+        showAlert('Error loading clients. Please try again.', 'error');
     }
 }
 
@@ -1493,7 +1496,7 @@ async function updateVendorsByClient(clientId) {
         }
     } catch (error) {
         console.error('Error loading filtered vendors:', error);
-        showAlert('Error loading vendors: ' + error.message, 'error');
+        showAlert('Error loading vendors. Please try again.', 'error');
     }
 }
 
@@ -1619,7 +1622,7 @@ async function handleClientChange() {
         showJobTypeModal();
         loadBoxesForAgent();
     } catch (error) {
-        showAlert("Error loading box: " + error.message, "error");
+        showAlert("Error loading box. Please try again.", "error");
         showSyncStatus("✕ Sync failed", "error");
     } finally {
         showLoading(false);
@@ -1759,7 +1762,7 @@ async function handleAddJob() {
         // Clear form and reset to basic dashboard
         clearJobForm();
     } catch (error) {
-        showAlert("Error saving job: " + error.message, "error");
+        showAlert("Error saving job. Please try again.", "error");
         showSyncStatus("✕ Sync failed", "error");
     } finally {
         showLoading(false);
@@ -1810,7 +1813,7 @@ async function handleNewBox() {
         showAlert(`✓ New box started: ${currentBox.box_id}`, "success");
         showSyncStatus("✓ Synced", "synced");
     } catch (error) {
-        showAlert("Error starting new box: " + error.message, "error");
+        showAlert("Error starting new box. Please try again.", "error");
         showSyncStatus("✕ Sync failed", "error");
     } finally {
         showLoading(false);

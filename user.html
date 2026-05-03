@@ -4,10 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User - Stock Submission</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/lucide@0.460.0"></script>
     <script src="icons.js"></script>
     <script src="auth.js"></script>
     <script src="sidebar.js"></script>
@@ -232,7 +235,7 @@
                 if (error) throw error;
                 
                 document.getElementById('userEmail').textContent = data.email || currentUser.email;
-                document.getElementById('userRole').innerHTML = `<span class="badge badge-${data.role}">${data.role}</span>`;
+                document.getElementById('userRole').innerHTML = `<span class="badge badge-${escapeHTML(data.role)}">${escapeHTML(data.role)}</span>`;
                 document.getElementById('userAgent').textContent = data.agent_id || 'Not assigned';
                 document.getElementById('userShiftsEnabled').innerHTML = data.shifts_enabled 
                     ? '<span style="color: var(--success);">✓ Enabled</span>' 
@@ -266,7 +269,7 @@
                 document.getElementById('changePasswordForm').reset();
             } catch (error) {
                 console.error('Password change error:', error);
-                showAlert('Error changing password: ' + error.message, 'error');
+                showAlert('Error changing password. Please try again.', 'error');
             }
         }
 
@@ -372,7 +375,7 @@
                 
             } catch (error) {
                 console.error('Error loading shifts:', error);
-                showAlert('Error loading shifts: ' + error.message, 'error');
+                showAlert('Error loading shifts. Please try again.', 'error');
             } finally {
                 showLoading(false);
             }
@@ -414,7 +417,7 @@
                     <div class="shift-card" onclick="showShiftDetail(${shift.id})">
                         <div class="shift-card-header">
                             <div class="shift-card-date">${dateStr}</div>
-                            <div class="shift-card-agent">Agent ${shift.agent_id}</div>
+                            <div class="shift-card-agent">Agent ${escapeHTML(shift.agent_id)}</div>
                         </div>
                         <div class="shift-card-time">${timeStr}</div>
                         <div class="shift-card-stats">
@@ -492,9 +495,9 @@
                 <div class="shift-report-card">
                     <div class="shift-report-header">
                         <div class="shift-report-date">${dateStr}</div>
-                        <div class="shift-report-agent">Agent ${shift.agent_id}</div>
+                        <div class="shift-report-agent">Agent ${escapeHTML(shift.agent_id)}</div>
                     </div>
-                    
+
                     <div class="shift-report-grid">
                         <div class="shift-report-stat">
                             <div class="shift-report-stat-value">${hours}h ${minutes}m</div>

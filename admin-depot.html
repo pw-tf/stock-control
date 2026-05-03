@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Depot Configuration - Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auth.js"></script>
@@ -61,7 +64,7 @@
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                                <tr><td colspan="6" class="table-empty-state">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -83,7 +86,7 @@
                                 </tr>
                             </thead>
                             <tbody id="agentsTableBody">
-                                <tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                                <tr><td colspan="3" class="table-empty-state">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -105,7 +108,7 @@
                                 </tr>
                             </thead>
                             <tbody id="clientsTableBody">
-                                <tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                                <tr><td colspan="3" class="table-empty-state">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -126,7 +129,7 @@
                                 </tr>
                             </thead>
                             <tbody id="vendorsTableBody">
-                                <tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                                <tr><td colspan="2" class="table-empty-state">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -343,55 +346,52 @@
                 
                 const tbody = document.getElementById('usersTableBody');
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">No users found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="table-empty-state">No users found</td></tr>';
                     return;
                 }
                 
                 tbody.innerHTML = data.map(user => {
-                    const agentDisplay = user.agent_id 
-                        ? `<span style="font-family: var(--font-mono);">${user.agent_id}</span>` 
+                    const agentDisplay = user.agent_id
+                        ? `<span style="font-family: var(--font-mono);">${escapeHTML(user.agent_id)}</span>`
                         : '<span style="color: var(--text-muted); font-style: italic;">Not assigned</span>';
-                    
-                    const shiftsDisplay = user.shifts_enabled 
-                        ? '<span style="color: var(--success);">✓</span>' 
+
+                    const shiftsDisplay = user.shifts_enabled
+                        ? '<span style="color: var(--success);">✓</span>'
                         : '<span style="color: var(--text-muted);">—</span>';
-                    
+
                     const assignBtn = !user.agent_id
-                        ? `<button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8125rem; margin-right: 6px;" onclick="openAssignAgentModal('${user.user_id}', '${user.email}')">Assign</button>`
+                        ? `<button class="btn btn-primary btn-sm-action" style="margin-right: 6px;" onclick="openAssignAgentModal('${escapeHTML(user.user_id)}', '${escapeHTML(user.email)}')">Assign</button>`
                         : '';
-                    
+
                     return `
                         <tr>
                             <td>${agentDisplay}</td>
-                            <td>${user.email || 'N/A'}</td>
-                            <td><span class="badge badge-${user.role}">${user.role}</span></td>
+                            <td>${escapeHTML(user.email || 'N/A')}</td>
+                            <td><span class="badge badge-${escapeHTML(user.role)}">${escapeHTML(user.role)}</span></td>
                             <td>${shiftsDisplay}</td>
                             <td>${new Date(user.created_at).toLocaleDateString()}</td>
                             <td>
-                                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8125rem; margin-right: 6px;" onclick="openViewUserModal('${user.user_id}')">View</button>
+                                <button class="btn btn-secondary btn-sm-action" style="margin-right: 6px;" onclick="openViewUserModal('${escapeHTML(user.user_id)}')">View</button>
                                 ${assignBtn}
-                                <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>
+                                <button class="btn btn-danger btn-sm-action" onclick="deleteUser('${escapeHTML(user.user_id)}', '${escapeHTML(user.email)}')">Delete</button>
                             </td>
                         </tr>
                     `;
                 }).join('');
             } catch (error) {
                 console.error('Error loading users:', error);
-                showAlert('Error loading users: ' + error.message, 'error');
+                showAlert('Error loading users. Please try again.', 'error');
             }
         }
         
         async function loadAgents() {
             try {
-                const { data, error } = await db
-                    .from('agents')
-                    .select('agent_id')
-                    .eq('depot_id', currentDepotId)
-                    .order('agent_id', { ascending: true });
+                const [{ data, error }, { data: userCounts }] = await Promise.all([
+                    db.from('agents').select('agent_id').eq('depot_id', currentDepotId).order('agent_id', { ascending: true }),
+                    db.from('user_roles').select('agent_id').eq('depot_id', currentDepotId)
+                ]);
 
                 if (error) throw error;
-
-                const { data: userCounts } = await db.from('user_roles').select('agent_id').eq('depot_id', currentDepotId);
                 
                 const counts = {};
                 userCounts?.forEach(u => {
@@ -400,22 +400,22 @@
                 
                 const tbody = document.getElementById('agentsTableBody');
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">No agents found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="3" class="table-empty-state">No agents found</td></tr>';
                     return;
                 }
                 
                 tbody.innerHTML = data.map(agent => `
                     <tr>
-                        <td style="font-family: var(--font-mono); font-weight: 600;">${agent.agent_id}</td>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${escapeHTML(agent.agent_id)}</td>
                         <td>${counts[agent.agent_id] || 0} user(s)</td>
                         <td>
-                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteAgent('${agent.agent_id}')">Delete</button>
+                            <button class="btn btn-danger btn-sm-action" onclick="deleteAgent('${escapeHTML(agent.agent_id)}')">Delete</button>
                         </td>
                     </tr>
                 `).join('');
             } catch (error) {
                 console.error('Error loading agents:', error);
-                showAlert('Error loading agents: ' + error.message, 'error');
+                showAlert('Error loading agents. Please try again.', 'error');
             }
         }
         
@@ -431,33 +431,38 @@
 
                 const tbody = document.getElementById('clientsTableBody');
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">No clients found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="3" class="table-empty-state">No clients found</td></tr>';
                     return;
                 }
 
+                // Batch fetch all vendor counts in parallel
+                const clientIds = data.map(c => c.client_id);
+                const vendorCountResults = await Promise.all(
+                    clientIds.map(clientId =>
+                        db.from('clients_vendors')
+                            .select('*', { count: 'exact', head: true })
+                            .eq('client_id', clientId)
+                            .eq('depot_id', currentDepotId)
+                    )
+                );
                 const clientVendorCounts = {};
-                for (const client of data) {
-                    const { count } = await db
-                        .from('clients_vendors')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('client_id', client.client_id)
-                        .eq('depot_id', currentDepotId);
-                    clientVendorCounts[client.client_id] = count || 0;
-                }
+                clientIds.forEach((id, i) => {
+                    clientVendorCounts[id] = vendorCountResults[i].count || 0;
+                });
 
                 tbody.innerHTML = data.map(client => `
                     <tr>
-                        <td style="font-family: var(--font-mono); font-weight: 600;">${client.client_id}</td>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${escapeHTML(client.client_id)}</td>
                         <td>${clientVendorCounts[client.client_id]} vendor(s)</td>
                         <td>
-                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8125rem; margin-right: 6px;" onclick="openEditClientVendorsModal('${client.client_id}')">Configure</button>
-                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteClient('${client.client_id}')">Delete</button>
+                            <button class="btn btn-primary btn-sm-action" style="margin-right: 6px;" onclick="openEditClientVendorsModal('${escapeHTML(client.client_id)}')">Configure</button>
+                            <button class="btn btn-danger btn-sm-action" onclick="deleteClient('${escapeHTML(client.client_id)}')">Delete</button>
                         </td>
                     </tr>
                 `).join('');
             } catch (error) {
                 console.error('Error loading clients:', error);
-                showAlert('Error loading clients: ' + error.message, 'error');
+                showAlert('Error loading clients. Please try again.', 'error');
             }
         }
         
@@ -472,21 +477,21 @@
                 
                 const tbody = document.getElementById('vendorsTableBody');
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">No vendors found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="2" class="table-empty-state">No vendors found</td></tr>';
                     return;
                 }
                 
                 tbody.innerHTML = data.map(vendor => `
                     <tr>
-                        <td style="font-family: var(--font-mono); font-weight: 600;">${vendor.vendor_id}</td>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${escapeHTML(vendor.vendor_id)}</td>
                         <td>
-                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteVendor('${vendor.vendor_id}')">Delete</button>
+                            <button class="btn btn-danger btn-sm-action" onclick="deleteVendor('${escapeHTML(vendor.vendor_id)}')">Delete</button>
                         </td>
                     </tr>
                 `).join('');
             } catch (error) {
                 console.error('Error loading vendors:', error);
-                showAlert('Error loading vendors: ' + error.message, 'error');
+                showAlert('Error loading vendors. Please try again.', 'error');
             }
         }
         
@@ -531,7 +536,7 @@
                 closeAddAgentModal();
                 await loadAgents();
             } catch (error) {
-                showAlert('Error adding agent: ' + error.message, 'error');
+                showAlert('Error adding agent. Please try again.', 'error');
             }
         }
         
@@ -576,7 +581,7 @@
                 closeAddClientModal();
                 await loadClients();
             } catch (error) {
-                showAlert('Error adding client: ' + error.message, 'error');
+                showAlert('Error adding client. Please try again.', 'error');
             }
         }
         
@@ -592,7 +597,7 @@
                 closeAddVendorModal();
                 await loadVendors();
             } catch (error) {
-                showAlert('Error adding vendor: ' + error.message, 'error');
+                showAlert('Error adding vendor. Please try again.', 'error');
             }
         }
         
@@ -606,7 +611,7 @@
                 showAlert('Agent deleted successfully!', 'success');
                 await loadAgents();
             } catch (error) {
-                showAlert('Error deleting agent: ' + error.message, 'error');
+                showAlert('Error deleting agent. Please try again.', 'error');
             }
         }
         
@@ -630,7 +635,7 @@
                 showAlert('Client removed from depot successfully!', 'success');
                 await loadClients();
             } catch (error) {
-                showAlert('Error removing client: ' + error.message, 'error');
+                showAlert('Error removing client. Please try again.', 'error');
             }
         }
         
@@ -644,7 +649,7 @@
                 showAlert('Vendor deleted successfully!', 'success');
                 await loadVendors();
             } catch (error) {
-                showAlert('Error deleting vendor: ' + error.message, 'error');
+                showAlert('Error deleting vendor. Please try again.', 'error');
             }
         }
         
@@ -658,7 +663,7 @@
                 showAlert(`✓ User ${email} removed.`, 'success');
                 await loadUsers();
             } catch (error) {
-                showAlert('Error deleting user: ' + error.message, 'error');
+                showAlert('Error deleting user. Please try again.', 'error');
             }
         }
         
@@ -732,19 +737,19 @@
                     <div style="display: flex; color: var(--text-primary); align-items: center; padding: 12px; margin-bottom: 8px; background: var(--bg-tertiary); border-radius: 8px; border: 2px solid var(--border-primary); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--accent-primary)'; this.style.background='var(--bg-hover)';" onmouseout="this.style.borderColor='var(--border-primary)'; this.style.background='var(--bg-tertiary)';">
                         <input
                             type="checkbox"
-                            id="vendor_${vendor.vendor_id}"
-                            value="${vendor.vendor_id}"
+                            id="vendor_${escapeHTML(vendor.vendor_id)}"
+                            value="${escapeHTML(vendor.vendor_id)}"
                             ${linkedVendorIds.has(vendor.vendor_id) ? 'checked' : ''}
                             style="width: 20px; height: 20px; margin-right: 12px; cursor: pointer; accent-color: var(--accent-primary);"
                         >
-                        <label for="vendor_${vendor.vendor_id}" style="margin: 0; cursor: pointer; flex: 1; font-family: var(--font-mono);">${vendor.vendor_id}</label>
+                        <label for="vendor_${escapeHTML(vendor.vendor_id)}" style="margin: 0; cursor: pointer; flex: 1; font-family: var(--font-mono);">${escapeHTML(vendor.vendor_id)}</label>
                     </div>
                 `).join('');
 
                 document.getElementById('editClientVendorsModal').classList.add('active');
             } catch (error) {
                 console.error('Error opening edit modal:', error);
-                showAlert('Error loading client data: ' + error.message, 'error');
+                showAlert('Error loading client data. Please try again.', 'error');
             }
         }
 
@@ -805,7 +810,7 @@
                 await loadClients();
             } catch (error) {
                 console.error('Error saving client settings:', error);
-                showAlert('Error saving settings: ' + error.message, 'error');
+                showAlert('Error saving settings. Please try again.', 'error');
             }
         }
         
@@ -832,7 +837,7 @@
                 document.getElementById('assignAgentModal').classList.add('active');
             } catch (error) {
                 console.error('Error loading agents:', error);
-                showAlert('Error loading agents: ' + error.message, 'error');
+                showAlert('Error loading agents. Please try again.', 'error');
             }
         }
         
@@ -861,7 +866,7 @@
                 await loadUsers();
             } catch (error) {
                 console.error('Error assigning agent:', error);
-                showAlert('Error assigning agent: ' + error.message, 'error');
+                showAlert('Error assigning agent. Please try again.', 'error');
             }
         }
         
@@ -912,15 +917,15 @@
                         <h4 style="margin-bottom: 16px; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">Account Information</h4>
                         <div class="settings-info-row">
                             <span class="settings-label">Email</span>
-                            <span class="settings-value">${user.email}</span>
+                            <span class="settings-value">${escapeHTML(user.email)}</span>
                         </div>
                         <div class="settings-info-row">
                             <span class="settings-label">Role</span>
-                            <span class="settings-value"><span class="badge badge-${user.role}">${user.role}</span></span>
+                            <span class="settings-value"><span class="badge badge-${escapeHTML(user.role)}">${escapeHTML(user.role)}</span></span>
                         </div>
                         <div class="settings-info-row">
                             <span class="settings-label">Agent ID</span>
-                            <span class="settings-value">${user.agent_id || '<span style="color: var(--text-muted);">Not assigned</span>'}</span>
+                            <span class="settings-value">${user.agent_id ? escapeHTML(user.agent_id) : '<span style="color: var(--text-muted);">Not assigned</span>'}</span>
                         </div>
                         <div class="settings-info-row">
                             <span class="settings-label">Created</span>
@@ -932,7 +937,7 @@
                         <h4 style="margin-bottom: 16px; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em;">Shift Settings</h4>
                         <div class="toggle-container" style="margin-bottom: 0;">
                             <div class="toggle-switch">
-                                <input type="checkbox" id="shiftsEnabledToggle" ${user.shifts_enabled ? 'checked' : ''} onchange="toggleShiftsEnabled('${userId}', this.checked)">
+                                <input type="checkbox" id="shiftsEnabledToggle" ${user.shifts_enabled ? 'checked' : ''} onchange="toggleShiftsEnabled('${escapeHTML(userId)}', this.checked)">
                                 <div class="toggle-slider"></div>
                             </div>
                             <label class="toggle-label" for="shiftsEnabledToggle">Shifts Enabled</label>
@@ -967,7 +972,7 @@
                     if (totalShifts > 0) {
                         html += `
                             <div style="margin-top: 16px;">
-                                <button class="btn btn-primary" style="width: 100%;" onclick="viewUserShifts('${userId}', '${user.agent_id}')">
+                                <button class="btn btn-primary" style="width: 100%;" onclick="viewUserShifts('${escapeHTML(userId)}', '${escapeHTML(user.agent_id)}')">
                                     📊 View All Shifts
                                 </button>
                             </div>
@@ -980,7 +985,7 @@
                 
             } catch (error) {
                 console.error('Error loading user details:', error);
-                showAlert('Error loading user details: ' + error.message, 'error');
+                showAlert('Error loading user details. Please try again.', 'error');
             } finally {
                 showLoading(false);
             }
@@ -1004,7 +1009,7 @@
                 await loadUsers();
             } catch (error) {
                 console.error('Error updating shift settings:', error);
-                showAlert('Error updating settings: ' + error.message, 'error');
+                showAlert('Error updating settings. Please try again.', 'error');
                 document.getElementById('shiftsEnabledToggle').checked = !enabled;
             }
         }

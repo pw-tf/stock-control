@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Depots - Super Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auth.js"></script>
@@ -71,7 +74,7 @@
                                 </tr>
                             </thead>
                             <tbody id="depotsTableBody">
-                                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">Loading...</td></tr>
+                                <tr><td colspan="6" class="table-empty-state">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -95,7 +98,7 @@
                                 </tr>
                             </thead>
                             <tbody id="depotUsersTableBody">
-                                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">Select a depot above</td></tr>
+                                <tr><td colspan="5" class="table-empty-state">Select a depot above</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -117,7 +120,7 @@
                                 </tr>
                             </thead>
                             <tbody id="depotAgentsTableBody">
-                                <tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 40px;">Select a depot above</td></tr>
+                                <tr><td colspan="2" class="table-empty-state">Select a depot above</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -357,19 +360,19 @@
 
                 const tbody = document.getElementById('depotsTableBody');
                 if (!allDepots.length) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">No depots found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="table-empty-state">No depots found</td></tr>';
                     return;
                 }
 
                 tbody.innerHTML = allDepots.map(depot => `
                     <tr>
-                        <td style="font-family: var(--font-mono); font-weight: 600;">${depot.depot_id}</td>
-                        <td>${depot.depot_name}</td>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${escapeHTML(depot.depot_id)}</td>
+                        <td>${escapeHTML(depot.depot_name)}</td>
                         <td>${agentCounts[depot.depot_id] || 0}</td>
                         <td>${userCounts[depot.depot_id] || 0}</td>
                         <td>${new Date(depot.created_at).toLocaleDateString()}</td>
                         <td>
-                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteDepot('${depot.depot_id}')">Delete</button>
+                            <button class="btn btn-danger btn-sm-action" onclick="deleteDepot('${escapeHTML(depot.depot_id)}')">Delete</button>
                         </td>
                     </tr>
                 `).join('');
@@ -378,7 +381,7 @@
                 const selector = document.getElementById('depotSelector');
                 const previousValue = selectedDepotId;
                 selector.innerHTML = allDepots.map(d =>
-                    `<option value="${d.depot_id}" ${d.depot_id === (previousValue || allDepots[0]?.depot_id) ? 'selected' : ''}>${d.depot_name} (${d.depot_id})</option>`
+                    `<option value="${escapeHTML(d.depot_id)}" ${d.depot_id === (previousValue || allDepots[0]?.depot_id) ? 'selected' : ''}>${escapeHTML(d.depot_name)} (${escapeHTML(d.depot_id)})</option>`
                 ).join('');
 
                 // Set selectedDepotId if not already set
@@ -389,7 +392,7 @@
                 await loadDepotDetails();
             } catch (error) {
                 console.error('Error loading depots:', error);
-                showAlert('Error loading depots: ' + error.message, 'error');
+                showAlert('Error loading depots. Please try again.', 'error');
             }
         }
 
@@ -418,7 +421,7 @@
                 closeAddDepotModal();
                 await loadDepots();
             } catch (error) {
-                showAlert('Error creating depot: ' + error.message, 'error');
+                showAlert('Error creating depot. Please try again.', 'error');
             }
         }
 
@@ -435,7 +438,7 @@
                 }
                 await loadDepots();
             } catch (error) {
-                showAlert('Error deleting depot: ' + error.message, 'error');
+                showAlert('Error deleting depot. Please try again.', 'error');
             }
         }
 
@@ -470,13 +473,13 @@
 
                 const tbody = document.getElementById('depotUsersTableBody');
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">No users in this depot</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="table-empty-state">No users in this depot</td></tr>';
                     return;
                 }
 
                 tbody.innerHTML = data.map(user => {
                     const agentDisplay = user.agent_id
-                        ? `<span style="font-family: var(--font-mono);">${user.agent_id}</span>`
+                        ? `<span style="font-family: var(--font-mono);">${escapeHTML(user.agent_id)}</span>`
                         : '<span style="color: var(--text-muted); font-style: italic;">Not assigned</span>';
 
                     const shiftsDisplay = user.shifts_enabled
@@ -484,42 +487,39 @@
                         : '<span style="color: var(--text-muted);">—</span>';
 
                     const assignBtn = !user.agent_id
-                        ? `<button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="openAssignAgentModal('${user.user_id}', '${user.email}')">Assign Agent</button>`
+                        ? `<button class="btn btn-primary btn-sm-action" onclick="openAssignAgentModal('${escapeHTML(user.user_id)}', '${escapeHTML(user.email)}')">Assign Agent</button>`
                         : '';
 
                     return `
                         <tr>
                             <td>${agentDisplay}</td>
-                            <td>${user.email || 'N/A'}</td>
-                            <td><span class="badge badge-${user.role}">${user.role}</span></td>
+                            <td>${escapeHTML(user.email || 'N/A')}</td>
+                            <td><span class="badge badge-${escapeHTML(user.role)}">${escapeHTML(user.role)}</span></td>
                             <td>${shiftsDisplay}</td>
                             <td style="display: flex; gap: 6px; flex-wrap: wrap;">
                                 ${assignBtn}
-                                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="openChangeRoleModal('${user.user_id}', '${user.email}', '${user.role}')">Role</button>
-                                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="resetUserPassword('${user.email}')">Reset PW</button>
-                                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="openMoveUserDepotModal('${user.user_id}', '${user.email}')">Move</button>
-                                <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteUser('${user.user_id}', '${user.email}')">Delete</button>
+                                <button class="btn btn-secondary btn-sm-action" onclick="openChangeRoleModal('${escapeHTML(user.user_id)}', '${escapeHTML(user.email)}', '${escapeHTML(user.role)}')">Role</button>
+                                <button class="btn btn-secondary btn-sm-action" onclick="resetUserPassword('${escapeHTML(user.email)}')">Reset PW</button>
+                                <button class="btn btn-secondary btn-sm-action" onclick="openMoveUserDepotModal('${escapeHTML(user.user_id)}', '${escapeHTML(user.email)}')">Move</button>
+                                <button class="btn btn-danger btn-sm-action" onclick="deleteUser('${escapeHTML(user.user_id)}', '${escapeHTML(user.email)}')">Delete</button>
                             </td>
                         </tr>
                     `;
                 }).join('');
             } catch (error) {
                 console.error('Error loading depot users:', error);
-                showAlert('Error loading users: ' + error.message, 'error');
+                showAlert('Error loading users. Please try again.', 'error');
             }
         }
 
         async function loadDepotAgents() {
             try {
-                const { data: agents, error } = await db
-                    .from('agents')
-                    .select('agent_id')
-                    .eq('depot_id', selectedDepotId)
-                    .order('agent_id', { ascending: true });
+                const [{ data: agents, error }, { data: userCounts }] = await Promise.all([
+                    db.from('agents').select('agent_id').eq('depot_id', selectedDepotId).order('agent_id', { ascending: true }),
+                    db.from('user_roles').select('agent_id').eq('depot_id', selectedDepotId)
+                ]);
 
                 if (error) throw error;
-
-                const { data: userCounts } = await db.from('user_roles').select('agent_id').eq('depot_id', selectedDepotId);
                 const counts = {};
                 userCounts?.forEach(u => {
                     if (u.agent_id) counts[u.agent_id] = (counts[u.agent_id] || 0) + 1;
@@ -527,22 +527,22 @@
 
                 const tbody = document.getElementById('depotAgentsTableBody');
                 if (!agents || agents.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 40px;">No agents in this depot</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="3" class="table-empty-state">No agents in this depot</td></tr>';
                     return;
                 }
 
                 tbody.innerHTML = agents.map(agent => `
                     <tr>
-                        <td style="font-family: var(--font-mono); font-weight: 600;">${agent.agent_id}</td>
+                        <td style="font-family: var(--font-mono); font-weight: 600;">${escapeHTML(agent.agent_id)}</td>
                         <td>${counts[agent.agent_id] || 0} user(s)</td>
                         <td>
-                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8125rem;" onclick="deleteAgent('${agent.agent_id}')">Delete</button>
+                            <button class="btn btn-danger btn-sm-action" onclick="deleteAgent('${escapeHTML(agent.agent_id)}')">Delete</button>
                         </td>
                     </tr>
                 `).join('');
             } catch (error) {
                 console.error('Error loading depot agents:', error);
-                showAlert('Error loading agents: ' + error.message, 'error');
+                showAlert('Error loading agents. Please try again.', 'error');
             }
         }
 
@@ -557,7 +557,7 @@
             const select = document.getElementById('moveUserDepotSelect');
             select.innerHTML = allDepots
                 .filter(d => d.depot_id !== selectedDepotId)
-                .map(d => `<option value="${d.depot_id}">${d.depot_name} (${d.depot_id})</option>`)
+                .map(d => `<option value="${escapeHTML(d.depot_id)}">${escapeHTML(d.depot_name)} (${escapeHTML(d.depot_id)})</option>`)
                 .join('');
 
             document.getElementById('moveUserDepotModal').classList.add('active');
@@ -587,7 +587,7 @@
                 closeMoveUserDepotModal();
                 await Promise.all([loadDepots(), loadDepotDetails()]);
             } catch (error) {
-                showAlert('Error moving user: ' + error.message, 'error');
+                showAlert('Error moving user. Please try again.', 'error');
             }
         }
 
@@ -613,7 +613,7 @@
 
                 const select = document.getElementById('createUserAgent');
                 select.innerHTML = '<option value="">Assign later</option>' +
-                    (agents || []).map(a => `<option value="${a.agent_id}">Agent ${a.agent_id}</option>`).join('');
+                    (agents || []).map(a => `<option value="${escapeHTML(a.agent_id)}">Agent ${escapeHTML(a.agent_id)}</option>`).join('');
             } catch (error) {
                 console.error('Error loading agents:', error);
             }
@@ -686,7 +686,7 @@
                 await loadDepotUsers();
                 await loadDepots();
             } catch (error) {
-                showAlert('Error creating user: ' + error.message, 'error');
+                showAlert('Error creating user. Please try again.', 'error');
 
                 // Make sure admin session is restored on error
                 try {
@@ -716,7 +716,7 @@
 
                 showAlert(`Password reset email sent to ${email}`, 'success');
             } catch (error) {
-                showAlert('Error sending reset email: ' + error.message, 'error');
+                showAlert('Error sending reset email. Please try again.', 'error');
             }
         }
 
@@ -754,7 +754,7 @@
                 closeChangeRoleModal();
                 await loadDepotUsers();
             } catch (error) {
-                showAlert('Error updating role: ' + error.message, 'error');
+                showAlert('Error updating role. Please try again.', 'error');
             }
         }
 
@@ -772,7 +772,7 @@
                 showAlert(`User ${email} removed.`, 'success');
                 await Promise.all([loadDepots(), loadDepotUsers()]);
             } catch (error) {
-                showAlert('Error deleting user: ' + error.message, 'error');
+                showAlert('Error deleting user. Please try again.', 'error');
             }
         }
 
@@ -810,7 +810,7 @@
                 closeAddAgentModal();
                 await Promise.all([loadDepots(), loadDepotAgents()]);
             } catch (error) {
-                showAlert('Error adding agent: ' + error.message, 'error');
+                showAlert('Error adding agent. Please try again.', 'error');
             }
         }
 
@@ -824,7 +824,7 @@
                 showAlert('Agent deleted successfully!', 'success');
                 await Promise.all([loadDepots(), loadDepotAgents()]);
             } catch (error) {
-                showAlert('Error deleting agent: ' + error.message, 'error');
+                showAlert('Error deleting agent. Please try again.', 'error');
             }
         }
 
@@ -847,11 +847,11 @@
 
                 const select = document.getElementById('assignAgentSelect');
                 select.innerHTML = '<option value="">Choose an agent...</option>' +
-                    (agents || []).map(a => `<option value="${a.agent_id}">Agent ${a.agent_id}</option>`).join('');
+                    (agents || []).map(a => `<option value="${escapeHTML(a.agent_id)}">Agent ${escapeHTML(a.agent_id)}</option>`).join('');
 
                 document.getElementById('assignAgentModal').classList.add('active');
             } catch (error) {
-                showAlert('Error loading agents: ' + error.message, 'error');
+                showAlert('Error loading agents. Please try again.', 'error');
             }
         }
 
@@ -878,7 +878,7 @@
                 closeAssignAgentModal();
                 await loadDepotUsers();
             } catch (error) {
-                showAlert('Error assigning agent: ' + error.message, 'error');
+                showAlert('Error assigning agent. Please try again.', 'error');
             }
         }
     </script>
