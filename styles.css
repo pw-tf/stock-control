@@ -2294,6 +2294,12 @@ tr:hover td {
         border: 1px solid #ccc;
 		padding: none;
     }
+
+    .job-header {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: black;
+    }
     
     .job-section.expanded .serial-grid {
         display: grid !important;

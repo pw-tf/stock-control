@@ -1142,8 +1142,13 @@
                             </div>
                     `;
 
-                    for (const job of group.jobs) {
-                        const serialCount = job.serials?.length || 0;
+                    // Sort jobs alphabetically by vendor and filter out jobs with no serials
+                    const sortedJobs = group.jobs
+                        .filter(job => job.serials && job.serials.length > 0)
+                        .sort((a, b) => (a.vendor || '').localeCompare(b.vendor || ''));
+
+                    for (const job of sortedJobs) {
+                        const serialCount = job.serials.length;
 
                         html += `
                             <div class="job-section expanded">
