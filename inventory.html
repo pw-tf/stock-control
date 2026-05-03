@@ -522,6 +522,7 @@
 
                 // Check if we have any results
                 if (matchingBoxes.size === 0 && matchingJobs.size === 0 && matchingSerials.length === 0) {
+                    document.getElementById('searchResults').style.display = 'block';
                     showNoResults(hasAgentFilter, hasClientFilter, hasTextSearch, hasDateFilter, selectedAgent, selectedClient, searchInput);
                     showLoading(false);
                     return;
@@ -534,6 +535,7 @@
                     serials: matchingSerials
                 };
 
+                document.getElementById('searchResults').style.display = 'block';
                 renderSearchResults(lastSearchResults);
 
             } catch (error) {
