@@ -71,7 +71,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             const { data: { session } } = await db.auth.getSession();
             if (session) {
-                window.location.href = 'dashboard.html';
+                window.location.href = 'home.html';
             }
         });
 
@@ -129,7 +129,7 @@
                     if (roleData.role === 'merchant') {
                         window.location.href = 'guides.html';
                     } else {
-                        window.location.href = 'dashboard.html';
+                        window.location.href = 'home.html';
                     }
                 }, 1000);
                 

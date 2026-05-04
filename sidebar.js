@@ -71,6 +71,10 @@ function injectSidebarHTML() {
             <button class="sidebar-close" id="sidebarClose">×</button>
         </div>
         <div class="sidebar-menu">
+            <a href="home.html" class="sidebar-menu-item" data-page="home">
+                <span><i data-lucide="layout-dashboard" width="20" height="20"></i></span>
+                <span>Home</span>
+            </a>
             <a href="dashboard.html" class="sidebar-menu-item" data-page="dashboard">
                 <span><i data-lucide="clipboard" width="20" height="20"></i></span>
                 <span>Stock Entry</span>

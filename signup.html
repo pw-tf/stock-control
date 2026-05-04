@@ -128,7 +128,7 @@
             // Check if user is already logged in
             const { data: { session } } = await db.auth.getSession();
             if (session) {
-                window.location.href = 'dashboard.html';
+                window.location.href = 'home.html';
                 return;
             }
 

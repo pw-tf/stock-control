@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home - Stock Submission</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+    <script>(function(){var t=localStorage.getItem("theme")||"ocean";var m=localStorage.getItem("mode")||"dark";document.documentElement.setAttribute("data-theme",t);document.documentElement.setAttribute("data-mode",m);})();</script>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@0.460.0"></script>
+    <script src="icons.js"></script>
+    <script src="auth.js"></script>
+    <script src="sidebar.js"></script>
+    <script src="utils.js"></script>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="app-wrapper">
+        <div class="container container-wide">
+            <div class="header">
+                <div class="header-content">
+                    <div class="header-icon"><i data-lucide="layout-dashboard" width="32" height="32"></i></div>
+                    <div>
+                        <h1>Home</h1>
+                        <div class="header-subtitle" id="welcomeMsg">Welcome back</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content">
+                <div id="alertContainer"></div>
+                <div id="widgetContainer"></div>
+                <div style="text-align: center; margin-top: var(--spacing-lg); padding-bottom: var(--spacing-lg);">
+                    <button class="btn btn-secondary" id="editLayoutBtn" onclick="toggleEditMode()">
+                        <i data-lucide="settings-2" width="18" height="18"></i> Edit Layout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let editMode = false;
+        let shiftTimer = null;
+
+        // ============================================
+        // WIDGET REGISTRY
+        // ============================================
+
+        const WIDGET_REGISTRY = [
+            {
+                id: 'quick-nav',
+                title: 'Quick Navigation',
+                icon: 'compass',
+                roles: ['technician', 'manager', 'super_admin'],
+                render: renderQuickNav
+            },
+            {
+                id: 'today-jobs',
+                title: 'Jobs Today',
+                icon: 'briefcase',
+                roles: ['technician', 'manager', 'super_admin'],
+                render: renderTodayJobs
+            },
+            {
+                id: 'open-boxes',
+                title: 'Open Boxes',
+                icon: 'package-open',
+                roles: ['technician', 'manager', 'super_admin'],
+                render: renderOpenBoxes
+            },
+            {
+                id: 'active-shift',
+                title: 'Active Shift',
+                icon: 'clock',
+                roles: ['technician', 'manager', 'super_admin'],
+                shiftsOnly: true,
+                render: renderActiveShift
+            },
+            {
+                id: 'week-stats',
+                title: 'This Week',
+                icon: 'bar-chart-2',
+                roles: ['technician', 'manager', 'super_admin'],
+                render: renderWeekStats
+            },
+            {
+                id: 'depot-summary',
+                title: 'Depot Summary',
+                icon: 'building-2',
+                roles: ['manager', 'super_admin'],
+                render: renderDepotSummary
+            },
+            {
+                id: 'team-activity',
+                title: 'Team Activity',
+                icon: 'users',
+                roles: ['manager', 'super_admin'],
+                render: renderTeamActivity
+            },
+            {
+                id: 'depot-week',
+                title: 'Depot Jobs This Week',
+                icon: 'calendar',
+                roles: ['manager', 'super_admin'],
+                render: renderDepotWeek
+            },
+            {
+                id: 'all-depots',
+                title: 'All Depots Overview',
+                icon: 'globe',
+                roles: ['super_admin'],
+                render: renderAllDepots
+            },
+            {
+                id: 'system-stats',
+                title: 'System Stats',
+                icon: 'activity',
+                roles: ['super_admin'],
+                render: renderSystemStats
+            }
+        ];
+
+        // ============================================
+        // WIDGET CONFIG (localStorage)
+        // ============================================
+
+        function getWidgetConfig() {
+            try {
+                const order = JSON.parse(localStorage.getItem('home_widget_order'));
+                const hidden = JSON.parse(localStorage.getItem('home_widget_hidden'));
+                return {
+                    order: Array.isArray(order) ? order : null,
+                    hidden: Array.isArray(hidden) ? hidden : []
+                };
+            } catch {
+                return { order: null, hidden: [] };
+            }
+        }
+
+        function saveWidgetConfig(config) {
+            localStorage.setItem('home_widget_order', JSON.stringify(config.order));
+            localStorage.setItem('home_widget_hidden', JSON.stringify(config.hidden));
+        }
+
+        function getAvailableWidgets() {
+            return WIDGET_REGISTRY.filter(w => {
+                if (!w.roles.includes(currentUser.role)) return false;
+                if (w.shiftsOnly && !currentUser.shifts_enabled) return false;
+                return true;
+            });
+        }
+
+        function getOrderedWidgets() {
+            const available = getAvailableWidgets();
+            const config = getWidgetConfig();
+
+            if (!config.order) return available;
+
+            const ordered = [];
+            // Add widgets in saved order (if still available)
+            config.order.forEach(id => {
+                const w = available.find(w => w.id === id);
+                if (w) ordered.push(w);
+            });
+            // Append any new widgets not in saved order
+            available.forEach(w => {
+                if (!ordered.find(o => o.id === w.id)) ordered.push(w);
+            });
+            return ordered;
+        }
+
+        // ============================================
+        // LAYOUT EDITING
+        // ============================================
+
+        function toggleEditMode() {
+            editMode = !editMode;
+            const btn = document.getElementById('editLayoutBtn');
+            if (editMode) {
+                btn.innerHTML = '<i data-lucide="check" width="18" height="18"></i> Done';
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-primary');
+            } else {
+                btn.innerHTML = '<i data-lucide="settings-2" width="18" height="18"></i> Edit Layout';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-secondary');
+            }
+            lucide.createIcons();
+            renderWidgets();
+        }
+
+        function moveWidget(id, direction) {
+            const widgets = getOrderedWidgets();
+            const config = getWidgetConfig();
+            const order = widgets.map(w => w.id);
+            const idx = order.indexOf(id);
+            if (idx === -1) return;
+
+            const newIdx = idx + direction;
+            if (newIdx < 0 || newIdx >= order.length) return;
+
+            [order[idx], order[newIdx]] = [order[newIdx], order[idx]];
+            config.order = order;
+            saveWidgetConfig(config);
+            renderWidgets();
+        }
+
+        function toggleWidget(id) {
+            const config = getWidgetConfig();
+            const idx = config.hidden.indexOf(id);
+            if (idx === -1) {
+                config.hidden.push(id);
+            } else {
+                config.hidden.splice(idx, 1);
+            }
+            // Ensure order is saved too
+            if (!config.order) {
+                config.order = getOrderedWidgets().map(w => w.id);
+            }
+            saveWidgetConfig(config);
+            renderWidgets();
+        }
+
+        // ============================================
+        // WIDGET RENDERING
+        // ============================================
+
+        async function renderWidgets() {
+            const container = document.getElementById('widgetContainer');
+            const widgets = getOrderedWidgets();
+            const config = getWidgetConfig();
+
+            container.innerHTML = '';
+
+            for (const widget of widgets) {
+                const isHidden = config.hidden.includes(widget.id);
+                const idx = widgets.indexOf(widget);
+
+                const card = document.createElement('div');
+                card.className = 'widget-card card' + (isHidden ? ' widget-hidden' : '');
+                card.dataset.widgetId = widget.id;
+
+                // Widget header
+                let headerHTML = `
+                    <div class="widget-header">
+                        <div class="widget-title">
+                            <i data-lucide="${widget.icon}" width="20" height="20"></i>
+                            <span>${escapeHTML(widget.title)}</span>
+                        </div>
+                `;
+
+                if (editMode) {
+                    headerHTML += `
+                        <div class="widget-controls">
+                            <button class="widget-ctrl-btn" onclick="moveWidget('${widget.id}', -1)" title="Move up" ${idx === 0 ? 'disabled' : ''}>
+                                <i data-lucide="chevron-up" width="16" height="16"></i>
+                            </button>
+                            <button class="widget-ctrl-btn" onclick="moveWidget('${widget.id}', 1)" title="Move down" ${idx === widgets.length - 1 ? 'disabled' : ''}>
+                                <i data-lucide="chevron-down" width="16" height="16"></i>
+                            </button>
+                            <button class="widget-ctrl-btn ${isHidden ? '' : 'active'}" onclick="toggleWidget('${widget.id}')" title="${isHidden ? 'Show' : 'Hide'}">
+                                <i data-lucide="${isHidden ? 'eye-off' : 'eye'}" width="16" height="16"></i>
+                            </button>
+                        </div>
+                    `;
+                }
+
+                headerHTML += '</div>';
+                card.innerHTML = headerHTML;
+
+                // Widget body (skip if hidden)
+                if (!isHidden) {
+                    const body = document.createElement('div');
+                    body.className = 'widget-body';
+                    body.innerHTML = '<div class="widget-loading"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div></div>';
+                    card.appendChild(body);
+
+                    // Render async content
+                    widget.render(body, currentUser).catch(err => {
+                        console.error(`Widget ${widget.id} error:`, err);
+                        body.innerHTML = '<div class="widget-error">Failed to load</div>';
+                    });
+                }
+
+                container.appendChild(card);
+            }
+
+            lucide.createIcons();
+        }
+
+        // ============================================
+        // HELPERS
+        // ============================================
+
+        function getTodayMidnight() {
+            const d = new Date();
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+
+        function getMondayOfWeek() {
+            const d = new Date();
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(d.setDate(diff));
+            monday.setHours(0, 0, 0, 0);
+            return monday;
+        }
+
+        function formatElapsed(ms) {
+            const totalMin = Math.floor(ms / 60000);
+            const h = Math.floor(totalMin / 60);
+            const m = totalMin % 60;
+            return h > 0 ? `${h}h ${m}m` : `${m}m`;
+        }
+
+        // ============================================
+        // WIDGET: Quick Navigation
+        // ============================================
+
+        async function renderQuickNav(container, user) {
+            const links = [
+                { href: 'dashboard.html', icon: 'plus-circle', label: 'Stock Entry' },
+                { href: 'inventory.html', icon: 'search', label: 'Inventory' },
+                { href: 'user.html', icon: 'user', label: 'Profile' }
+            ];
+
+            if (hasRole(user.role, ['manager', 'super_admin'])) {
+                links.push({ href: 'admin-depot.html', icon: 'settings', label: 'Depot Config' });
+                links.push({ href: 'admin-shifts.html', icon: 'clock', label: 'Shift Reports' });
+            }
+            if (user.role === 'super_admin') {
+                links.push({ href: 'manage-depots.html', icon: 'building-2', label: 'Manage Depots' });
+            }
+
+            container.innerHTML = `
+                <div class="quick-nav-grid">
+                    ${links.map(l => `
+                        <a href="${l.href}" class="quick-nav-item">
+                            <i data-lucide="${l.icon}" width="24" height="24"></i>
+                            <span>${l.label}</span>
+                        </a>
+                    `).join('')}
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        // ============================================
+        // WIDGET: Jobs Today
+        // ============================================
+
+        async function renderTodayJobs(container, user) {
+            const today = getTodayMidnight().toISOString();
+
+            let query;
+            if (user.role === 'technician') {
+                // Get this tech's boxes first
+                const { data: boxes } = await db.from('boxes')
+                    .select('id')
+                    .eq('agent', user.agent_id)
+                    .eq('depot_id', user.depot_id);
+                const boxIds = (boxes || []).map(b => b.id);
+                if (boxIds.length === 0) {
+                    container.innerHTML = `
+                        <div class="widget-stat-large">
+                            <div class="widget-stat-number">0</div>
+                            <div class="widget-stat-label">jobs submitted today</div>
+                        </div>
+                    `;
+                    return;
+                }
+                query = db.from('jobs')
+                    .select('job_type')
+                    .in('box_id', boxIds)
+                    .gte('created_at', today);
+            } else {
+                query = db.from('jobs')
+                    .select('job_type')
+                    .eq('depot_id', user.depot_id)
+                    .gte('created_at', today);
+            }
+
+            const { data: jobs, error } = await query;
+            if (error) throw error;
+
+            const total = (jobs || []).length;
+            const byType = {};
+            (jobs || []).forEach(j => {
+                byType[j.job_type] = (byType[j.job_type] || 0) + 1;
+            });
+
+            const typeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
+
+            container.innerHTML = `
+                <div class="widget-stat-large">
+                    <div class="widget-stat-number">${total}</div>
+                    <div class="widget-stat-label">jobs submitted today</div>
+                </div>
+                ${Object.keys(byType).length > 0 ? `
+                    <div class="widget-stat-breakdown">
+                        ${Object.entries(byType).map(([type, count]) => `
+                            <div class="widget-stat-row">
+                                <span>${typeLabels[type] || escapeHTML(type)}</span>
+                                <span class="widget-stat-row-value">${count}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            `;
+        }
+
+        // ============================================
+        // WIDGET: Open Boxes
+        // ============================================
+
+        // Store open boxes data globally so filter functions can access it
+        let openBoxesData = [];
+        let openBoxesJobCounts = {};
+
+        async function renderOpenBoxes(container, user) {
+            const { data: boxes, error } = await db.from('boxes')
+                .select('id, box_id, client, agent, created_at')
+                .eq('status', 'open')
+                .eq('depot_id', user.depot_id)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            if (!boxes || boxes.length === 0) {
+                container.innerHTML = '<div class="widget-empty">No open boxes</div>';
+                return;
+            }
+
+            // Get job counts per box in parallel
+            const counts = await Promise.all(boxes.map(box =>
+                db.from('jobs')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('box_id', box.id)
+                    .then(({ count }) => ({ id: box.id, count: count || 0 }))
+            ));
+
+            openBoxesJobCounts = {};
+            counts.forEach(c => openBoxesJobCounts[c.id] = c.count);
+            openBoxesData = boxes;
+
+            // Get unique clients and agents for dropdowns
+            const clients = [...new Set(boxes.map(b => b.client))].sort();
+            const agents = [...new Set(boxes.map(b => b.agent))].sort();
+
+            const isManager = hasRole(user.role, ['manager', 'super_admin']);
+            const myBoxes = user.agent_id ? boxes.filter(b => b.agent === user.agent_id) : boxes;
+            const myTotal = myBoxes.length;
+            const myJobs = myBoxes.reduce((sum, b) => sum + (openBoxesJobCounts[b.id] || 0), 0);
+
+            container.innerHTML = `
+                <div class="widget-stat-large">
+                    <div class="widget-stat-number">${myTotal}</div>
+                    <div class="widget-stat-label">open box${myTotal !== 1 ? 'es' : ''} &middot; ${myJobs} job${myJobs !== 1 ? 's' : ''}</div>
+                </div>
+                <div class="widget-open-boxes-filters" style="border-top: 1px solid var(--border-primary); margin-top: var(--spacing-md); padding-top: var(--spacing-md);">
+                    <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap; margin-bottom: var(--spacing-md);">
+                        ${isManager ? `
+                            <select id="openBoxAgentFilter" class="form-input" style="flex: 1; min-width: 120px;" onchange="filterOpenBoxes()">
+                                <option value="">All Agents</option>
+                                ${agents.map(a => `<option value="${escapeHTML(a)}"${a === user.agent_id ? ' selected' : ''}>Agent ${escapeHTML(a)}</option>`).join('')}
+                            </select>
+                        ` : ''}
+                        <select id="openBoxClientFilter" class="form-input" style="flex: 1; min-width: 120px;" onchange="filterOpenBoxes()">
+                            <option value="">All Clients</option>
+                            ${clients.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div id="openBoxesList"></div>
+                </div>
+            `;
+
+            filterOpenBoxes();
+        }
+
+        function filterOpenBoxes() {
+            const user = currentUser;
+            const isManager = hasRole(user.role, ['manager', 'super_admin']);
+            const agentFilter = isManager ? (document.getElementById('openBoxAgentFilter')?.value || '') : user.agent_id;
+            const clientFilter = document.getElementById('openBoxClientFilter')?.value || '';
+
+            let filtered = openBoxesData;
+            if (agentFilter) filtered = filtered.filter(b => b.agent === agentFilter);
+            if (clientFilter) filtered = filtered.filter(b => b.client === clientFilter);
+
+            const listEl = document.getElementById('openBoxesList');
+            if (!listEl) return;
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = '<div class="widget-empty" style="padding: var(--spacing-sm);">No matching boxes</div>';
+                return;
+            }
+
+            listEl.innerHTML = `
+                <div class="widget-list">
+                    ${filtered.map(box => `
+                        <div class="widget-list-item">
+                            <div class="widget-list-item-main">
+                                <span class="widget-list-item-title" style="font-family: var(--font-mono);">${escapeHTML(box.box_id)}</span>
+                                <span class="widget-list-item-sub">${escapeHTML(box.client)}${isManager ? ' &middot; Agent ' + escapeHTML(box.agent) : ''}</span>
+                            </div>
+                            <span class="badge badge-info">${openBoxesJobCounts[box.id] || 0} jobs</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // ============================================
+        // WIDGET: Active Shift
+        // ============================================
+
+        async function renderActiveShift(container, user) {
+            const { data: shift, error } = await db.from('shifts')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('status', 'active')
+                .limit(1)
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (!shift) {
+                container.innerHTML = `
+                    <div class="widget-empty">
+                        <div>No active shift</div>
+                        <a href="dashboard.html" class="btn btn-secondary" style="margin-top: 12px;">
+                            <i data-lucide="play" width="16" height="16"></i> Start from Dashboard
+                        </a>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            const startTime = new Date(shift.start_time);
+
+            function updateElapsed() {
+                const elapsed = Date.now() - startTime.getTime();
+                const el = document.getElementById('shiftElapsed');
+                if (el) el.textContent = formatElapsed(elapsed);
+            }
+
+            container.innerHTML = `
+                <div class="widget-shift-active">
+                    <div class="widget-stat-row">
+                        <span>Started</span>
+                        <span class="widget-stat-row-value">${startTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                    </div>
+                    <div class="widget-stat-row">
+                        <span>Elapsed</span>
+                        <span class="widget-stat-row-value" id="shiftElapsed">${formatElapsed(Date.now() - startTime.getTime())}</span>
+                    </div>
+                    <div class="widget-stat-row">
+                        <span>Start KMs</span>
+                        <span class="widget-stat-row-value">${shift.start_kms.toLocaleString()} km</span>
+                    </div>
+                </div>
+            `;
+
+            if (shiftTimer) clearInterval(shiftTimer);
+            shiftTimer = setInterval(updateElapsed, 60000);
+        }
+
+        // ============================================
+        // WIDGET: This Week's Stats
+        // ============================================
+
+        async function renderWeekStats(container, user) {
+            const monday = getMondayOfWeek().toISOString();
+
+            const { data: shifts, error } = await db.from('shifts')
+                .select('start_time, end_time, start_kms, end_kms, extra_jobs, agent_id')
+                .eq('user_id', user.id)
+                .eq('status', 'completed')
+                .gte('start_time', monday);
+
+            if (error) throw error;
+
+            if (!shifts || shifts.length === 0) {
+                container.innerHTML = '<div class="widget-empty">No completed shifts this week</div>';
+                return;
+            }
+
+            let totalHours = 0, totalKms = 0, totalJobs = 0;
+            shifts.forEach(s => {
+                totalHours += (new Date(s.end_time) - new Date(s.start_time)) / 3600000;
+                totalKms += s.end_kms - s.start_kms;
+                totalJobs += s.extra_jobs || 0;
+            });
+
+            // Get system jobs count
+            if (user.agent_id) {
+                const { data: boxes } = await db.from('boxes')
+                    .select('id')
+                    .eq('agent', user.agent_id)
+                    .eq('depot_id', user.depot_id);
+                if (boxes && boxes.length > 0) {
+                    const { count } = await db.from('jobs')
+                        .select('*', { count: 'exact', head: true })
+                        .in('box_id', boxes.map(b => b.id))
+                        .gte('created_at', monday);
+                    totalJobs += count || 0;
+                }
+            }
+
+            const h = Math.floor(totalHours);
+            const m = Math.round((totalHours - h) * 60);
+
+            container.innerHTML = `
+                <div class="widget-stats-grid">
+                    <div class="widget-mini-stat">
+                        <div class="widget-mini-stat-value">${shifts.length}</div>
+                        <div class="widget-mini-stat-label">Shifts</div>
+                    </div>
+                    <div class="widget-mini-stat">
+                        <div class="widget-mini-stat-value">${h}h ${m}m</div>
+                        <div class="widget-mini-stat-label">Hours</div>
+                    </div>
+                    <div class="widget-mini-stat">
+                        <div class="widget-mini-stat-value">${totalKms.toLocaleString()}</div>
+                        <div class="widget-mini-stat-label">KMs</div>
+                    </div>
+                    <div class="widget-mini-stat">
+                        <div class="widget-mini-stat-value">${totalJobs}</div>
+                        <div class="widget-mini-stat-label">Jobs</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ============================================
+        // WIDGET: Depot Summary (Manager)
+        // ============================================
+
+        async function renderDepotSummary(container, user) {
+            const today = getTodayMidnight().toISOString();
+
+            const [usersRes, agentsRes, boxesRes, jobsRes] = await Promise.all([
+                db.from('user_roles').select('*', { count: 'exact', head: true }).eq('depot_id', user.depot_id),
+                db.from('agents').select('*', { count: 'exact', head: true }).eq('depot_id', user.depot_id),
+                db.from('boxes').select('*', { count: 'exact', head: true }).eq('depot_id', user.depot_id).eq('status', 'open'),
+                db.from('jobs').select('*', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', today)
+            ]);
+
+            container.innerHTML = `
+                <div class="widget-stats-grid">
+                    <div class="widget-mini-stat">
+                        <div class="widget-mini-stat-value">${usersRes.count || 0}</div>
+                        <div class="widget-mini-stat-label">Users</div>
+                    </div>
+                    <div class="widget-mini-stat">
+                        <div class="widget-mini-stat-value">${agentsRes.count || 0}</div>
+                        <div class="widget-mini-stat-label">Agents</div>
+                    </div>
+                    <div class="widget-mini-stat">
+                        <div class="widget-mini-stat-value">${boxesRes.count || 0}</div>
+                        <div class="widget-mini-stat-label">Open Boxes</div>
+                    </div>
+                    <div class="widget-mini-stat">
+                        <div class="widget-mini-stat-value">${jobsRes.count || 0}</div>
+                        <div class="widget-mini-stat-label">Jobs Today</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ============================================
+        // WIDGET: Team Activity (Manager)
+        // ============================================
+
+        async function renderTeamActivity(container, user) {
+            const { data: activeShifts, error } = await db.from('shifts')
+                .select('user_id, agent_id, start_time')
+                .eq('depot_id', user.depot_id)
+                .eq('status', 'active');
+
+            if (error) throw error;
+
+            if (!activeShifts || activeShifts.length === 0) {
+                container.innerHTML = '<div class="widget-empty">No technicians currently on shift</div>';
+                return;
+            }
+
+            // Get user info
+            const userIds = activeShifts.map(s => s.user_id);
+            const { data: users } = await db.from('user_roles')
+                .select('user_id, email, agent_id')
+                .in('user_id', userIds);
+
+            const userMap = {};
+            (users || []).forEach(u => userMap[u.user_id] = u);
+
+            container.innerHTML = `
+                <div class="widget-list">
+                    ${activeShifts.map(shift => {
+                        const u = userMap[shift.user_id] || {};
+                        const elapsed = Date.now() - new Date(shift.start_time).getTime();
+                        return `
+                            <div class="widget-list-item">
+                                <div class="widget-list-item-main">
+                                    <span class="widget-list-item-title">${escapeHTML(u.email || 'Unknown')}</span>
+                                    <span class="widget-list-item-sub">Agent ${escapeHTML(shift.agent_id)} &middot; ${formatElapsed(elapsed)} elapsed</span>
+                                </div>
+                                <span class="badge badge-success">Active</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // ============================================
+        // WIDGET: Depot Jobs This Week (Manager)
+        // ============================================
+
+        async function renderDepotWeek(container, user) {
+            const monday = getMondayOfWeek();
+            const mondayISO = monday.toISOString();
+
+            const { data: jobs, error } = await db.from('jobs')
+                .select('created_at')
+                .eq('depot_id', user.depot_id)
+                .gte('created_at', mondayISO);
+
+            if (error) throw error;
+
+            const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const dayCounts = [0, 0, 0, 0, 0, 0, 0];
+
+            (jobs || []).forEach(j => {
+                const d = new Date(j.created_at);
+                const day = d.getDay();
+                const idx = day === 0 ? 6 : day - 1; // Mon=0, Sun=6
+                dayCounts[idx]++;
+            });
+
+            const max = Math.max(...dayCounts, 1);
+            const today = new Date();
+            const todayIdx = today.getDay() === 0 ? 6 : today.getDay() - 1;
+
+            container.innerHTML = `
+                <div class="widget-bar-chart">
+                    ${dayNames.map((name, i) => {
+                        const pct = Math.round((dayCounts[i] / max) * 100);
+                        const isToday = i === todayIdx;
+                        return `
+                            <div class="widget-bar-col ${isToday ? 'today' : ''}">
+                                <div class="widget-bar-value">${dayCounts[i]}</div>
+                                <div class="widget-bar-track">
+                                    <div class="widget-bar-fill" style="height: ${Math.max(pct, 4)}%;"></div>
+                                </div>
+                                <div class="widget-bar-label">${name}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // ============================================
+        // WIDGET: All Depots Overview (Super Admin)
+        // ============================================
+
+        async function renderAllDepots(container, user) {
+            const { data: depots, error } = await db.from('depots')
+                .select('depot_id, depot_name')
+                .order('depot_name', { ascending: true });
+
+            if (error) throw error;
+
+            if (!depots || depots.length === 0) {
+                container.innerHTML = '<div class="widget-empty">No depots found</div>';
+                return;
+            }
+
+            const today = getTodayMidnight().toISOString();
+
+            // Parallel queries per depot
+            const depotData = await Promise.all(depots.map(async (depot) => {
+                const [usersRes, agentsRes, boxesRes, jobsRes] = await Promise.all([
+                    db.from('user_roles').select('*', { count: 'exact', head: true }).eq('depot_id', depot.depot_id),
+                    db.from('agents').select('*', { count: 'exact', head: true }).eq('depot_id', depot.depot_id),
+                    db.from('boxes').select('*', { count: 'exact', head: true }).eq('depot_id', depot.depot_id).eq('status', 'open'),
+                    db.from('jobs').select('*', { count: 'exact', head: true }).eq('depot_id', depot.depot_id).gte('created_at', today)
+                ]);
+                return {
+                    ...depot,
+                    users: usersRes.count || 0,
+                    agents: agentsRes.count || 0,
+                    openBoxes: boxesRes.count || 0,
+                    jobsToday: jobsRes.count || 0
+                };
+            }));
+
+            container.innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Depot</th>
+                                <th>Users</th>
+                                <th>Agents</th>
+                                <th>Open Boxes</th>
+                                <th>Jobs Today</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${depotData.map(d => `
+                                <tr>
+                                    <td><strong>${escapeHTML(d.depot_name)}</strong><br><span style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.8rem;">${escapeHTML(d.depot_id)}</span></td>
+                                    <td>${d.users}</td>
+                                    <td>${d.agents}</td>
+                                    <td>${d.openBoxes}</td>
+                                    <td>${d.jobsToday}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // ============================================
+        // WIDGET: System Stats (Super Admin)
+        // ============================================
+
+        async function renderSystemStats(container, user) {
+            const today = getTodayMidnight().toISOString();
+
+            const [usersRes, boxesRes, jobsRes] = await Promise.all([
+                db.from('user_roles').select('*', { count: 'exact', head: true }),
+                db.from('boxes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
+                db.from('jobs').select('*', { count: 'exact', head: true }).gte('created_at', today)
+            ]);
+
+            container.innerHTML = `
+                <div class="widget-stats-grid widget-stats-grid-3">
+                    <div class="widget-mini-stat">
+                        <div class="widget-mini-stat-value">${usersRes.count || 0}</div>
+                        <div class="widget-mini-stat-label">Total Users</div>
+                    </div>
+                    <div class="widget-mini-stat">
+                        <div class="widget-mini-stat-value">${boxesRes.count || 0}</div>
+                        <div class="widget-mini-stat-label">Open Boxes</div>
+                    </div>
+                    <div class="widget-mini-stat">
+                        <div class="widget-mini-stat-value">${jobsRes.count || 0}</div>
+                        <div class="widget-mini-stat-label">Jobs Today</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await initAuth(['super_admin', 'manager', 'technician']);
+            if (!currentUser) return;
+
+            document.getElementById('welcomeMsg').textContent = `Welcome back, ${currentUser.email}`;
+
+            initSidebar(currentUser);
+            restrictByRole(currentUser.role);
+
+            await renderWidgets();
+
+            showLoading(false);
+        });
+
+        function showLoading(show) {
+            document.getElementById('loading').classList.toggle('active', show);
+        }
+    </script>
+</body>
+</html>

@@ -74,7 +74,7 @@
             const user = await getCurrentUser();
             if (user && user.agent_id) {
                 // User has been assigned, redirect to dashboard
-                window.location.href = 'dashboard.html';
+                window.location.href = 'home.html';
             }
         });
         
@@ -86,7 +86,7 @@
                     // User has been assigned!
                     showAlert('✓ Your account has been activated!', 'success');
                     setTimeout(() => {
-                        window.location.href = 'dashboard.html';
+                        window.location.href = 'home.html';
                     }, 1000);
                 } else {
                     showAlert('Your account is still pending. Please check back later.', 'info');

@@ -123,7 +123,7 @@ async function initAuth(requiredRoles = null) {
     // Check if user has required role
     if (requiredRoles && !hasRole(user.role, requiredRoles)) {
         alert('You do not have permission to access this page.');
-        window.location.href = 'dashboard.html';
+        window.location.href = 'home.html';
         return null;
     }
     
