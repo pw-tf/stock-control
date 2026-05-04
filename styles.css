@@ -2872,50 +2872,81 @@ html[data-theme="sand"][data-mode="light"] {
 
 /* Perry's Beach Dark */
 html[data-theme="perrys-beach"][data-mode="dark"] {
-    --bg-primary: #181208;
-    --bg-secondary: #261c10;
-    --bg-tertiary: #342816;
-    --bg-elevated: #42341e;
-    --bg-hover: #564428;
-    --accent-primary: #c85c50;
-    --accent-secondary: #ff6f69;
-    --accent-tertiary: #96ceb4;
-    --accent-glow: rgba(255, 111, 105, 0.25);
-    --accent-glow-strong: rgba(255, 111, 105, 0.45);
-    --text-primary: #f5ede0;
-    --text-secondary: #c0a888;
-    --text-muted: #806858;
-    --text-disabled: #604840;
-    --border-primary: rgba(255, 111, 105, 0.25);
-    --border-secondary: rgba(255, 111, 105, 0.45);
-    --border-accent: rgba(255, 111, 105, 0.6);
-    --shadow-glow: 0 0 40px rgba(255, 111, 105, 0.3);
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #2a2a2a;
+    --bg-tertiary: #333333;
+    --bg-elevated: #3d3d3d;
+    --bg-hover: #4a4a4a;
+    --accent-primary: #AAD8B0;
+    --accent-secondary: #96CEB4;
+    --accent-tertiary: #7ab8a0;
+    --accent-glow: rgba(170, 216, 176, 0.25);
+    --accent-glow-strong: rgba(170, 216, 176, 0.45);
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --text-muted: #999999;
+    --text-disabled: #666666;
+    --border-primary: rgba(170, 216, 176, 0.2);
+    --border-secondary: rgba(170, 216, 176, 0.35);
+    --border-accent: rgba(170, 216, 176, 0.5);
+    --warning: #FF6F69;
+    --warning-bg: rgba(255, 111, 105, 0.12);
+    --success: #FF6F69;
+    --success-bg: rgba(255, 111, 105, 0.12);
+    --shadow-glow: 0 0 40px rgba(170, 216, 176, 0.2);
 }
 
 /* Perry's Beach Light */
 html[data-theme="perrys-beach"][data-mode="light"] {
-    --bg-primary: #fff8ec;
+    --bg-primary: #FFEEAD;
     --bg-secondary: #ffffff;
-    --bg-tertiary: #fff0d8;
-    --bg-elevated: #ffe6c4;
-    --bg-hover: #ffd8a8;
-    --accent-primary: #c8403c;
-    --accent-secondary: #e05858;
-    --accent-tertiary: #5aaa7e;
-    --accent-glow: rgba(200, 64, 60, 0.12);
-    --accent-glow-strong: rgba(200, 64, 60, 0.25);
-    --text-primary: #3c1e14;
-    --text-secondary: #7a4a38;
-    --text-muted: #a87060;
-    --text-disabled: #c8a898;
-    --border-primary: rgba(200, 64, 60, 0.15);
-    --border-secondary: rgba(200, 64, 60, 0.25);
-    --border-accent: rgba(200, 64, 60, 0.35);
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.06);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
-    --shadow-glow: 0 0 40px rgba(200, 64, 60, 0.1);
+    --bg-tertiary: #fff8d4;
+    --bg-elevated: #fff0bc;
+    --bg-hover: #ffe8a4;
+    --accent-primary: #AAD8B0;
+    --accent-secondary: #96CEB4;
+    --accent-tertiary: #7ab8a0;
+    --accent-glow: rgba(150, 206, 180, 0.15);
+    --accent-glow-strong: rgba(150, 206, 180, 0.3);
+    --text-primary: #1a1a1a;
+    --text-secondary: #3a3a3a;
+    --text-muted: #606060;
+    --text-disabled: #909090;
+    --border-primary: rgba(150, 206, 180, 0.3);
+    --border-secondary: rgba(150, 206, 180, 0.5);
+    --border-accent: rgba(150, 206, 180, 0.7);
+    --warning: #FF6F69;
+    --warning-bg: rgba(255, 111, 105, 0.12);
+    --success: #FF6F69;
+    --success-bg: rgba(255, 111, 105, 0.12);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+    --shadow-glow: 0 0 40px rgba(150, 206, 180, 0.15);
+}
+
+/* Perry's Beach gradient body background (light only) */
+html[data-theme="perrys-beach"][data-mode="light"] body {
+    background: linear-gradient(160deg, #FFEEAD 0%, #FFCC5C 100%);
+    background-attachment: fixed;
+}
+
+/* Perry's Beach active shift indicator */
+html[data-theme="perrys-beach"] .shift-active-indicator {
+    background: #FF6F69;
+    animation: pulse-perrys-beach 2s infinite;
+}
+
+@keyframes pulse-perrys-beach {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(255, 111, 105, 0.4);
+    }
+    50% {
+        opacity: 0.8;
+        box-shadow: 0 0 0 8px rgba(255, 111, 105, 0);
+    }
 }
 
 /* Theme Picker */
