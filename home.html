@@ -429,13 +429,25 @@
         let openBoxesJobCounts = {};
 
         async function renderOpenBoxes(container, user) {
-            const { data: boxes, error } = await db.from('boxes')
-                .select('id, box_id, client, agent, created_at')
-                .eq('status', 'open')
-                .eq('depot_id', user.depot_id)
-                .order('created_at', { ascending: false });
+            // Fetch open boxes and active depot clients in parallel
+            const [boxesRes, clientsRes] = await Promise.all([
+                db.from('boxes')
+                    .select('id, box_id, client, agent, created_at')
+                    .eq('status', 'open')
+                    .eq('depot_id', user.depot_id)
+                    .order('created_at', { ascending: false }),
+                db.from('depot_clients')
+                    .select('client_id')
+                    .eq('depot_id', user.depot_id)
+            ]);
 
-            if (error) throw error;
+            if (boxesRes.error) throw boxesRes.error;
+
+            // Only show boxes whose client still exists in depot_clients
+            const activeClients = new Set((clientsRes.data || []).map(c => c.client_id));
+            const boxes = (boxesRes.data || []).filter(b => activeClients.has(b.client));
+
+            const error = null;
 
             if (!boxes || boxes.length === 0) {
                 container.innerHTML = '<div class="widget-empty">No open boxes</div>';
