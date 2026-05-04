@@ -1104,6 +1104,24 @@ tr:hover td {
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
+.badge-info {
+    background: var(--info-bg);
+    color: var(--info);
+    border: 1px solid rgba(90, 138, 158, 0.3);
+}
+
+.badge-success {
+    background: var(--success-bg);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-warning {
+    background: var(--warning-bg);
+    color: var(--warning);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
 /* ============================================
    TABS
    ============================================ */
@@ -2167,6 +2185,76 @@ tr:hover td {
     padding: var(--spacing-lg);
 }
 
+.widget-view-toggle {
+    display: inline-flex;
+    gap: 2px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 3px;
+}
+
+.widget-view-toggle button {
+    padding: 4px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.widget-view-toggle button.active {
+    background: var(--accent-primary);
+    color: #fff;
+}
+
+.widget-view-toggle button:not(.active):hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.widget-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--border-primary);
+    margin-top: var(--spacing-sm);
+}
+
+.widget-pagination-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    line-height: 1;
+    transition: var(--transition-fast);
+}
+
+.widget-pagination-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.widget-pagination-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.widget-pagination-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    min-width: 70px;
+    text-align: center;
+}
+
 .widget-error {
     color: var(--error);
     text-align: center;
@@ -2290,6 +2378,22 @@ tr:hover td {
 .widget-list-item-sub {
     font-size: 0.75rem;
     color: var(--text-muted);
+}
+
+.widget-list-item-link {
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.widget-list-item-link:hover {
+    background: var(--bg-hover);
+}
+
+.widget-scrollable {
+    max-height: 240px;
+    overflow-y: auto;
 }
 
 /* Quick nav grid */

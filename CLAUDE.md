@@ -27,7 +27,7 @@ A multi-tenant inventory management platform for field technicians who swap/inst
 
 | Page | Purpose |
 |------|---------|
-| **index.html** | Login. Routes merchants → guides.html, others → dashboard.html. Forces password change if `must_change_password=true` |
+| **index.html** | Login. Routes merchants → guides.html, others → home.html. Forces password change if `must_change_password=true` |
 | **signup.html** | Token-based registration via `invitation_tokens` table. Creates user with role=technician, no agent |
 | **change-password.html** | Mandatory first-login password change |
 | **forgot-password.html** | Sends Supabase password reset email |
@@ -36,6 +36,34 @@ A multi-tenant inventory management platform for field technicians who swap/inst
 | **guides.html** | Merchant-only placeholder ("Coming Soon") |
 
 ### Core Pages
+
+#### home.html — Landing Page & Analytics Dashboard
+Post-login landing page for all non-merchant roles. Displays a customisable widget grid.
+
+**Widget system**:
+- Widgets defined in `WIDGET_REGISTRY` array, each with `id`, `title`, `icon`, `roles[]`, optional `shiftsOnly`, and async `render(container, user)` function
+- Layout preferences stored in localStorage: `home_widget_order` (JSON array of IDs), `home_widget_hidden` (JSON array of hidden IDs)
+- "Edit Layout" button (bottom of page) toggles edit mode — shows up/down reorder arrows and eye toggle per widget
+- Hidden widgets shown dimmed with title only; changes save instantly
+
+**Widgets by role**:
+
+| Widget | ID | Roles | Data |
+|--------|-----|-------|------|
+| Quick Navigation | `quick-nav` | all | Static links to pages, role-aware |
+| Jobs Today | `today-jobs` | all | Own agent's jobs today — count, type breakdown, scrollable list (newest first), click to open in inventory |
+| Open Boxes | `open-boxes` | all | Own open boxes count + jobs total. Dropdown filters by client (all) and agent (manager+). Each box clickable → inventory.html?box=ID |
+| Active Shift | `active-shift` | all (shifts_enabled) | Live elapsed timer for active shift, start time, start kms |
+| This Week | `week-stats` | all | Own completed shifts this week — shifts, hours, km, jobs |
+| Depot Summary | `depot-summary` | manager+ | 4-stat grid: users, agents, open boxes, jobs today for depot |
+| Team Activity | `team-activity` | manager+ | List of technicians currently on shift with elapsed time |
+| Depot Jobs This Week | `depot-week` | manager+ | Bar chart of depot-wide jobs per day Mon–Sun |
+| All Depots Overview | `all-depots` | super_admin | Table of all depots with user/agent/open box/jobs-today counts |
+| System Stats | `system-stats` | super_admin | System-wide totals: total users, open boxes, jobs today |
+
+**Deep-linking**: `inventory.html?box=UUID` auto-opens box detail. `inventory.html?job=UUID` auto-opens job detail. Both handled in inventory.html's DOMContentLoaded by reading `URLSearchParams`.
+
+**Open Boxes filtering**: Only shows boxes whose client still exists in `depot_clients` for the depot (prevents showing historically deleted clients).
 
 #### dashboard.html — Stock Entry & Shift Tracking
 The primary work page for technicians.
@@ -68,10 +96,12 @@ The primary work page for technicians.
 - Results grouped by: boxes, jobs, serials — each expandable
 - Actions: view/download receipt, edit job (manager or owning tech), delete job (manager only)
 - Print: generates PDF with serials and CODE128 barcodes, uses `page-break-inside: avoid` on job sections
+- **Deep-link params**: `?box=UUID` auto-opens box detail view; `?job=UUID` auto-opens job detail modal on page load
 
 #### user.html — Profile & Shift History
 - **Shift Reports tab**: date-filtered list of own shifts with summary stats (total shifts, hours, km, jobs). CSV export with dynamic client columns
 - **Settings tab**: view email/role/agent, change password, sign out
+- **Appearance card**: theme picker (8 themes: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand) × Dark/Light mode. Saved to localStorage (`theme`, `mode`). Applied site-wide via `data-theme` and `data-mode` attributes on `<html>`
 
 ### Admin Pages
 
@@ -123,7 +153,7 @@ invitation_tokens: token (PK), email, depot_id, used, used_at, expires_at
 | File | Purpose | Key Exports |
 |------|---------|-------------|
 | **auth.js** | Supabase client init (`db` global), auth functions | `checkAuth()`, `getCurrentUser()`, `initAuth(requiredRoles)`, `logout()`, `hasRole()`, `restrictByRole()` |
-| **utils.js** | Shared utilities | `escapeHTML()`, `showAlert()`, `showLoading()`, `formatDateTime()`, `checkDuplicateSerials()`, `formatBoxId()`, `downloadCSV()`, `escapeCSV()` |
+| **utils.js** | Shared utilities | `escapeHTML()`, `showAlert()`, `showLoading()`, `formatDateTime()`, `checkDuplicateSerials()`, `formatBoxId()`, `downloadCSV()`, `escapeCSV()`, `getTheme()`, `setTheme()`, `applyTheme()` |
 | **sidebar.js** | Navigation sidebar component | `initSidebar(user)`, `setActivePage()` — role-based menu items, mobile hamburger |
 | **icons.js** | Lucide icon initialization | Called after DOM updates to render `<i data-lucide="...">` elements |
 
@@ -145,7 +175,7 @@ invitation_tokens: token (PK), email, depot_id, used, used_at, expires_at
 
 ## Design System
 
-**Theme**: Dark ocean — dark backgrounds (#0c1417 → #223242), ocean blue accents (#2B4F63 → #5a8a9e), green/red/amber status colors
+**Themes**: 8 themes × 2 modes (dark/light) = 16 combinations. Default: Ocean Dark. Theme applied via `data-theme` + `data-mode` attributes on `<html>`, driven by CSS `[data-theme][data-mode]` variable overrides. Each page has an inline `<script>` in `<head>` that reads localStorage and sets attributes before the stylesheet loads (prevents flash). Theme names: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand.
 
 **Fonts**: Inter (UI), JetBrains Mono (IDs, codes, numbers)
 
@@ -160,24 +190,25 @@ invitation_tokens: token (PK), email, depot_id, used, used_at, expires_at
 ## File Structure
 
 ```
-├── index.html              Login
-├── signup.html              Token-based registration
-├── change-password.html     Forced password change
+├── index.html              Login → home.html
+├── signup.html              Token-based registration → home.html
+├── change-password.html     Forced password change → home.html
 ├── forgot-password.html     Request reset email
 ├── reset-password.html      Complete reset
-├── pending.html             Awaiting agent assignment
+├── pending.html             Awaiting agent assignment → home.html
 ├── guides.html              Merchant placeholder
+├── home.html                Landing page + analytics widgets (post-login)
 ├── dashboard.html           Stock entry + shifts
-├── inventory.html           Search + browse + print
-├── user.html                Profile + shift history
+├── inventory.html           Search + browse + print (supports ?box= and ?job= params)
+├── user.html                Profile + shift history + theme picker
 ├── admin-depot.html         Depot config (manager)
 ├── admin-shifts.html        Shift reports (manager)
 ├── manage-depots.html       Multi-depot admin (super_admin)
 ├── auth.js                  Supabase auth
-├── utils.js                 Shared utilities
-├── sidebar.js               Navigation
+├── utils.js                 Shared utilities + theme functions
+├── sidebar.js               Navigation (Home is first menu item)
 ├── icons.js                 Lucide icons
-├── styles.css               Full design system (~1600 lines)
+├── styles.css               Full design system + 8 theme variants
 └── .htaccess                Apache routing + cache headers
 ```
 

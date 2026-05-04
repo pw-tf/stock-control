@@ -51,6 +51,11 @@
         let currentUser = null;
         let editMode = false;
         let shiftTimer = null;
+        let todayJobsView = 'mine'; // 'mine' or 'depot'
+        let todayJobsPage = 0;
+        let todayJobsCache = null; // null = needs re-fetch
+        let homeActiveShift = null;
+        let homeStaleShift = null;
 
         // ============================================
         // WIDGET REGISTRY
@@ -360,52 +365,112 @@
         // WIDGET: Jobs Today
         // ============================================
 
-        async function renderTodayJobs(container, user) {
-            const today = getTodayMidnight().toISOString();
+        function _rerenderTodayJobs(showSpinner) {
+            const card = document.querySelector('[data-widget-id="today-jobs"]');
+            if (!card) return;
+            const body = card.querySelector('.widget-body');
+            if (!body) return;
+            if (showSpinner) {
+                body.innerHTML = '<div class="widget-loading"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div></div>';
+            }
+            renderTodayJobs(body, currentUser).catch(() => {
+                body.innerHTML = '<div class="widget-error">Failed to load</div>';
+            });
+        }
 
-            let query;
-            if (user.role === 'technician') {
-                // Get this tech's boxes first
-                const { data: boxes } = await db.from('boxes')
-                    .select('id')
-                    .eq('agent', user.agent_id)
-                    .eq('depot_id', user.depot_id);
-                const boxIds = (boxes || []).map(b => b.id);
-                if (boxIds.length === 0) {
-                    container.innerHTML = `
-                        <div class="widget-stat-large">
-                            <div class="widget-stat-number">0</div>
-                            <div class="widget-stat-label">jobs submitted today</div>
-                        </div>
-                    `;
-                    return;
+        function setTodayJobsView(view) {
+            todayJobsView = view;
+            todayJobsPage = 0;
+            todayJobsCache = null;
+            _rerenderTodayJobs(true);
+        }
+
+        function setTodayJobsPage(page) {
+            todayJobsPage = page;
+            _rerenderTodayJobs(false);
+        }
+
+        async function renderTodayJobs(container, user) {
+            const PAGE_SIZE = 10;
+            const typeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
+            const typeBadgeClass = { 'swap-upgrade': 'badge-info', 'install': 'badge-success', 'deinstall': 'badge-warning' };
+
+            const toggleHTML = `
+                <div style="display: flex; justify-content: flex-end; margin-bottom: var(--spacing-sm);">
+                    <div class="widget-view-toggle">
+                        <button class="${todayJobsView === 'mine' ? 'active' : ''}" onclick="setTodayJobsView('mine')">My Jobs</button>
+                        <button class="${todayJobsView === 'depot' ? 'active' : ''}" onclick="setTodayJobsView('depot')">Depot</button>
+                    </div>
+                </div>
+            `;
+
+            if (!todayJobsCache) {
+                const today = getTodayMidnight().toISOString();
+                let jobs;
+
+                if (todayJobsView === 'mine') {
+                    const { data: boxes } = await db.from('boxes')
+                        .select('id')
+                        .eq('agent', user.agent_id)
+                        .eq('depot_id', user.depot_id);
+                    const boxIds = (boxes || []).map(b => b.id);
+
+                    if (boxIds.length === 0) {
+                        container.innerHTML = toggleHTML + `
+                            <div class="widget-stat-large">
+                                <div class="widget-stat-number">0</div>
+                                <div class="widget-stat-label">jobs submitted today</div>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    const { data, error } = await db.from('jobs')
+                        .select('id, job_number, job_type, vendor, created_at')
+                        .in('box_id', boxIds)
+                        .gte('created_at', today)
+                        .order('created_at', { ascending: false });
+                    if (error) throw error;
+                    jobs = data || [];
+                } else {
+                    const { data, error } = await db.from('jobs')
+                        .select('id, job_number, job_type, vendor, created_at, boxes(agent)')
+                        .eq('depot_id', user.depot_id)
+                        .gte('created_at', today)
+                        .order('created_at', { ascending: false });
+                    if (error) throw error;
+                    jobs = data || [];
                 }
-                query = db.from('jobs')
-                    .select('job_type')
-                    .in('box_id', boxIds)
-                    .gte('created_at', today);
-            } else {
-                query = db.from('jobs')
-                    .select('job_type')
-                    .eq('depot_id', user.depot_id)
-                    .gte('created_at', today);
+
+                todayJobsCache = jobs;
             }
 
-            const { data: jobs, error } = await query;
-            if (error) throw error;
+            const jobs = todayJobsCache;
+            const total = jobs.length;
+            const page = todayJobsPage;
+            const start = page * PAGE_SIZE;
+            const end = Math.min(start + PAGE_SIZE, total);
+            const pagedJobs = jobs.slice(start, end);
 
-            const total = (jobs || []).length;
             const byType = {};
-            (jobs || []).forEach(j => {
+            jobs.forEach(j => {
                 byType[j.job_type] = (byType[j.job_type] || 0) + 1;
             });
 
-            const typeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
+            const statLabel = todayJobsView === 'mine' ? 'jobs submitted today' : 'depot jobs today';
 
-            container.innerHTML = `
+            const paginationHTML = total > PAGE_SIZE ? `
+                <div class="widget-pagination">
+                    <button class="widget-pagination-btn" onclick="setTodayJobsPage(${page - 1})" ${page === 0 ? 'disabled' : ''}>←</button>
+                    <span class="widget-pagination-label">${start + 1}–${end} of ${total}</span>
+                    <button class="widget-pagination-btn" onclick="setTodayJobsPage(${page + 1})" ${end >= total ? 'disabled' : ''}>→</button>
+                </div>
+            ` : '';
+
+            container.innerHTML = toggleHTML + `
                 <div class="widget-stat-large">
                     <div class="widget-stat-number">${total}</div>
-                    <div class="widget-stat-label">jobs submitted today</div>
+                    <div class="widget-stat-label">${statLabel}</div>
                 </div>
                 ${Object.keys(byType).length > 0 ? `
                     <div class="widget-stat-breakdown">
@@ -415,6 +480,26 @@
                                 <span class="widget-stat-row-value">${count}</span>
                             </div>
                         `).join('')}
+                    </div>
+                ` : ''}
+                ${total > 0 ? `
+                    <div style="margin-top: var(--spacing-md); border-top: 1px solid var(--border-primary); padding-top: var(--spacing-md);">
+                        <div class="widget-list">
+                            ${pagedJobs.map(job => {
+                                const time = new Date(job.created_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+                                const agentSub = (todayJobsView === 'depot' && job.boxes?.agent) ? ` &middot; Agent ${escapeHTML(job.boxes.agent)}` : '';
+                                return `
+                                    <a href="inventory.html?job=${job.id}" class="widget-list-item widget-list-item-link">
+                                        <div class="widget-list-item-main">
+                                            <span class="widget-list-item-title">${escapeHTML(job.job_number)}</span>
+                                            <span class="widget-list-item-sub">${time} &middot; ${escapeHTML(job.vendor)}${agentSub}</span>
+                                        </div>
+                                        <span class="badge ${typeBadgeClass[job.job_type] || 'badge-info'}">${typeLabels[job.job_type] || escapeHTML(job.job_type)}</span>
+                                    </a>
+                                `;
+                            }).join('')}
+                        </div>
+                        ${paginationHTML}
                     </div>
                 ` : ''}
             `;
@@ -521,13 +606,13 @@
             listEl.innerHTML = `
                 <div class="widget-list">
                     ${filtered.map(box => `
-                        <div class="widget-list-item">
+                        <a href="inventory.html?box=${box.id}" class="widget-list-item widget-list-item-link">
                             <div class="widget-list-item-main">
                                 <span class="widget-list-item-title" style="font-family: var(--font-mono);">${escapeHTML(box.box_id)}</span>
                                 <span class="widget-list-item-sub">${escapeHTML(box.client)}${isManager ? ' &middot; Agent ' + escapeHTML(box.agent) : ''}</span>
                             </div>
                             <span class="badge badge-info">${openBoxesJobCounts[box.id] || 0} jobs</span>
-                        </div>
+                        </a>
                     `).join('')}
                 </div>
             `;
@@ -547,13 +632,15 @@
 
             if (error) throw error;
 
+            homeActiveShift = shift || null;
+
             if (!shift) {
                 container.innerHTML = `
                     <div class="widget-empty">
                         <div>No active shift</div>
-                        <a href="dashboard.html" class="btn btn-secondary" style="margin-top: 12px;">
-                            <i data-lucide="play" width="16" height="16"></i> Start from Dashboard
-                        </a>
+                        <button class="btn btn-primary" style="margin-top: 12px;" onclick="openHomeStartShiftModal()">
+                            <i data-lucide="play" width="16" height="16"></i> Start Shift
+                        </button>
                     </div>
                 `;
                 lucide.createIcons();
@@ -570,6 +657,10 @@
 
             container.innerHTML = `
                 <div class="widget-shift-active">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--spacing-md);">
+                        <span class="shift-active-indicator"></span>
+                        <span style="font-size: 0.85rem; color: var(--success); font-weight: 500;">Shift Active</span>
+                    </div>
                     <div class="widget-stat-row">
                         <span>Started</span>
                         <span class="widget-stat-row-value">${startTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
@@ -582,11 +673,311 @@
                         <span>Start KMs</span>
                         <span class="widget-stat-row-value">${shift.start_kms.toLocaleString()} km</span>
                     </div>
+                    <button class="btn btn-danger" style="width: 100%; margin-top: var(--spacing-md);" onclick="openHomeEndShiftModal()">
+                        End Shift
+                    </button>
                 </div>
             `;
 
             if (shiftTimer) clearInterval(shiftTimer);
             shiftTimer = setInterval(updateElapsed, 60000);
+        }
+
+        function _rerenderActiveShiftWidget() {
+            const card = document.querySelector('[data-widget-id="active-shift"]');
+            if (!card) return;
+            const body = card.querySelector('.widget-body');
+            if (!body) return;
+            renderActiveShift(body, currentUser).catch(() => {
+                body.innerHTML = '<div class="widget-error">Failed to load</div>';
+            });
+        }
+
+        // ============================================
+        // SHIFT MANAGEMENT
+        // ============================================
+
+        async function checkHomeShiftStatus() {
+            const { data: shifts } = await db.from('shifts')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .eq('status', 'active')
+                .order('start_time', { ascending: false })
+                .limit(1);
+
+            if (shifts && shifts.length > 0) {
+                const shift = shifts[0];
+                if (new Date(shift.start_time) < getTodayMidnight()) {
+                    homeStaleShift = shift;
+                    homeActiveShift = null;
+                    openHomeStaleShiftModal();
+                } else {
+                    homeActiveShift = shift;
+                    homeStaleShift = null;
+                }
+            }
+        }
+
+        async function getHomeLastShiftEndKms() {
+            try {
+                const { data } = await db.from('shifts')
+                    .select('end_kms')
+                    .eq('user_id', currentUser.id)
+                    .eq('status', 'completed')
+                    .order('end_time', { ascending: false })
+                    .limit(1);
+                return data && data.length > 0 ? data[0].end_kms : null;
+            } catch { return null; }
+        }
+
+        async function getHomeLastShiftCloseTime() {
+            try {
+                const { data } = await db.from('shifts')
+                    .select('end_time')
+                    .eq('user_id', currentUser.id)
+                    .eq('status', 'completed')
+                    .order('end_time', { ascending: false })
+                    .limit(1);
+                return data && data.length > 0 ? new Date(data[0].end_time) : null;
+            } catch { return null; }
+        }
+
+        async function getHomeLastJobEntryTime() {
+            if (!homeActiveShift) return null;
+            try {
+                const { data } = await db.from('jobs')
+                    .select('created_at')
+                    .eq('shift_id', homeActiveShift.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                return data && data.length > 0 ? new Date(data[0].created_at) : null;
+            } catch { return null; }
+        }
+
+        async function openHomeStartShiftModal() {
+            document.getElementById('homeStartShiftTime').value = formatDateTimeLocal(new Date());
+            document.getElementById('homeStartShiftAlertContainer').innerHTML = '';
+            const lastKms = await getHomeLastShiftEndKms();
+            document.getElementById('homeStartShiftKms').value = lastKms !== null ? lastKms : '';
+            document.getElementById('homeStartShiftModal').classList.add('active');
+        }
+
+        function closeHomeStartShiftModal() {
+            document.getElementById('homeStartShiftModal').classList.remove('active');
+        }
+
+        function openHomeEndShiftModal() {
+            document.getElementById('homeEndShiftTime').value = formatDateTimeLocal(new Date());
+            document.getElementById('homeEndShiftKms').value = homeActiveShift?.start_kms || '';
+            document.getElementById('homeExtraJobs').value = '0';
+            document.getElementById('homeShiftNotes').value = '';
+            document.getElementById('homeEndShiftAlertContainer').innerHTML = '';
+            document.getElementById('homeEndShiftModal').classList.add('active');
+        }
+
+        function closeHomeEndShiftModal() {
+            document.getElementById('homeEndShiftModal').classList.remove('active');
+        }
+
+        function openHomeStaleShiftModal() {
+            const start = new Date(homeStaleShift.start_time);
+            document.getElementById('homeStaleShiftStartInfo').value =
+                start.toLocaleDateString('en-AU') + ' at ' +
+                start.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+            const endOfDay = new Date(start);
+            endOfDay.setHours(23, 59, 0, 0);
+            document.getElementById('homeStaleEndTime').value = formatDateTimeLocal(endOfDay);
+            document.getElementById('homeStaleEndKms').value = '';
+            document.getElementById('homeStaleExtraJobs').value = '0';
+            document.getElementById('homeStaleNotes').value = '';
+            document.getElementById('homeStaleAlertContainer').innerHTML = '';
+            document.getElementById('homeStaleShiftModal').classList.add('active');
+        }
+
+        function closeHomeStaleShiftModal() {
+            document.getElementById('homeStaleShiftModal').classList.remove('active');
+        }
+
+        async function handleHomeStartShift(e) {
+            e.preventDefault();
+
+            const startTime = document.getElementById('homeStartShiftTime').value;
+            const startKms = parseInt(document.getElementById('homeStartShiftKms').value);
+
+            if (!startTime || isNaN(startKms)) {
+                showAlert('Please fill in all required fields', 'error');
+                return;
+            }
+
+            const startDateTime = new Date(startTime);
+            const lastClose = await getHomeLastShiftCloseTime();
+            if (lastClose && startDateTime <= lastClose) {
+                showAlert(`Start time must be after your last shift ended (${formatDateTime(lastClose)})`, 'error');
+                return;
+            }
+
+            showLoading(true);
+            try {
+                const { data, error } = await db.from('shifts')
+                    .insert([{
+                        user_id: currentUser.id,
+                        agent_id: currentUser.agent_id,
+                        start_time: startDateTime.toISOString(),
+                        start_kms: startKms,
+                        status: 'active',
+                        depot_id: currentUser.depot_id
+                    }])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                homeActiveShift = data;
+                closeHomeStartShiftModal();
+                _rerenderActiveShiftWidget();
+                showAlert('Shift started successfully', 'success');
+            } catch (err) {
+                console.error('Error starting shift:', err);
+                showAlert('Error starting shift. Please try again.', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function handleHomeEndShift(e) {
+            e.preventDefault();
+
+            const endTime = document.getElementById('homeEndShiftTime').value;
+            const endKms = parseInt(document.getElementById('homeEndShiftKms').value);
+            const extraJobs = parseInt(document.getElementById('homeExtraJobs').value) || 0;
+            const shiftNotes = document.getElementById('homeShiftNotes').value.trim();
+
+            if (!endTime || isNaN(endKms)) {
+                showAlert('Please fill in all required fields', 'error');
+                return;
+            }
+
+            if (endKms < homeActiveShift.start_kms) {
+                showAlert('End kilometres cannot be less than start kilometres', 'error');
+                return;
+            }
+
+            const endDateTime = new Date(endTime);
+            const startDateTime = new Date(homeActiveShift.start_time);
+
+            if (!isSameDay(startDateTime, endDateTime)) {
+                showAlert('End time must be on the same day as the shift started', 'error');
+                return;
+            }
+
+            if (endDateTime <= startDateTime) {
+                showAlert('End time must be after the shift start time', 'error');
+                return;
+            }
+
+            const lastJobTime = await getHomeLastJobEntryTime();
+            if (lastJobTime && endDateTime < lastJobTime) {
+                const proceed = confirm(`The end time is before the last job entry (${formatDateTime(lastJobTime)}). Continue anyway?`);
+                if (!proceed) return;
+            }
+
+            const kmsTravelled = endKms - homeActiveShift.start_kms;
+            if (kmsTravelled === 0) {
+                if (!confirm('You entered 0 km travelled. Are you sure this is correct?')) return;
+            }
+            if (kmsTravelled > 200) {
+                if (!confirm(`You entered ${kmsTravelled} km for this shift. This seems high. Are you sure?`)) return;
+            }
+
+            showLoading(true);
+            try {
+                const { error } = await db.from('shifts')
+                    .update({
+                        end_time: endDateTime.toISOString(),
+                        end_kms: endKms,
+                        extra_jobs: extraJobs,
+                        shift_notes: shiftNotes,
+                        status: 'completed'
+                    })
+                    .eq('id', homeActiveShift.id);
+
+                if (error) throw error;
+
+                homeActiveShift = null;
+                closeHomeEndShiftModal();
+                _rerenderActiveShiftWidget();
+                showAlert('Shift ended successfully.', 'success');
+            } catch (err) {
+                console.error('Error ending shift:', err);
+                showAlert('Error ending shift. Please try again.', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function handleHomeStaleShift(e) {
+            e.preventDefault();
+
+            const endTime = document.getElementById('homeStaleEndTime').value;
+            const endKms = parseInt(document.getElementById('homeStaleEndKms').value);
+            const extraJobs = parseInt(document.getElementById('homeStaleExtraJobs').value) || 0;
+            const shiftNotes = document.getElementById('homeStaleNotes').value.trim();
+
+            if (!endTime || isNaN(endKms)) {
+                showAlert('Please fill in all required fields', 'error');
+                return;
+            }
+
+            if (endKms < homeStaleShift.start_kms) {
+                showAlert('End kilometres cannot be less than start kilometres', 'error');
+                return;
+            }
+
+            const endDateTime = new Date(endTime);
+            const startDateTime = new Date(homeStaleShift.start_time);
+
+            if (!isSameDay(startDateTime, endDateTime)) {
+                showAlert('End time must be on the same day the shift started (' + startDateTime.toLocaleDateString('en-AU') + ')', 'error');
+                return;
+            }
+
+            if (endDateTime <= startDateTime) {
+                showAlert('End time must be after the shift start time', 'error');
+                return;
+            }
+
+            const kmsTravelled = endKms - homeStaleShift.start_kms;
+            if (kmsTravelled === 0) {
+                if (!confirm('You entered 0 km travelled. Are you sure this is correct?')) return;
+            }
+            if (kmsTravelled > 200) {
+                if (!confirm(`You entered ${kmsTravelled} km for this shift. This seems high. Are you sure?`)) return;
+            }
+
+            showLoading(true);
+            try {
+                const { error } = await db.from('shifts')
+                    .update({
+                        end_time: endDateTime.toISOString(),
+                        end_kms: endKms,
+                        extra_jobs: extraJobs,
+                        shift_notes: shiftNotes,
+                        status: 'completed'
+                    })
+                    .eq('id', homeStaleShift.id);
+
+                if (error) throw error;
+
+                homeStaleShift = null;
+                closeHomeStaleShiftModal();
+                showAlert('Previous shift closed successfully.', 'success');
+                _rerenderActiveShiftWidget();
+            } catch (err) {
+                console.error('Error closing stale shift:', err);
+                showAlert('Error closing shift. Please try again.', 'error');
+            } finally {
+                showLoading(false);
+            }
         }
 
         // ============================================
@@ -892,6 +1283,14 @@
             initSidebar(currentUser);
             restrictByRole(currentUser.role);
 
+            if (currentUser.shifts_enabled) {
+                await checkHomeShiftStatus();
+            }
+
+            document.getElementById('homeStartShiftForm').addEventListener('submit', handleHomeStartShift);
+            document.getElementById('homeEndShiftForm').addEventListener('submit', handleHomeEndShift);
+            document.getElementById('homeStaleShiftForm').addEventListener('submit', handleHomeStaleShift);
+
             await renderWidgets();
 
             showLoading(false);
@@ -901,5 +1300,102 @@
             document.getElementById('loading').classList.toggle('active', show);
         }
     </script>
+
+    <!-- Start Shift Modal -->
+    <div class="modal" id="homeStartShiftModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i data-lucide="play-circle" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>Start New Shift</h3>
+            </div>
+            <div id="homeStartShiftAlertContainer"></div>
+            <form id="homeStartShiftForm">
+                <div class="form-group">
+                    <label class="form-label" for="homeStartShiftTime">Start Time <span class="required">*</span></label>
+                    <input type="datetime-local" id="homeStartShiftTime" class="form-input" required>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Auto-filled with current time. Adjust if needed.</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="homeStartShiftKms">Starting Kilometres (Odometer) <span class="required">*</span></label>
+                    <input type="number" id="homeStartShiftKms" class="form-input" required placeholder="e.g., 45230" min="0">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeHomeStartShiftModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Start Shift</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- End Shift Modal -->
+    <div class="modal" id="homeEndShiftModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i data-lucide="square" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>End Shift</h3>
+            </div>
+            <div id="homeEndShiftAlertContainer"></div>
+            <form id="homeEndShiftForm">
+                <div class="form-group">
+                    <label class="form-label" for="homeEndShiftTime">End Time <span class="required">*</span></label>
+                    <input type="datetime-local" id="homeEndShiftTime" class="form-input" required>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Auto-filled with current time. Adjust if needed.</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="homeEndShiftKms">Ending Kilometres (Odometer) <span class="required">*</span></label>
+                    <input type="number" id="homeEndShiftKms" class="form-input" required placeholder="e.g., 45310" min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="homeExtraJobs">Extra Jobs (not logged in system)</label>
+                    <input type="number" id="homeExtraJobs" class="form-input" placeholder="0" min="0" value="0">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Jobs completed without serial logging (e.g., on-site repairs)</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="homeShiftNotes">Shift Notes</label>
+                    <textarea id="homeShiftNotes" class="form-textarea" placeholder="Any additional notes about this shift..." style="min-height: 80px;"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeHomeEndShiftModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">End Shift</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Stale Shift Recovery Modal -->
+    <div class="modal" id="homeStaleShiftModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i data-lucide="alert-triangle" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>Incomplete Shift Found</h3>
+            </div>
+            <div class="help-box" style="margin-bottom: 20px; border-left-color: var(--warning);">
+                <p style="margin: 0;">You have an unfinished shift from a previous day. Please enter your end details to close it before starting a new shift.</p>
+            </div>
+            <div id="homeStaleAlertContainer"></div>
+            <form id="homeStaleShiftForm">
+                <div class="form-group">
+                    <label class="form-label">Shift Started</label>
+                    <input type="text" id="homeStaleShiftStartInfo" class="form-input" readonly style="background: var(--bg-primary); cursor: not-allowed;">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="homeStaleEndTime">End Time <span class="required">*</span></label>
+                    <input type="datetime-local" id="homeStaleEndTime" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="homeStaleEndKms">Ending Kilometres (Odometer) <span class="required">*</span></label>
+                    <input type="number" id="homeStaleEndKms" class="form-input" required placeholder="e.g., 45310" min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="homeStaleExtraJobs">Extra Jobs (not logged in system)</label>
+                    <input type="number" id="homeStaleExtraJobs" class="form-input" placeholder="0" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="homeStaleNotes">Shift Notes</label>
+                    <textarea id="homeStaleNotes" class="form-textarea" placeholder="Any additional notes about this shift..." style="min-height: 80px;"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Close Shift</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 </html>

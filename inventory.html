@@ -216,6 +216,17 @@
             document.getElementById('dateTo').addEventListener('change', handleCustomDateChange);
 
             showLoading(false);
+
+            // Handle URL params for deep-linking from home page
+            const params = new URLSearchParams(window.location.search);
+            const boxParam = params.get('box');
+            const jobParam = params.get('job');
+            if (jobParam) {
+                showJobDetail(jobParam);
+            } else if (boxParam) {
+                selectedBoxId = boxParam;
+                generateBoxPreview(boxParam);
+            }
         });
 
         // ============================================
