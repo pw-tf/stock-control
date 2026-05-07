@@ -1361,19 +1361,25 @@
             const today = new Date().toISOString().split('T')[0];
             const jobTypeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
             const typeLabel = job.job_type ? jobTypeLabels[job.job_type] || job.job_type : '';
-            const meta = [escapeHTML(job.client_id), job.vendor_id ? escapeHTML(job.vendor_id) : null, typeLabel || null].filter(Boolean).join(' · ');
-            const notesHTML = job.notes ? `<span class="widget-list-item-sub">${escapeHTML(job.notes)}</span>` : '';
             const ageDays = Math.floor((Date.now() - new Date(job.created_at).getTime()) / 86400000);
             const ageHTML = !job.is_completed && ageDays >= 1
                 ? `<span style="font-size:0.7rem; color:var(--text-muted); white-space:nowrap;">${ageDays} day${ageDays !== 1 ? 's' : ''} old</span>`
                 : '';
+
+            // Build stacked sub-lines so nothing gets truncated on mobile
+            const clientVendor = [job.client_id, job.vendor_id].filter(Boolean).map(escapeHTML).join(' · ');
+            const clientVendorHTML = `<span class="widget-list-item-sub">${clientVendor}</span>`;
+            const typeHTML  = typeLabel  ? `<span class="widget-list-item-sub">${escapeHTML(typeLabel)}</span>`  : '';
+            const notesHTML = job.notes  ? `<span class="widget-list-item-sub">${escapeHTML(job.notes)}</span>`  : '';
 
             if (job.is_completed) {
                 return `
                     <div class="widget-list-item" style="opacity:0.45;">
                         <i data-lucide="check-circle-2" width="18" height="18" style="color:var(--success); flex-shrink:0;"></i>
                         <div class="widget-list-item-main" style="margin-left:8px; text-decoration:line-through;">
-                            <span class="widget-list-item-title">${escapeHTML(job.job_number)} · ${meta}</span>
+                            <span class="widget-list-item-title">${escapeHTML(job.job_number)}</span>
+                            ${clientVendorHTML}
+                            ${typeHTML}
                             ${notesHTML}
                         </div>
                         <button class="widget-ctrl-btn" title="Delete" onclick="deleteDailyJob('${job.id}')">
@@ -1388,28 +1394,34 @@
             const downStyle = isLast  ? 'opacity:0.25;' : '';
 
             return `
-                <div class="widget-list-item">
-                    <button class="widget-ctrl-btn" title="Mark complete" style="color:var(--text-muted); padding:0; background:none; border:none; cursor:pointer; flex-shrink:0;"
+                <div class="widget-list-item" style="align-items:flex-start;">
+                    <button class="widget-ctrl-btn" title="Mark complete" style="color:var(--text-muted); padding:0; background:none; border:none; cursor:pointer; flex-shrink:0; margin-top:2px;"
                         onclick="markDailyJobComplete('${job.id}', null); event.stopPropagation();">
                         <i data-lucide="circle" width="18" height="18"></i>
                     </button>
                     <a href="dashboard.html?prefilled_job=${job.id}" class="widget-list-item-main" style="text-decoration:none; flex:1; margin-left:8px;">
-                        <span class="widget-list-item-title">${escapeHTML(job.job_number)} · ${meta}</span>
+                        <span class="widget-list-item-title" style="white-space:normal;">${escapeHTML(job.job_number)}</span>
+                        ${clientVendorHTML}
+                        ${typeHTML}
                         ${notesHTML}
                     </a>
-                    ${ageHTML}
-                    <button class="widget-ctrl-btn dj-action-btn" title="Move up" style="${actionDisplay}${upStyle}" ${isFirst ? 'disabled' : ''} onclick="moveDailyJob('${job.id}', 'up')">
-                        <i data-lucide="chevron-up" width="14" height="14"></i>
-                    </button>
-                    <button class="widget-ctrl-btn dj-action-btn" title="Move down" style="${actionDisplay}${downStyle}" ${isLast ? 'disabled' : ''} onclick="moveDailyJob('${job.id}', 'down')">
-                        <i data-lucide="chevron-down" width="14" height="14"></i>
-                    </button>
-                    <button class="widget-ctrl-btn dj-action-btn" title="Edit" style="${actionDisplay}" onclick="openDailyJobModal('${job.id}')">
-                        <i data-lucide="pencil" width="14" height="14"></i>
-                    </button>
-                    <button class="widget-ctrl-btn dj-action-btn" title="Delete" style="${actionDisplay}" onclick="deleteDailyJob('${job.id}')">
-                        <i data-lucide="trash-2" width="14" height="14"></i>
-                    </button>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px; flex-shrink:0; margin-left:4px;">
+                        ${ageHTML}
+                        <div class="dj-actions-container" style="${dailyJobListEditMode ? 'display:flex' : 'display:none'}; gap:2px;">
+                            <button class="widget-ctrl-btn" title="Move up" style="${upStyle}" ${isFirst ? 'disabled' : ''} onclick="moveDailyJob('${job.id}', 'up')">
+                                <i data-lucide="chevron-up" width="14" height="14"></i>
+                            </button>
+                            <button class="widget-ctrl-btn" title="Move down" style="${downStyle}" ${isLast ? 'disabled' : ''} onclick="moveDailyJob('${job.id}', 'down')">
+                                <i data-lucide="chevron-down" width="14" height="14"></i>
+                            </button>
+                            <button class="widget-ctrl-btn" title="Edit" onclick="openDailyJobModal('${job.id}')">
+                                <i data-lucide="pencil" width="14" height="14"></i>
+                            </button>
+                            <button class="widget-ctrl-btn" title="Delete" onclick="deleteDailyJob('${job.id}')">
+                                <i data-lucide="trash-2" width="14" height="14"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -1432,8 +1444,8 @@
             dailyJobListEditMode = !dailyJobListEditMode;
             const card = document.querySelector('[data-widget-id="daily-job-list"]');
             if (!card) return;
-            card.querySelectorAll('.dj-action-btn').forEach(btn => {
-                btn.style.display = dailyJobListEditMode ? '' : 'none';
+            card.querySelectorAll('.dj-actions-container').forEach(el => {
+                el.style.display = dailyJobListEditMode ? 'flex' : 'none';
             });
             const toggleBtn = document.getElementById('djEditToggleBtn');
             if (toggleBtn) {
