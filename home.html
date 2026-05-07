@@ -163,9 +163,35 @@
             }
         }
 
+        async function loadWidgetConfig() {
+            try {
+                const { data } = await db.from('user_widget_config')
+                    .select('widget_order, widget_hidden')
+                    .eq('user_id', currentUser.id)
+                    .single();
+                if (data) {
+                    if (Array.isArray(data.widget_order))
+                        localStorage.setItem('home_widget_order', JSON.stringify(data.widget_order));
+                    if (Array.isArray(data.widget_hidden))
+                        localStorage.setItem('home_widget_hidden', JSON.stringify(data.widget_hidden));
+                }
+            } catch {
+                // Fall back to whatever is already in localStorage
+            }
+        }
+
         function saveWidgetConfig(config) {
             localStorage.setItem('home_widget_order', JSON.stringify(config.order));
             localStorage.setItem('home_widget_hidden', JSON.stringify(config.hidden));
+            // Persist to Supabase asynchronously (fire-and-forget)
+            db.from('user_widget_config').upsert({
+                user_id:       currentUser.id,
+                widget_order:  config.order,
+                widget_hidden: config.hidden,
+                updated_at:    new Date().toISOString()
+            }, { onConflict: 'user_id' }).then(({ error }) => {
+                if (error) console.error('Failed to save widget config:', error);
+            });
         }
 
         function getAvailableWidgets() {
@@ -1566,6 +1592,7 @@
             document.getElementById('homeStaleShiftForm').addEventListener('submit', handleHomeStaleShift);
             document.getElementById('dailyJobForm').addEventListener('submit', handleDailyJobSave);
 
+            await loadWidgetConfig();
             await renderWidgets();
 
             showLoading(false);
