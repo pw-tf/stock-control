@@ -472,6 +472,8 @@ let currentAgent, boxes = [], currentBox;
 let currentUserRole = null;
 let currentUserId = null;
 let currentDepotId = null;
+let prefilledJobId = null;
+let prefilledJobData = null;
 let shiftsEnabled = false;
 let activeShift = null;
 let staleShift = null;
@@ -1520,6 +1522,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         checkShiftStatus()
     ]);
 
+    // Pre-fill from prefilled_jobs URL param
+    const urlParams = new URLSearchParams(window.location.search);
+    const pjId = urlParams.get('prefilled_job');
+    if (pjId) await prefillFromPrefilledJob(pjId);
+
     // Event Listeners
     document.getElementById("clientSelect").addEventListener("change", handleClientChange);
     document.getElementById("bulkToggle").addEventListener("change", handleBulkToggle);
@@ -1627,6 +1634,68 @@ async function handleClientChange() {
         showSyncStatus("✕ Sync failed", "error");
     } finally {
         showLoading(false);
+    }
+}
+
+async function prefillFromPrefilledJob(id) {
+    try {
+        const { data: pj, error } = await db.from('prefilled_jobs')
+            .select('*')
+            .eq('id', id)
+            .eq('user_id', currentUserId)
+            .single();
+
+        if (error || !pj) return;
+
+        if (pj.is_completed) {
+            showAlert('This planned job is already completed.', 'info');
+            return;
+        }
+
+        prefilledJobId = pj.id;
+        prefilledJobData = pj;
+
+        // Show pre-fill banner above content area
+        const alertContainer = document.getElementById('alertContainer');
+        const existing = document.getElementById('prefilledJobBanner');
+        if (existing) existing.remove();
+        const banner = document.createElement('div');
+        banner.id = 'prefilledJobBanner';
+        banner.className = 'help-box';
+        banner.innerHTML = `<p style="margin:0; display:flex; align-items:center; gap:8px;">
+            <i data-lucide="list-checks" width="16" height="16" style="color:var(--accent-primary); flex-shrink:0;"></i>
+            Pre-filled from planned job: <strong>${escapeHTML(pj.job_number)}</strong> &middot; ${escapeHTML(pj.client_id)}${pj.notes ? ' &middot; ' + escapeHTML(pj.notes) : ''}
+        </p>`;
+        alertContainer.after(banner);
+        lucide.createIcons();
+
+        // Pre-select client — triggers box load + vendor load
+        const clientSelect = document.getElementById('clientSelect');
+        clientSelect.value = pj.client_id;
+        if (clientSelect.value !== pj.client_id) {
+            showAlert(`Client "${escapeHTML(pj.client_id)}" is not configured for this depot.`, 'warning');
+            prefilledJobId = null;
+            prefilledJobData = null;
+            banner.remove();
+            return;
+        }
+        await handleClientChange();
+
+        // Pre-select vendor after handleClientChange populates vendor dropdown
+        if (pj.vendor_id) {
+            document.getElementById('vendorSelect').value = pj.vendor_id;
+        }
+
+        // Pre-fill job number
+        document.getElementById('jobNumber').value = pj.job_number;
+
+        // Pre-select job type if stored
+        if (pj.job_type) {
+            await selectJobType(pj.job_type);
+        }
+
+    } catch (err) {
+        console.error('Error pre-filling from prefilled job:', err);
     }
 }
 
@@ -1759,6 +1828,21 @@ async function handleAddJob() {
 
         showAlert(message, "success");
         showSyncStatus("✓ Synced", "synced");
+
+        // Mark prefilled job as complete if this was a pre-filled entry
+        if (prefilledJobId) {
+            try {
+                await db.from('prefilled_jobs')
+                    .update({ is_completed: true, completed_job_id: job.id })
+                    .eq('id', prefilledJobId);
+            } catch (err) {
+                console.error('Failed to mark prefilled job complete:', err);
+            }
+            prefilledJobId = null;
+            prefilledJobData = null;
+            const banner = document.getElementById('prefilledJobBanner');
+            if (banner) banner.remove();
+        }
 
         // Clear form and reset to basic dashboard
         clearJobForm();

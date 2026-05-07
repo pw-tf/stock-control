@@ -135,13 +135,14 @@ depots:           depot_id (PK), depot_name, created_at
 agents:           agent_id (PK, e.g. "804"), depot_id
 user_roles:       user_id (FK auth), email, role, agent_id, depot_id, shifts_enabled, must_change_password, created_at
 boxes:            id (UUID), box_id ("804-AMT-001"), agent, client, box_number, status (open/closed), depot_id, created_at, closed_at
-jobs:             id (UUID), job_number, vendor, job_type, box_id (FK), receipt_url, shift_id (FK), depot_id, created_at
+jobs:             id (bigint), job_number, vendor, job_type, box_id (FK), receipt_url, shift_id (FK), depot_id, created_at
 serials:          id (UUID), serial_number, job_id (FK), box_id (FK), depot_id, created_at
 shifts:           id (UUID), user_id, agent_id, start_time, end_time, start_kms, end_kms, extra_jobs, shift_notes, status (active/completed), depot_id
 depot_clients:    client_id + depot_id (composite PK), receipt_swap_upgrade_enabled, receipt_install_enabled, receipt_deinstall_enabled
 clients_vendors:  client_id + vendor_id + depot_id (composite PK)
 vendors:          vendor_id (PK)
 invitation_tokens: token (PK), email, depot_id, used, used_at, expires_at
+prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, client_id, vendor_id, job_type, job_number, notes, planned_date (date), is_completed, completed_job_id (FK jobs.id bigint), created_at
 ```
 
 **Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user.
