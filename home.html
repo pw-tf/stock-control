@@ -287,6 +287,7 @@
 
             for (const widget of widgets) {
                 const isHidden = config.hidden.includes(widget.id);
+                if (isHidden && !editMode) continue;
                 const idx = widgets.indexOf(widget);
 
                 const card = document.createElement('div');
