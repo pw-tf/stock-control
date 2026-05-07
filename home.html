@@ -1317,14 +1317,14 @@
             const { data: jobs, error } = await db.from('prefilled_jobs')
                 .select('*')
                 .eq('user_id', user.id)
-                .eq('planned_date', today)
                 .order('is_completed', { ascending: true })
                 .order('sort_order', { ascending: true })
                 .order('created_at', { ascending: true });
 
             if (error) throw error;
 
-            dailyJobListCache = jobs || [];
+            // Show all incomplete jobs + only today's completed jobs (prevents accumulation)
+            dailyJobListCache = (jobs || []).filter(j => !j.is_completed || j.planned_date === today);
 
             const incomplete = dailyJobListCache.filter(j => !j.is_completed);
             const complete   = dailyJobListCache.filter(j =>  j.is_completed);
@@ -1350,10 +1350,15 @@
         }
 
         function renderDailyJobItem(job, isFirst, isLast) {
+            const today = new Date().toISOString().split('T')[0];
             const jobTypeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
             const typeLabel = job.job_type ? jobTypeLabels[job.job_type] || job.job_type : '';
             const meta = [escapeHTML(job.client_id), job.vendor_id ? escapeHTML(job.vendor_id) : null, typeLabel || null].filter(Boolean).join(' · ');
             const notesHTML = job.notes ? `<span class="widget-list-item-sub">${escapeHTML(job.notes)}</span>` : '';
+            const ageDays = Math.floor((Date.now() - new Date(job.created_at).getTime()) / 86400000);
+            const ageHTML = !job.is_completed && ageDays >= 1
+                ? `<span style="font-size:0.7rem; color:var(--text-muted); white-space:nowrap;">${ageDays} day${ageDays !== 1 ? 's' : ''} old</span>`
+                : '';
 
             if (job.is_completed) {
                 return `
@@ -1380,6 +1385,7 @@
                         <span class="widget-list-item-title">${escapeHTML(job.job_number)} · ${meta}</span>
                         ${notesHTML}
                     </a>
+                    ${ageHTML}
                     <button class="widget-ctrl-btn" title="Move up" onclick="moveDailyJob('${job.id}', 'up')" ${isFirst ? 'disabled style="opacity:0.25;"' : ''}>
                         <i data-lucide="chevron-up" width="14" height="14"></i>
                     </button>

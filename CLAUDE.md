@@ -53,7 +53,7 @@ Post-login landing page for all non-merchant roles. Displays a customisable widg
 |--------|-----|-------|------|
 | Quick Navigation | `quick-nav` | all | Static links to pages, role-aware |
 | Jobs Today | `today-jobs` | all | Own agent's jobs today — count, type breakdown, scrollable list (newest first), click to open in inventory |
-| Daily Job List | `daily-job-list` | all | Pre-planned jobs for the day from `prefilled_jobs` table. Add/edit/delete jobs (client, vendor, job type, job number, notes). Up/down reordering. Click incomplete job → dashboard.html?prefilled_job=UUID pre-fills the form. Completed jobs grey out and fall to bottom |
+| Daily Job List | `daily-job-list` | all | Pre-planned jobs from `prefilled_jobs` table. Add/edit/delete jobs (client, vendor, job type, job number, notes). Up/down reordering. Incomplete jobs persist indefinitely until deleted or completed — jobs ≥24h old show an age label ("1 day old", "2 days old", etc.) near the action buttons. Click incomplete job → dashboard.html?prefilled_job=UUID pre-fills the form. Completed jobs grey out at the bottom and only show for the day they were completed |
 | Open Boxes | `open-boxes` | all | Own open boxes count + jobs total. Dropdown filters by client (all) and agent (manager+). Each box clickable → inventory.html?box=ID |
 | Active Shift | `active-shift` | all (shifts_enabled) | Live elapsed timer for active shift, start time, start kms |
 | This Week | `week-stats` | all | Own completed shifts this week — shifts, hours, km, jobs |
