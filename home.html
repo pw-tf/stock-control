@@ -168,7 +168,7 @@
                 const { data } = await db.from('user_widget_config')
                     .select('widget_order, widget_hidden')
                     .eq('user_id', currentUser.id)
-                    .single();
+                    .maybeSingle();
                 if (data) {
                     if (Array.isArray(data.widget_order))
                         localStorage.setItem('home_widget_order', JSON.stringify(data.widget_order));

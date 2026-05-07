@@ -42,7 +42,8 @@ Post-login landing page for all non-merchant roles. Displays a customisable widg
 
 **Widget system**:
 - Widgets defined in `WIDGET_REGISTRY` array, each with `id`, `title`, `icon`, `roles[]`, optional `shiftsOnly`, and async `render(container, user)` function
-- Layout preferences stored in localStorage: `home_widget_order` (JSON array of IDs), `home_widget_hidden` (JSON array of hidden IDs)
+- Layout preferences stored in localStorage (`home_widget_order`, `home_widget_hidden`) as a local cache, and synced to `user_widget_config` table in Supabase for cross-device persistence
+- `loadWidgetConfig()` fetches from Supabase on page load and populates localStorage; `saveWidgetConfig()` writes to localStorage immediately then upserts to Supabase asynchronously
 - "Edit Layout" button (bottom of page) toggles edit mode — shows up/down reorder arrows and eye toggle per widget
 - Hidden widgets shown dimmed with title only; changes save instantly
 
@@ -52,6 +53,7 @@ Post-login landing page for all non-merchant roles. Displays a customisable widg
 |--------|-----|-------|------|
 | Quick Navigation | `quick-nav` | all | Static links to pages, role-aware |
 | Jobs Today | `today-jobs` | all | Own agent's jobs today — count, type breakdown, scrollable list (newest first), click to open in inventory |
+| Daily Job List | `daily-job-list` | all | Pre-planned jobs for the day from `prefilled_jobs` table. Add/edit/delete jobs (client, vendor, job type, job number, notes). Up/down reordering. Click incomplete job → dashboard.html?prefilled_job=UUID pre-fills the form. Completed jobs grey out and fall to bottom |
 | Open Boxes | `open-boxes` | all | Own open boxes count + jobs total. Dropdown filters by client (all) and agent (manager+). Each box clickable → inventory.html?box=ID |
 | Active Shift | `active-shift` | all (shifts_enabled) | Live elapsed timer for active shift, start time, start kms |
 | This Week | `week-stats` | all | Own completed shifts this week — shifts, hours, km, jobs |
@@ -84,6 +86,7 @@ The primary work page for technicians.
 - Optional receipt photo (if client requires it for that job type) — compressed to ~100KB JPEG
 - Optional custom timestamp
 - Validates no duplicate serials within depot
+- **Pre-fill via URL param**: `?prefilled_job=UUID` fetches a `prefilled_jobs` row and pre-selects client, vendor, job type, and job number. Shows a banner confirming pre-fill. On successful job submit, marks the `prefilled_jobs` row as completed (`is_completed=true`, `completed_job_id=job.id`)
 
 **Box management**:
 - Box ID format: `{agent}-{client_code}-{box_number}` (e.g., 804-AMT-001)
@@ -142,10 +145,11 @@ depot_clients:    client_id + depot_id (composite PK), receipt_swap_upgrade_enab
 clients_vendors:  client_id + vendor_id + depot_id (composite PK)
 vendors:          vendor_id (PK)
 invitation_tokens: token (PK), email, depot_id, used, used_at, expires_at
-prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, client_id, vendor_id, job_type, job_number, notes, planned_date (date), is_completed, completed_job_id (FK jobs.id bigint), created_at
+prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, client_id, vendor_id, job_type, job_number, notes, planned_date (date), is_completed, completed_job_id (FK jobs.id bigint), sort_order (int), created_at
+user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidden (JSONB), updated_at
 ```
 
-**Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user.
+**Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `prefilled_jobs` and `user_widget_config` are scoped per user (RLS: auth.uid() = user_id).
 
 ---
 
