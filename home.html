@@ -54,6 +54,7 @@
         let dailyJobListClients = [];
         let dailyJobListVendors = {};
         let dailyJobListEditId = null;
+        let dailyJobListEditMode = false;
         let shiftTimer = null;
         let todayJobsView = 'mine'; // 'mine' or 'depot'
         let todayJobsPage = 0;
@@ -1338,8 +1339,15 @@
                 ? '<div class="widget-empty">No planned jobs for today</div>'
                 : `<div class="widget-list">${itemsHTML}</div>`;
 
+            const editBtnLabel = dailyJobListEditMode
+                ? '<i data-lucide="check" width="14" height="14"></i> Done'
+                : '<i data-lucide="settings-2" width="14" height="14"></i> Edit';
+
             container.innerHTML = `
-                <div style="display:flex; justify-content:flex-end; margin-bottom:var(--spacing-sm);">
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:var(--spacing-sm);">
+                    <button class="btn btn-ghost btn-sm" id="djEditToggleBtn" onclick="toggleDailyJobEditMode()">
+                        ${editBtnLabel}
+                    </button>
                     <button class="btn btn-primary btn-sm" onclick="openDailyJobModal()">
                         <i data-lucide="plus" width="14" height="14"></i> Add Job
                     </button>
@@ -1375,6 +1383,10 @@
                 `;
             }
 
+            const actionDisplay = dailyJobListEditMode ? '' : 'display:none;';
+            const upStyle   = isFirst ? 'opacity:0.25;' : '';
+            const downStyle = isLast  ? 'opacity:0.25;' : '';
+
             return `
                 <div class="widget-list-item">
                     <button class="widget-ctrl-btn" title="Mark complete" style="color:var(--text-muted); padding:0; background:none; border:none; cursor:pointer; flex-shrink:0;"
@@ -1386,16 +1398,16 @@
                         ${notesHTML}
                     </a>
                     ${ageHTML}
-                    <button class="widget-ctrl-btn" title="Move up" onclick="moveDailyJob('${job.id}', 'up')" ${isFirst ? 'disabled style="opacity:0.25;"' : ''}>
+                    <button class="widget-ctrl-btn dj-action-btn" title="Move up" style="${actionDisplay}${upStyle}" ${isFirst ? 'disabled' : ''} onclick="moveDailyJob('${job.id}', 'up')">
                         <i data-lucide="chevron-up" width="14" height="14"></i>
                     </button>
-                    <button class="widget-ctrl-btn" title="Move down" onclick="moveDailyJob('${job.id}', 'down')" ${isLast ? 'disabled style="opacity:0.25;"' : ''}>
+                    <button class="widget-ctrl-btn dj-action-btn" title="Move down" style="${actionDisplay}${downStyle}" ${isLast ? 'disabled' : ''} onclick="moveDailyJob('${job.id}', 'down')">
                         <i data-lucide="chevron-down" width="14" height="14"></i>
                     </button>
-                    <button class="widget-ctrl-btn" title="Edit" onclick="openDailyJobModal('${job.id}')">
+                    <button class="widget-ctrl-btn dj-action-btn" title="Edit" style="${actionDisplay}" onclick="openDailyJobModal('${job.id}')">
                         <i data-lucide="pencil" width="14" height="14"></i>
                     </button>
-                    <button class="widget-ctrl-btn" title="Delete" onclick="deleteDailyJob('${job.id}')">
+                    <button class="widget-ctrl-btn dj-action-btn" title="Delete" style="${actionDisplay}" onclick="deleteDailyJob('${job.id}')">
                         <i data-lucide="trash-2" width="14" height="14"></i>
                     </button>
                 </div>
@@ -1413,6 +1425,22 @@
                 await renderDailyJobList(body, currentUser);
             } catch {
                 body.innerHTML = '<div class="widget-error">Failed to load</div>';
+            }
+        }
+
+        function toggleDailyJobEditMode() {
+            dailyJobListEditMode = !dailyJobListEditMode;
+            const card = document.querySelector('[data-widget-id="daily-job-list"]');
+            if (!card) return;
+            card.querySelectorAll('.dj-action-btn').forEach(btn => {
+                btn.style.display = dailyJobListEditMode ? '' : 'none';
+            });
+            const toggleBtn = document.getElementById('djEditToggleBtn');
+            if (toggleBtn) {
+                toggleBtn.innerHTML = dailyJobListEditMode
+                    ? '<i data-lucide="check" width="14" height="14"></i> Done'
+                    : '<i data-lucide="settings-2" width="14" height="14"></i> Edit';
+                lucide.createIcons();
             }
         }
 
