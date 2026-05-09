@@ -101,7 +101,7 @@ function injectSidebarHTML() {
                         <span>My Depot</span>
                     </a>
                     <a href="shifts.html" class="sidebar-menu-item sub-item" data-page="shifts">
-                        <span><i data-lucide="bar-chart-2" width="20" height="20"></i></span>
+                        <span><i data-lucide="clock" width="20" height="20"></i></span>
                         <span>Shift Reports</span>
                     </a>
                     <a href="manage-depots.html" class="sidebar-menu-item sub-item" data-page="manage-depots" data-role="super_admin" id="manageDepotsLink">
@@ -131,7 +131,6 @@ function injectSidebarHTML() {
  */
 function setActivePage() {
     const currentPath = window.location.pathname;
-    const currentHash = window.location.hash;
     const filename = currentPath.split('/').pop().toLowerCase() || 'index';
     
     // Remove active class from all items
