@@ -374,14 +374,14 @@
 
         async function renderQuickNav(container, user) {
             const links = [
-                { href: 'dashboard.html', icon: 'plus-circle', label: 'Stock Entry' },
+                { href: 'stock-entry.html', icon: 'plus-circle', label: 'Stock Entry' },
                 { href: 'inventory.html', icon: 'search', label: 'Inventory' },
                 { href: 'user.html', icon: 'user', label: 'Profile' }
             ];
 
             if (hasRole(user.role, ['manager', 'super_admin'])) {
-                links.push({ href: 'admin-depot.html', icon: 'settings', label: 'Depot Config' });
-                links.push({ href: 'admin-shifts.html', icon: 'clock', label: 'Shift Reports' });
+                links.push({ href: 'my-depot.html', icon: 'settings', label: 'My Depot' });
+                links.push({ href: 'shifts.html', icon: 'clock', label: 'Shift Reports' });
             }
             if (user.role === 'super_admin') {
                 links.push({ href: 'manage-depots.html', icon: 'building-2', label: 'Manage Depots' });
@@ -1400,7 +1400,7 @@
                         onclick="markDailyJobComplete('${job.id}', null); event.stopPropagation();">
                         <i data-lucide="circle" width="18" height="18"></i>
                     </button>
-                    <a href="dashboard.html?prefilled_job=${job.id}" class="widget-list-item-main" style="text-decoration:none; flex:1; margin-left:8px;">
+                    <a href="stock-entry.html?prefilled_job=${job.id}" class="widget-list-item-main" style="text-decoration:none; flex:1; margin-left:8px;">
                         <span class="widget-list-item-title" style="white-space:normal;">${escapeHTML(job.job_number)}</span>
                         ${clientVendorHTML}
                         ${typeHTML}

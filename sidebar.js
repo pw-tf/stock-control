@@ -75,7 +75,7 @@ function injectSidebarHTML() {
                 <span><i data-lucide="layout-dashboard" width="20" height="20"></i></span>
                 <span>Home</span>
             </a>
-            <a href="dashboard.html" class="sidebar-menu-item" data-page="dashboard">
+            <a href="stock-entry.html" class="sidebar-menu-item" data-page="stock-entry">
                 <span><i data-lucide="clipboard" width="20" height="20"></i></span>
                 <span>Stock Entry</span>
             </a>
@@ -96,11 +96,11 @@ function injectSidebarHTML() {
                     <span class="dropdown-arrow"><i data-lucide="chevron-down" width="16" height="16"></i></span>
                 </div>
                 <div class="dropdown-content" id="adminSubmenu">
-                    <a href="admin-depot.html" class="sidebar-menu-item sub-item" data-page="admin-depot">
+                    <a href="my-depot.html" class="sidebar-menu-item sub-item" data-page="my-depot">
                         <span><i data-lucide="house" width="20" height="20"></i></span>
-                        <span>Depot Config</span>
+                        <span>My Depot</span>
                     </a>
-                    <a href="admin-shifts.html" class="sidebar-menu-item sub-item" data-page="admin-shifts">
+                    <a href="shifts.html" class="sidebar-menu-item sub-item" data-page="shifts">
                         <span><i data-lucide="bar-chart-2" width="20" height="20"></i></span>
                         <span>Shift Reports</span>
                     </a>
@@ -143,24 +143,20 @@ function setActivePage() {
     let activePage = '';
     let isAdminPage = false;
     
-    if (filename === 'dashboard.html') {
-        activePage = 'dashboard';
+    if (filename === 'stock-entry.html') {
+        activePage = 'stock-entry';
     } else if (filename === 'boxes.html') {
         activePage = 'boxes';
     } else if (filename === 'user.html') {
         activePage = 'user';
-    } else if (filename === 'admin-depot.html') {
-        activePage = 'admin-depot';
+    } else if (filename === 'my-depot.html') {
+        activePage = 'my-depot';
         isAdminPage = true;
-    } else if (filename === 'admin-shifts.html') {
-        activePage = 'admin-shifts';
+    } else if (filename === 'shifts.html') {
+        activePage = 'shifts';
         isAdminPage = true;
     } else if (filename === 'manage-depots.html') {
         activePage = 'manage-depots';
-        isAdminPage = true;
-    } else if (filename === 'admin.html') {
-        // Legacy admin.html - redirect to admin-depot
-        activePage = 'admin-depot';
         isAdminPage = true;
     } else if (filename === 'guides.html') {
         activePage = 'guides';

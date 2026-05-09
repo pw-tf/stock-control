@@ -53,7 +53,7 @@ Post-login landing page for all non-merchant roles. Displays a customisable widg
 |--------|-----|-------|------|
 | Quick Navigation | `quick-nav` | all | Static links to pages, role-aware |
 | Jobs Today | `today-jobs` | all | Own agent's jobs today — count, type breakdown, scrollable list (newest first), click to open in inventory |
-| Daily Job List | `daily-job-list` | all | Pre-planned jobs from `prefilled_jobs` table. Add/edit/delete jobs (client, vendor, job type, job number, notes). Up/down reordering. Incomplete jobs persist indefinitely until deleted or completed — jobs ≥24h old show an age label ("1 day old", "2 days old", etc.) near the action buttons. Click incomplete job → dashboard.html?prefilled_job=UUID pre-fills the form. Completed jobs grey out at the bottom and only show for the day they were completed |
+| Daily Job List | `daily-job-list` | all | Pre-planned jobs from `prefilled_jobs` table. Add/edit/delete jobs (client, vendor, job type, job number, notes). Up/down reordering. Incomplete jobs persist indefinitely until deleted or completed — jobs ≥24h old show an age label ("1 day old", "2 days old", etc.) near the action buttons. Click incomplete job → stock-entry.html?prefilled_job=UUID pre-fills the form. Completed jobs grey out at the bottom and only show for the day they were completed |
 | Open Boxes | `open-boxes` | all | Own open boxes count + jobs total. Dropdown filters by client (all) and agent (manager+). Each box clickable → inventory.html?box=ID |
 | Active Shift | `active-shift` | all (shifts_enabled) | Live elapsed timer for active shift, start time, start kms |
 | This Week | `week-stats` | all | Own completed shifts this week — shifts, hours, km, jobs |
@@ -67,7 +67,7 @@ Post-login landing page for all non-merchant roles. Displays a customisable widg
 
 **Open Boxes filtering**: Only shows boxes whose client still exists in `depot_clients` for the depot (prevents showing historically deleted clients).
 
-#### dashboard.html — Stock Entry & Shift Tracking
+#### stock-entry.html — Stock Entry & Shift Tracking
 The primary work page for technicians.
 
 **Shift management** (when `shifts_enabled=true`):
@@ -108,14 +108,14 @@ The primary work page for technicians.
 
 ### Admin Pages
 
-#### admin-depot.html — Depot Configuration (manager+)
+#### my-depot.html — My Depot (manager+)
 Four tabs:
 - **Users**: table with assign agent, view stats, delete
 - **Agents**: add/delete agents (can't delete if users assigned)
 - **Clients**: configure receipt requirements per job type, link/unlink vendors
 - **Vendors**: add/delete vendors globally
 
-#### admin-shifts.html — Shift Reports (manager+)
+#### shifts.html — Shift Reports (manager+)
 - Filter by technician and date range
 - Summary stats + shift cards with click-to-detail
 - Edit any shift (end_time, end_kms, extra_jobs, notes)
@@ -203,11 +203,11 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 ├── pending.html             Awaiting agent assignment → home.html
 ├── guides.html              Merchant placeholder
 ├── home.html                Landing page + analytics widgets (post-login)
-├── dashboard.html           Stock entry + shifts
+├── stock-entry.html         Stock entry + shifts (supports ?prefilled_job= param)
 ├── inventory.html           Search + browse + print (supports ?box= and ?job= params)
 ├── user.html                Profile + shift history + theme picker
-├── admin-depot.html         Depot config (manager)
-├── admin-shifts.html        Shift reports (manager)
+├── my-depot.html            My Depot — depot config (manager)
+├── shifts.html              Shift reports (manager)
 ├── manage-depots.html       Multi-depot admin (super_admin)
 ├── auth.js                  Supabase auth
 ├── utils.js                 Shared utilities + theme functions
