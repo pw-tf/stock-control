@@ -222,15 +222,28 @@
         let allClients = [];
         let selectedShiftDetail = null;
 
+        function saveThemeToSupabase(theme, mode) {
+            db.from('user_widget_config').upsert({
+                user_id:    currentUser.id,
+                theme:      theme,
+                theme_mode: mode,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id' }).then(({ error }) => {
+                if (error) console.error('Failed to save theme:', error);
+            });
+        }
+
         function selectTheme(theme) {
             const { mode } = getTheme();
             setTheme(theme, mode);
+            saveThemeToSupabase(theme, mode);
             updateThemePickerUI();
         }
 
         function selectMode(mode) {
             const { theme } = getTheme();
             setTheme(theme, mode);
+            saveThemeToSupabase(theme, mode);
             updateThemePickerUI();
             lucide.createIcons();
         }

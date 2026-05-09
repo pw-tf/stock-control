@@ -129,6 +129,23 @@ async function initAuth(requiredRoles = null) {
     
     // Apply role-based restrictions
     restrictByRole(user.role);
-    
+
+    // Sync theme from Supabase (non-blocking — localStorage already applied the cached value)
+    db.from('user_widget_config')
+        .select('theme, theme_mode')
+        .eq('user_id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+            if (!data) return;
+            if (data.theme) {
+                localStorage.setItem('theme', data.theme);
+                document.documentElement.setAttribute('data-theme', data.theme);
+            }
+            if (data.theme_mode) {
+                localStorage.setItem('mode', data.theme_mode);
+                document.documentElement.setAttribute('data-mode', data.theme_mode);
+            }
+        });
+
     return user;
 }
