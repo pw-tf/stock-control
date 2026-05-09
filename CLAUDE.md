@@ -45,7 +45,7 @@ Post-login landing page for all non-merchant roles. Displays a customisable widg
 - Layout preferences stored in localStorage (`home_widget_order`, `home_widget_hidden`) as a local cache, and synced to `user_widget_config` table in Supabase for cross-device persistence
 - `loadWidgetConfig()` fetches from Supabase on page load and populates localStorage; `saveWidgetConfig()` writes to localStorage immediately then upserts to Supabase asynchronously
 - "Edit Layout" button (bottom of page) toggles edit mode — shows up/down reorder arrows and eye toggle per widget
-- Hidden widgets shown dimmed with title only; changes save instantly
+- In edit mode, hidden widgets appear dimmed (so they can be re-enabled); outside edit mode they're removed from the DOM entirely. Changes save instantly
 
 **Widgets by role**:
 
@@ -104,7 +104,7 @@ The primary work page for technicians.
 #### user.html — Profile & Shift History
 - **Shift Reports tab**: date-filtered list of own shifts with summary stats (total shifts, hours, km, jobs). CSV export with dynamic client columns
 - **Settings tab**: view email/role/agent, change password, sign out
-- **Appearance card**: theme picker (8 themes: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand) × Dark/Light mode. Saved to localStorage (`theme`, `mode`). Applied site-wide via `data-theme` and `data-mode` attributes on `<html>`
+- **Appearance card**: theme picker (themes: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand, Perry's Beach) × Dark/Light mode. Saved to localStorage (`theme`, `mode`) for instant flash-free apply, AND synced to `user_widget_config.theme` / `theme_mode` in Supabase for cross-device persistence. On every page load, `initAuth()` (in auth.js) fetches the saved values and updates localStorage + DOM if different. Applied site-wide via `data-theme` and `data-mode` attributes on `<html>`
 
 ### Admin Pages
 
@@ -146,7 +146,7 @@ clients_vendors:  client_id + vendor_id + depot_id (composite PK)
 vendors:          vendor_id (PK)
 invitation_tokens: token (PK), email, depot_id, used, used_at, expires_at
 prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, client_id, vendor_id, job_type, job_number, notes, planned_date (date), is_completed, completed_job_id (FK jobs.id bigint), sort_order (int), created_at
-user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidden (JSONB), updated_at
+user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidden (JSONB), theme (text), theme_mode (text), updated_at
 ```
 
 **Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `prefilled_jobs` and `user_widget_config` are scoped per user (RLS: auth.uid() = user_id).

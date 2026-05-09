@@ -145,7 +145,8 @@ async function initAuth(requiredRoles = null) {
                 localStorage.setItem('mode', data.theme_mode);
                 document.documentElement.setAttribute('data-mode', data.theme_mode);
             }
-        });
+        })
+        .catch(err => console.error('Theme sync failed:', err));
 
     return user;
 }
