@@ -3,17 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Entry - Stock Submission</title>
+    <title>Stock Entry - Stock Control</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-    <script>(function(){var t=localStorage.getItem("theme")||"ocean";var m=localStorage.getItem("mode")||"dark";document.documentElement.setAttribute("data-theme",t);document.documentElement.setAttribute("data-mode",m);})();</script>
+    <script>(function(){
+        var t=localStorage.getItem("theme")||"ocean";
+        var m=localStorage.getItem("mode")||"dark";
+        var d=localStorage.getItem("density")||"comfortable";
+        document.documentElement.setAttribute("data-theme",t);
+        document.documentElement.setAttribute("data-mode",m);
+        document.documentElement.setAttribute("data-density",d);
+    })();</script>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Icons -->
     <script src="https://unpkg.com/lucide@0.460.0"></script>
     <script src="icons.js"></script>
-    <!-- Login Script-->
     <script src="auth.js"></script>
     <script src="sidebar.js"></script>
     <script src="utils.js"></script>
@@ -23,208 +28,301 @@
     <div class="loading-overlay" id="loading">
         <div class="spinner"></div>
     </div>
-    
+
     <!-- Sync Status -->
     <div class="sync-status" id="syncStatus"></div>
-    
-    <!-- Main Container -->
-    <div class="app-wrapper">
-        <div class="container">
-            <div class="header">
-                <div class="header-content">
-                    <div class="header-icon"><i data-lucide="package" width="32" height="32"></i></div>
-                    <div>
-                        <h1>Stock Entry</h1>
-                        <!-- Dynamic Shift Status -->
-                        <div class="header-subtitle" id="shiftStatusContainer">
-                            <span id="shiftStatusText">Loading...</span>
-                            <button class="btn btn-sm shift-header-btn" id="shiftHeaderBtn" style="display: none;">
-                                Start Shift
-                            </button>
-                        </div>
-                    </div>
+
+    <div class="app">
+
+        <!-- TOPBAR -->
+        <div class="topbar fade-in">
+            <button class="topbar-burger" onclick="toggleSidebar()" aria-label="Menu">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+            </button>
+            <div class="topbar-logo">
+                <span class="topbar-logo-mark">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg>
+                </span>
+                <span>Stock Control</span>
+            </div>
+            <div class="topbar-spacer"></div>
+            <div class="topbar-avatar" id="seAvatar" onclick="location.href='user.html'" style="cursor:pointer" title="My Profile">?</div>
+        </div>
+
+        <!-- Alert Container -->
+        <div id="alertContainer"></div>
+
+        <!-- PAGE HEAD -->
+        <div class="page-head fade-in d1">
+            <div class="page-title-group">
+                <span class="page-title-mark">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg>
+                </span>
+                <div class="page-title">
+                    <h1>Stock Entry</h1>
+                    <div class="page-title-sub">Log jobs and serials into the current box</div>
                 </div>
             </div>
-            
-            <div class="content">
-                <div id="alertContainer"></div>
-                
-                <!-- Current Box Status Card -->
-                <div class="status-card">
-                    <div class="status-card-content">
-                        <h3 id="currentBoxId">No Active Box</h3>
-                        <p id="currentBoxClient">Select a client to begin</p>
-                        <div class="status-card-meta" id="jobsSummary"></div>
-                    </div>
-                    <button class="btn btn-danger" id="newBoxBtn" disabled>
-                        Start New Box
-                    </button>
+            <!-- Active shift pill -->
+            <div id="shiftPillWrap" style="display:none">
+                <div class="shift-pill">
+                    <span class="dot"></span>
+                    <span>Shift active</span>
+                    <span class="sep">·</span>
+                    <span>Started <span class="v" id="shiftPillStart"></span></span>
+                    <span class="sep">·</span>
+                    <span>KMs <span class="v" id="shiftPillKms"></span></span>
+                    <button class="end-btn" onclick="openEndShiftModal()">End</button>
                 </div>
-                
-                <!-- Form Fields -->
-                <div class="card">
-                    <div class="form-group">
-                        <label class="form-label" for="clientSelect">
-                            Client <span class="required">*</span>
-                        </label>
-                        <select id="clientSelect" class="form-select">
-                            <option value="">Select a client...</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="vendorSelect">
-                            Vendor <span class="required">*</span>
-                        </label>
-                        <select id="vendorSelect" class="form-select">
-                            <option value="">Select a client first...</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="jobNumber">
-                            Job Number <span class="required">*</span>
-                            <span id="jobTypeLabel" style="font-weight: 400; color: var(--text-muted); margin-left: 8px;"></span>
-                        </label>
-                        <input
-                            type="text"
-                            id="jobNumber"
-                            class="form-input"
-                            placeholder="Enter job number"
-                        >
-                    </div>
-
-
-                    <!-- Individual Serial Entry -->
-                    <div class="form-group individual-entry-area" id="individualEntry">
-                        <label class="form-label">
-                            Serial Numbers <span class="required">*</span>
-                        </label>
-                        <div class="serial-inputs" id="serialInputs">
-                            <div class="serial-input-row">
-                                <input type="text" class="form-input serial-input" placeholder="Enter serial number">
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;">
-                            <button class="btn btn-primary" id="addSerialBtn">
-                                + Add Another Serial
-                            </button>
-                            <!-- Bulk Entry Toggle -->
-                            <div class="toggle-container" style="margin: 0;">
-                                <div class="toggle-switch">
-                                    <input type="checkbox" id="bulkToggle">
-                                    <div class="toggle-slider"></div>
-                                </div>
-                                <label class="toggle-label" for="bulkToggle">Bulk Entry Mode</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Bulk Serial Entry -->
-                    <div class="bulk-entry-area" id="bulkEntry">
-                        <div class="form-group">
-                            <label class="form-label" for="bulkSerials">
-                                Serial Numbers <span class="required">*</span>
-                                <span style="font-weight: 400; color: var(--text-muted);">(one per line)</span>
-                            </label>
-                            <textarea
-                                id="bulkSerials"
-                                class="form-textarea"
-                                placeholder="Enter serial numbers, one per line..."
-                            ></textarea>
-                            <div style="margin-top: 12px;">
-                                <!-- Bulk Entry Toggle (for turning off) -->
-                                <div class="toggle-container" style="margin: 0;">
-                                    <div class="toggle-switch">
-                                        <input type="checkbox" id="bulkToggle2" checked>
-                                        <div class="toggle-slider"></div>
-                                    </div>
-                                    <label class="toggle-label" for="bulkToggle2">Bulk Entry Mode</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Receipt Upload Section -->
-                    <div class="form-group" id="receiptUploadSection" style="display: none;">
-                        <label class="form-label">
-                            Receipt Photo <span class="required">*</span>
-                        </label>
-
-                        <!-- Upload Controls -->
-                        <div id="receiptUploadControls">
-                            <input
-                                type="file"
-                                id="receiptCameraInput"
-                                accept="image/*"
-                                capture="environment"
-                                style="display: none;"
-                                onchange="handleReceiptFileSelect(event)"
-                            >
-                            <input
-                                type="file"
-                                id="receiptFileInput"
-                                accept="image/*"
-                                style="display: none;"
-                                onchange="handleReceiptFileSelect(event)"
-                            >
-                            <div style="display: flex; gap: 8px;">
-                                <button type="button" class="btn btn-secondary btn-sm" style="flex: 1;" onclick="document.getElementById('receiptCameraInput').click()">
-                                    <i data-lucide="camera" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
-                                    Take Photo
-                                </button>
-                                <button type="button" class="btn btn-secondary btn-sm" style="flex: 1;" onclick="document.getElementById('receiptFileInput').click()">
-                                    <i data-lucide="upload" width="14" height="14" style="vertical-align: middle; margin-right: 4px;"></i>
-                                    Upload Photo
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Receipt Preview -->
-                        <div id="receiptPreview" style="display: none; margin-top: 16px;">
-                            <div style="position: relative; border-radius: 8px; overflow: hidden; border: 2px solid var(--border-primary); background: var(--bg-secondary);">
-                                <img id="receiptPreviewImg" src="" alt="Receipt preview" style="width: 100%; max-height: 300px; object-fit: contain;">
-                                <button
-                                    type="button"
-                                    onclick="clearReceiptUpload()"
-                                    style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; line-height: 1;"
-                                    title="Remove photo"
-                                >
-                                    ×
-                                </button>
-                            </div>
-                            <p style="font-size: 0.75rem; color: var(--success); margin-top: 8px; display: flex; align-items: center; gap: 4px;">
-                                <i data-lucide="check-circle" width="14" height="14"></i>
-                                Receipt photo ready
-                            </p>
-                        </div>
-                    </div>
-                                        
-                    <!-- Custom Time Section -->
-                    <div class="form-group">
-                        <label class="form-label" for="jobTimeInput">
-                            Time <span style="font-weight: normal; color: var(--text-secondary);">(optional)</span>
-                        </label>
-                        <input
-                            type="datetime-local"
-                            id="jobTimeInput"
-                            class="form-input"
-                            placeholder="Defaults to current time"
-                        >
-                        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
-                            Leave blank to use the current time
-                        </p>
-                    </div>
-
-                    <div class="button-group">
-                        <button class="btn btn-primary" id="addJobBtn">
-                            Add Job to Box
-                        </button>
-                    </div>
-                </div>
+            </div>
+            <!-- Start shift button (no active shift) -->
+            <div id="shiftStartWrap" style="display:none">
+                <button class="btn-new" onclick="openStartShiftModal()">Start Shift</button>
             </div>
         </div>
-    </div>
+
+        <!-- BOX CONTEXT STRIP -->
+        <div class="box-strip fade-in d2" id="boxStrip">
+            <div id="boxStripSummary" onclick="toggleBoxStrip()">
+                <span class="lbl">Current box</span>
+                <span class="box-id-row">
+                    <span class="id" id="currentBoxId">No Active Box</span>
+                    <svg class="strip-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </span>
+            </div>
+            <div class="box-detail">
+                <span class="lbl">Client</span>
+                <span class="v" id="currentBoxClient">—</span>
+            </div>
+            <div class="box-detail">
+                <span class="lbl">Jobs in box</span>
+                <span class="v" id="jobsSummary">—</span>
+            </div>
+            <div class="box-detail">
+                <span class="lbl">Opened</span>
+                <span class="v" id="boxOpenedTime">—</span>
+            </div>
+            <div class="newbox-btn">
+                <button id="newBoxBtn" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                    New Box
+                </button>
+            </div>
+        </div>
+
+        <!-- FORM GRID -->
+        <div class="form-grid">
+
+            <!-- LEFT: Job details + Recent -->
+            <div class="col-left">
+
+                <!-- Job Details -->
+                <div class="section fade-in d2">
+                    <div class="section-head">
+                        <div class="section-title">
+                            <span class="ico">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                            </span>
+                            Job Details
+                        </div>
+                        <span class="section-step">01 / 03</span>
+                    </div>
+
+                    <div class="field">
+                        <label for="clientSelect">Client <span class="req">*</span></label>
+                        <select class="select" id="clientSelect">
+                            <option value="">Select a client…</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="vendorSelect">Vendor <span class="req">*</span></label>
+                        <select class="select" id="vendorSelect">
+                            <option value="">Select a client first…</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label>Job type <span class="req">*</span></label>
+                        <div class="type-pills" id="typePills">
+                            <button class="type-pill" data-type="swap-upgrade" onclick="selectJobType('swap-upgrade')" type="button">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+                                Swap / Upgrade
+                            </button>
+                            <button class="type-pill" data-type="install" onclick="selectJobType('install')" type="button">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                                Install
+                            </button>
+                            <button class="type-pill" data-type="deinstall" onclick="selectJobType('deinstall')" type="button">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>
+                                Deinstall
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="jobNumber">Job number <span class="req">*</span> <span class="hint">numeric or alphanumeric</span></label>
+                        <input type="text" class="input mono" id="jobNumber" placeholder="e.g. JOB-58442" autocomplete="off">
+                    </div>
+
+                    <div class="field">
+                        <label for="jobTimeInput">Job time <span class="hint">leave blank for now</span></label>
+                        <input type="datetime-local" class="input mono" id="jobTimeInput">
+                    </div>
+                </div>
+
+                <!-- Recent in this box -->
+                <div class="section fade-in d4" id="recentSection" style="display:none">
+                    <div class="section-head">
+                        <div class="section-title">
+                            <span class="ico">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            </span>
+                            Recent in this box
+                        </div>
+                        <span class="section-step" id="recentCountLabel">0 jobs</span>
+                    </div>
+                    <div class="recent-list" id="recentJobsList"></div>
+                </div>
+
+            </div><!-- .col-left -->
+
+            <!-- RIGHT: Equipment + Receipt -->
+            <div class="col-right">
+
+                <!-- Equipment Serials -->
+                <div class="section fade-in d3" id="serialSection">
+                    <div class="section-head">
+                        <div class="section-title">
+                            <span class="ico">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                            </span>
+                            Equipment Serials
+                        </div>
+                        <span class="section-step">02 / 03</span>
+                    </div>
+
+                    <!-- Individual (chip) mode -->
+                    <div id="individualEntry">
+                        <div class="field">
+                            <label>Serial numbers <span class="req">*</span> <span class="hint">type &amp; press Enter to add</span></label>
+                            <div class="serials-wrap" id="serialsWrap">
+                                <div class="chip-input-wrap">
+                                    <input class="chip-input" id="chipSerialInput" placeholder="Scan or type a serial…" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="serial-counter">
+                                <span><span class="count" id="serialCount">0</span> serials in this job</span>
+                                <div class="toggle-row">
+                                    <span class="toggle" id="bulkToggle" onclick="toggleBulkMode()" title="Bulk mode"></span>
+                                    <label style="cursor:pointer" onclick="toggleBulkMode()">Bulk mode</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bulk mode -->
+                    <div id="bulkEntry" style="display:none">
+                        <div class="field">
+                            <label for="bulkSerials">Serial numbers <span class="req">*</span> <span class="hint">one per line</span></label>
+                            <textarea class="textarea mono" id="bulkSerials" rows="8" placeholder="Enter serial numbers, one per line…"></textarea>
+                            <div class="serial-counter">
+                                <span></span>
+                                <div class="toggle-row">
+                                    <span class="toggle on" id="bulkToggle2" onclick="toggleBulkMode()" title="Bulk mode"></span>
+                                    <label style="cursor:pointer" onclick="toggleBulkMode()">Bulk mode</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Receipt -->
+                <div class="section fade-in d3" id="receiptUploadSection" style="display:none">
+                    <div class="section-head">
+                        <div class="section-title">
+                            <span class="ico">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h5"/></svg>
+                            </span>
+                            Receipt
+                        </div>
+                        <span class="section-step" id="receiptSectionStep">03 / 03</span>
+                    </div>
+
+                    <!-- Hidden file inputs — keep same IDs for JS -->
+                    <input type="file" id="receiptCameraInput" accept="image/*" capture="environment" style="display:none" onchange="handleReceiptFileSelect(event)">
+                    <input type="file" id="receiptFileInput" accept="image/*" style="display:none" onchange="handleReceiptFileSelect(event)">
+
+                    <!-- Preview (shown after selection) -->
+                    <div id="receiptPreview" style="display:none">
+                        <div class="receipt-preview">
+                            <img id="receiptPreviewImg" src="" alt="Receipt preview" style="width:100%; max-height:280px; object-fit:contain; border-radius:3px;">
+                            <button class="remove" onclick="clearReceiptUpload()" type="button" aria-label="Remove photo">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                            </button>
+                            <div class="receipt-meta">
+                                <span class="ok">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                    Receipt photo ready
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dropzone (shown initially) -->
+                    <div id="receiptUploadControls">
+                        <div class="dropzone">
+                            <div class="dz-icon">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                            </div>
+                            <div class="dz-title">Drop a photo here</div>
+                            <div class="dz-sub">or use one of the options below — auto-compressed to under 100&nbsp;KB</div>
+                            <div class="dropzone-actions">
+                                <button class="dz-btn" type="button" onclick="document.getElementById('receiptCameraInput').click()">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                                    Take photo
+                                </button>
+                                <button class="dz-btn" type="button" onclick="document.getElementById('receiptFileInput').click()">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                                    Upload file
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- .col-right -->
+        </div><!-- .form-grid -->
+
+        <!-- SUBMIT BAR -->
+        <div class="submit-bar fade-in d4">
+            <div class="submit-summary">
+                <span class="s-item">
+                    <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2"/></svg>
+                    Submitting to <span class="v" id="submitBoxId" style="margin-left:4px">—</span>
+                </span>
+                <span class="s-item">
+                    <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                    <span class="v" id="summarySerials">0</span> serials
+                </span>
+                <span class="s-item" id="receiptSummaryItem">
+                    <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    Receipt <span class="v" id="receiptStatus" style="margin-left:4px; color:var(--text-muted)">not required</span>
+                </span>
+            </div>
+            <div class="submit-actions">
+                <button class="btn-new primary" id="addJobBtn">
+                    Add Job to Box
+                    <span class="kbd">⌘ ↵</span>
+                </button>
+            </div>
+        </div>
+
+    </div><!-- .app -->
+
+    <!-- ============================================================
+         MODALS — unchanged from original
+         ============================================================ -->
 
     <!-- Start Shift Modal -->
     <div class="modal" id="startShiftModal">
@@ -235,31 +333,13 @@
             <div id="startShiftAlertContainer"></div>
             <form id="startShiftForm">
                 <div class="form-group">
-                    <label class="form-label" for="startShiftTime">
-                        Start Time <span class="required">*</span>
-                    </label>
-                    <input 
-                        type="datetime-local" 
-                        id="startShiftTime" 
-                        class="form-input" 
-                        required
-                    >
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
-                        Auto-filled with current time. Adjust if needed.
-                    </p>
+                    <label class="form-label" for="startShiftTime">Start Time <span class="required">*</span></label>
+                    <input type="datetime-local" id="startShiftTime" class="form-input" required>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Auto-filled with current time. Adjust if needed.</p>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="startShiftKms">
-                        Starting Kilometres (Odometer) <span class="required">*</span>
-                    </label>
-                    <input 
-                        type="number" 
-                        id="startShiftKms" 
-                        class="form-input" 
-                        required 
-                        placeholder="e.g., 45230"
-                        min="0"
-                    >
+                    <label class="form-label" for="startShiftKms">Starting Kilometres (Odometer) <span class="required">*</span></label>
+                    <input type="number" id="startShiftKms" class="form-input" required placeholder="e.g., 45230" min="0">
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-ghost" onclick="closeStartShiftModal()">Cancel</button>
@@ -278,58 +358,22 @@
             <div id="endShiftAlertContainer"></div>
             <form id="endShiftForm">
                 <div class="form-group">
-                    <label class="form-label" for="endShiftTime">
-                        End Time <span class="required">*</span>
-                    </label>
-                    <input 
-                        type="datetime-local" 
-                        id="endShiftTime" 
-                        class="form-input" 
-                        required
-                    >
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
-                        Auto-filled with current time. Adjust if needed.
-                    </p>
+                    <label class="form-label" for="endShiftTime">End Time <span class="required">*</span></label>
+                    <input type="datetime-local" id="endShiftTime" class="form-input" required>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Auto-filled with current time. Adjust if needed.</p>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="endShiftKms">
-                        Ending Kilometres (Odometer) <span class="required">*</span>
-                    </label>
-                    <input 
-                        type="number" 
-                        id="endShiftKms" 
-                        class="form-input" 
-                        required 
-                        placeholder="e.g., 45310"
-                        min="0"
-                    >
+                    <label class="form-label" for="endShiftKms">Ending Kilometres (Odometer) <span class="required">*</span></label>
+                    <input type="number" id="endShiftKms" class="form-input" required placeholder="e.g., 45310" min="0">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="extraJobs">
-                        Extra Jobs (not logged in system)
-                    </label>
-                    <input 
-                        type="number" 
-                        id="extraJobs" 
-                        class="form-input" 
-                        placeholder="0"
-                        min="0"
-                        value="0"
-                    >
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
-                        Jobs completed without serial logging (e.g., on-site repairs)
-                    </p>
+                    <label class="form-label" for="extraJobs">Extra Jobs (not logged in system)</label>
+                    <input type="number" id="extraJobs" class="form-input" placeholder="0" min="0" value="0">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Jobs completed without serial logging (e.g., on-site repairs)</p>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="shiftNotes">
-                        Shift Notes
-                    </label>
-                    <textarea 
-                        id="shiftNotes" 
-                        class="form-textarea" 
-                        placeholder="Any additional notes about this shift..."
-                        style="min-height: 80px;"
-                    ></textarea>
+                    <label class="form-label" for="shiftNotes">Shift Notes</label>
+                    <textarea id="shiftNotes" class="form-textarea" placeholder="Any additional notes about this shift..." style="min-height: 80px;"></textarea>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-ghost" onclick="closeEndShiftModal()">Cancel</button>
@@ -346,70 +390,29 @@
                 <h3><i data-lucide="alert-triangle" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>Incomplete Shift Found</h3>
             </div>
             <div class="help-box" style="margin-bottom: 20px; border-left-color: var(--warning);">
-                <p style="margin: 0;">
-                    You have an unfinished shift from <strong id="staleShiftDate"></strong>. 
-                    Please enter your end details to close it before starting a new shift.
-                </p>
+                <p style="margin: 0;">You have an unfinished shift from <strong id="staleShiftDate"></strong>. Please enter your end details to close it before starting a new shift.</p>
             </div>
             <div id="staleShiftAlertContainer"></div>
             <form id="staleShiftForm">
                 <div class="form-group">
                     <label class="form-label">Shift Started</label>
-                    <input 
-                        type="text" 
-                        id="staleShiftStartInfo" 
-                        class="form-input" 
-                        readonly 
-                        style="background: var(--bg-primary); cursor: not-allowed;"
-                    >
+                    <input type="text" id="staleShiftStartInfo" class="form-input" readonly style="background: var(--bg-primary); cursor: not-allowed;">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="staleShiftEndTime">
-                        End Time <span class="required">*</span>
-                    </label>
-                    <input 
-                        type="datetime-local" 
-                        id="staleShiftEndTime" 
-                        class="form-input" 
-                        required
-                    >
+                    <label class="form-label" for="staleShiftEndTime">End Time <span class="required">*</span></label>
+                    <input type="datetime-local" id="staleShiftEndTime" class="form-input" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="staleShiftEndKms">
-                        Ending Kilometres (Odometer) <span class="required">*</span>
-                    </label>
-                    <input 
-                        type="number" 
-                        id="staleShiftEndKms" 
-                        class="form-input" 
-                        required 
-                        placeholder="e.g., 45310"
-                        min="0"
-                    >
+                    <label class="form-label" for="staleShiftEndKms">Ending Kilometres (Odometer) <span class="required">*</span></label>
+                    <input type="number" id="staleShiftEndKms" class="form-input" required placeholder="e.g., 45310" min="0">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="staleExtraJobs">
-                        Extra Jobs (not logged in system)
-                    </label>
-                    <input 
-                        type="number" 
-                        id="staleExtraJobs" 
-                        class="form-input" 
-                        placeholder="0"
-                        min="0"
-                        value="0"
-                    >
+                    <label class="form-label" for="staleExtraJobs">Extra Jobs (not logged in system)</label>
+                    <input type="number" id="staleExtraJobs" class="form-input" placeholder="0" min="0" value="0">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="staleShiftNotes">
-                        Shift Notes
-                    </label>
-                    <textarea 
-                        id="staleShiftNotes" 
-                        class="form-textarea" 
-                        placeholder="Any additional notes about this shift..."
-                        style="min-height: 80px;"
-                    ></textarea>
+                    <label class="form-label" for="staleShiftNotes">Shift Notes</label>
+                    <textarea id="staleShiftNotes" class="form-textarea" placeholder="Any additional notes about this shift..." style="min-height: 80px;"></textarea>
                 </div>
                 <div class="modal-actions">
                     <button type="submit" class="btn btn-primary">Close Shift</button>
@@ -425,9 +428,7 @@
                 <h3><i data-lucide="bar-chart-2" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>Shift Report</h3>
                 <button type="button" class="modal-close-btn" onclick="closeShiftReportModal()" aria-label="Close">×</button>
             </div>
-            <div class="shift-report-content" id="shiftReportContent">
-                <!-- Report will be generated here -->
-            </div>
+            <div class="shift-report-content" id="shiftReportContent"></div>
             <div class="modal-actions" style="flex-direction: column; gap: 12px;">
                 <button type="button" class="btn btn-secondary" onclick="copyShiftReport()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
                     <i data-lucide="clipboard" width="18" height="18"></i>
@@ -436,32 +437,6 @@
                 <button type="button" class="btn btn-primary" onclick="downloadShiftReportCSV()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
                     <i data-lucide="download" width="18" height="18"></i>
                     <span>Download CSV</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Job Type Selection Modal -->
-    <div class="modal" id="jobTypeModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i data-lucide="clipboard" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>Select Job Type</h3>
-            </div>
-            <p style="margin-bottom: 20px; color: var(--text-muted);">
-                What type of job are you adding?
-            </p>
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-                <button type="button" class="btn btn-primary" onclick="selectJobType('swap-upgrade')" style="width: 100%; padding: 16px; display: flex; align-items: center; gap: 12px;">
-                    <i data-lucide="refresh-cw" width="20" height="20"></i>
-                    <span>Swap/Upgrade</span>
-                </button>
-                <button type="button" class="btn btn-primary" onclick="selectJobType('install')" style="width: 100%; padding: 16px; display: flex; align-items: center; gap: 12px;">
-                    <i data-lucide="plus-circle" width="20" height="20"></i>
-                    <span>Install</span>
-                </button>
-                <button type="button" class="btn btn-primary" onclick="selectJobType('deinstall')" style="width: 100%; padding: 16px; display: flex; align-items: center; gap: 12px;">
-                    <i data-lucide="minus-circle" width="20" height="20"></i>
-                    <span>Deinstall</span>
                 </button>
             </div>
         </div>
@@ -483,15 +458,141 @@ let currentReceiptFile = null;
 let currentReceiptUrl = null;
 let isReceiptRequired = false;
 let currentClientSettings = null;
+let chips = [];
+let bulkModeState = false;
+
+// ============================================
+// AVATAR
+// ============================================
+
+function setSeAvatar(user) {
+    const el = document.getElementById('seAvatar');
+    if (!el || !user) return;
+    const meta = user.user_metadata || {};
+    const fullName = meta.full_name || meta.name || '';
+    let initials = '??';
+    if (fullName) {
+        const parts = fullName.trim().split(/\s+/);
+        initials = parts.map(p => p[0]).join('').toUpperCase().slice(0, 2);
+    } else if (user.email) {
+        initials = user.email.slice(0, 2).toUpperCase();
+    }
+    el.textContent = initials;
+}
+
+// ============================================
+// CHIP-BASED SERIAL ENTRY
+// ============================================
+
+function renderChips() {
+    const wrap = document.getElementById('serialsWrap');
+    if (!wrap) return;
+    [...wrap.querySelectorAll('.chip')].forEach(c => c.remove());
+    const inputWrap = wrap.querySelector('.chip-input-wrap');
+    chips.forEach((s, i) => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.innerHTML = `<span class="chip-num">${String(i+1).padStart(2,'0')}</span>${escapeHTML(s)}<button class="del" type="button" aria-label="Remove" onclick="removeChip(${i})">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>`;
+        wrap.insertBefore(chip, inputWrap);
+    });
+    const countEl = document.getElementById('serialCount');
+    if (countEl) countEl.textContent = chips.length;
+    updateSubmitSummary();
+}
+
+function removeChip(i) {
+    chips.splice(i, 1);
+    renderChips();
+}
+
+function setupChipInput() {
+    const input = document.getElementById('chipSerialInput');
+    if (!input) return;
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const v = input.value.trim();
+            if (v) { chips.push(v); input.value = ''; renderChips(); }
+        } else if (e.key === 'Backspace' && !input.value && chips.length) {
+            chips.pop();
+            renderChips();
+        }
+    });
+}
+
+// ============================================
+// BULK MODE TOGGLE
+// ============================================
+
+function toggleBulkMode() {
+    bulkModeState = !bulkModeState;
+    document.getElementById('individualEntry').style.display = bulkModeState ? 'none' : '';
+    document.getElementById('bulkEntry').style.display = bulkModeState ? '' : 'none';
+    const bt = document.getElementById('bulkToggle');
+    const bt2 = document.getElementById('bulkToggle2');
+    if (bt) bt.classList.toggle('on', bulkModeState);
+    if (bt2) bt2.classList.toggle('on', bulkModeState);
+}
+
+// ============================================
+// SUBMIT SUMMARY
+// ============================================
+
+function updateSubmitSummary() {
+    const serialsEl = document.getElementById('summarySerials');
+    const receiptEl = document.getElementById('receiptStatus');
+    const receiptItem = document.getElementById('receiptSummaryItem');
+    if (serialsEl) serialsEl.textContent = chips.length;
+    if (receiptEl) {
+        if (!isReceiptRequired) {
+            receiptEl.textContent = 'not required';
+            receiptEl.style.color = 'var(--text-muted)';
+        } else if (currentReceiptFile) {
+            receiptEl.textContent = 'attached';
+            receiptEl.style.color = 'var(--success)';
+        } else {
+            receiptEl.textContent = 'not attached';
+            receiptEl.style.color = 'var(--error)';
+        }
+    }
+    if (receiptItem) receiptItem.style.display = isReceiptRequired ? '' : 'none';
+}
+
+// ============================================
+// RECENT JOBS IN BOX
+// ============================================
+
+function renderRecentJobs() {
+    const section = document.getElementById('recentSection');
+    const list = document.getElementById('recentJobsList');
+    const countLabel = document.getElementById('recentCountLabel');
+    if (!section || !list) return;
+    const jobs = (currentBox && currentBox.jobs) || [];
+    if (jobs.length === 0) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    if (countLabel) countLabel.textContent = `${jobs.length} job${jobs.length !== 1 ? 's' : ''}`;
+    const toneMap = { 'swap-upgrade': 'tone-info', 'install': 'tone-success', 'deinstall': 'tone-warning' };
+    const labelMap = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
+    list.innerHTML = [...jobs].reverse().map(job => {
+        const tone = toneMap[job.job_type] || 'tone-info';
+        const label = labelMap[job.job_type] || job.job_type;
+        const serialCount = (job.serials || []).length;
+        const t = new Date(job.created_at);
+        const timeStr = t.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+        return `<div class="recent-item ${tone}">
+            <span class="ri-num">${escapeHTML(job.job_number)}</span>
+            <span class="ri-badge">${escapeHTML(label)}</span>
+            <span class="ri-meta">${timeStr} · ${serialCount} serial${serialCount !== 1 ? 's' : ''}</span>
+        </div>`;
+    }).join('');
+}
 
 // ============================================
 // IMAGE COMPRESSION
 // ============================================
 
-/**
- * Compress an image file to approximately targetSizeKB using canvas.
- * Returns a compressed Blob (JPEG).
- */
 async function compressImage(file, targetSizeKB = 100) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -499,8 +600,6 @@ async function compressImage(file, targetSizeKB = 100) {
             try {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-
-                // Calculate dimensions - scale down if larger than max
                 const MAX_DIMENSION = 1200;
                 let { width, height } = img;
                 if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
@@ -508,41 +607,27 @@ async function compressImage(file, targetSizeKB = 100) {
                     width = Math.round(width * ratio);
                     height = Math.round(height * ratio);
                 }
-
                 canvas.width = width;
                 canvas.height = height;
                 ctx.drawImage(img, 0, 0, width, height);
-
-                // Iteratively reduce quality to hit target size
                 const targetBytes = targetSizeKB * 1024;
                 let quality = 0.7;
-                let blob = null;
-
                 const tryCompress = () => {
                     canvas.toBlob((result) => {
-                        if (!result) {
-                            reject(new Error('Canvas compression failed'));
-                            return;
-                        }
+                        if (!result) { reject(new Error('Canvas compression failed')); return; }
                         if (result.size > targetBytes && quality > 0.1) {
-                            // Still too large - reduce quality and try again
                             quality -= 0.1;
                             tryCompress();
                         } else {
-                            console.log(`Compressed: ${(file.size / 1024).toFixed(0)}KB → ${(result.size / 1024).toFixed(0)}KB (quality: ${quality.toFixed(1)})`);
+                            console.log(`Compressed: ${(file.size/1024).toFixed(0)}KB → ${(result.size/1024).toFixed(0)}KB`);
                             resolve(result);
                         }
                     }, 'image/jpeg', quality);
                 };
-
                 tryCompress();
-            } catch (err) {
-                reject(err);
-            }
+            } catch (err) { reject(err); }
         };
         img.onerror = () => reject(new Error('Failed to load image for compression'));
-
-        // Load image from file
         const reader = new FileReader();
         reader.onload = (e) => { img.src = e.target.result; };
         reader.onerror = () => reject(new Error('Failed to read image file'));
@@ -551,17 +636,13 @@ async function compressImage(file, targetSizeKB = 100) {
 }
 
 // ============================================
-// SHIFT MANAGEMENT FUNCTIONS
+// SHIFT MANAGEMENT
 // ============================================
 
 function formatDateTime(date) {
     return new Date(date).toLocaleString('en-AU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
     });
 }
 
@@ -579,104 +660,50 @@ function getTodayMidnight() {
 }
 
 function isSameDay(date1, date2) {
-    const d1 = new Date(date1);
-    const d2 = new Date(date2);
-    return d1.getFullYear() === d2.getFullYear() &&
-           d1.getMonth() === d2.getMonth() &&
-           d1.getDate() === d2.getDate();
+    const d1 = new Date(date1); const d2 = new Date(date2);
+    return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
 }
 
 async function getLastJobEntryTime() {
     if (!activeShift) return null;
-
     try {
-        const { data: jobs, error } = await db
-            .from('jobs')
-            .select('created_at')
-            .eq('shift_id', activeShift.id)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
+        const { data: jobs, error } = await db.from('jobs').select('created_at').eq('shift_id', activeShift.id).order('created_at', { ascending: false }).limit(1);
         if (error) throw error;
-
-        if (jobs && jobs.length > 0) {
-            return new Date(jobs[0].created_at);
-        }
+        if (jobs && jobs.length > 0) return new Date(jobs[0].created_at);
         return null;
-    } catch (error) {
-        console.error('Error getting last job entry time:', error);
-        return null;
-    }
+    } catch (error) { console.error('Error getting last job entry time:', error); return null; }
 }
 
 async function getLastShiftCloseTime() {
     try {
-        const { data: shifts, error } = await db
-            .from('shifts')
-            .select('end_time')
-            .eq('user_id', currentUserId)
-            .eq('status', 'completed')
-            .order('end_time', { ascending: false })
-            .limit(1);
-
+        const { data: shifts, error } = await db.from('shifts').select('end_time').eq('user_id', currentUserId).eq('status', 'completed').order('end_time', { ascending: false }).limit(1);
         if (error) throw error;
-
-        if (shifts && shifts.length > 0) {
-            return new Date(shifts[0].end_time);
-        }
+        if (shifts && shifts.length > 0) return new Date(shifts[0].end_time);
         return null;
-    } catch (error) {
-        console.error('Error getting last shift close time:', error);
-        return null;
-    }
+    } catch (error) { console.error('Error getting last shift close time:', error); return null; }
 }
 
 async function getLastShiftEndKms() {
     try {
-        const { data: shifts, error } = await db
-            .from('shifts')
-            .select('end_kms')
-            .eq('user_id', currentUserId)
-            .eq('status', 'completed')
-            .order('end_time', { ascending: false })
-            .limit(1);
-
+        const { data: shifts, error } = await db.from('shifts').select('end_kms').eq('user_id', currentUserId).eq('status', 'completed').order('end_time', { ascending: false }).limit(1);
         if (error) throw error;
-
-        if (shifts && shifts.length > 0 && shifts[0].end_kms) {
-            return shifts[0].end_kms;
-        }
+        if (shifts && shifts.length > 0 && shifts[0].end_kms) return shifts[0].end_kms;
         return null;
-    } catch (error) {
-        console.error('Error getting last shift end kms:', error);
-        return null;
-    }
+    } catch (error) { console.error('Error getting last shift end kms:', error); return null; }
 }
 
 async function checkShiftStatus() {
     if (!shiftsEnabled) {
-        document.getElementById('shiftStatusText').textContent = 'Stock Entry System';
-        document.getElementById('shiftHeaderBtn').style.display = 'none';
+        updateShiftDisplay();
         return;
     }
-    
     try {
-        const { data: shifts, error } = await db
-            .from('shifts')
-            .select('*')
-            .eq('user_id', currentUserId)
-            .eq('status', 'active')
-            .order('start_time', { ascending: false })
-            .limit(1);
-        
+        const { data: shifts, error } = await db.from('shifts').select('*').eq('user_id', currentUserId).eq('status', 'active').order('start_time', { ascending: false }).limit(1);
         if (error) throw error;
-        
         if (shifts && shifts.length > 0) {
             const shift = shifts[0];
             const shiftStart = new Date(shift.start_time);
-            const todayMidnight = getTodayMidnight();
-            
-            if (shiftStart < todayMidnight) {
+            if (shiftStart < getTodayMidnight()) {
                 staleShift = shift;
                 activeShift = null;
                 showStaleShiftModal();
@@ -692,49 +719,37 @@ async function checkShiftStatus() {
         }
     } catch (error) {
         console.error('Error checking shift status:', error);
-        document.getElementById('shiftStatusText').textContent = 'Error loading shift';
     }
 }
 
 function updateShiftDisplay() {
-    const statusText = document.getElementById('shiftStatusText');
-    const headerBtn = document.getElementById('shiftHeaderBtn');
-    
+    const pillWrap = document.getElementById('shiftPillWrap');
+    const startWrap = document.getElementById('shiftStartWrap');
     if (!shiftsEnabled) {
-        statusText.textContent = 'Stock Entry System';
-        headerBtn.style.display = 'none';
+        if (pillWrap) pillWrap.style.display = 'none';
+        if (startWrap) startWrap.style.display = 'none';
         return;
     }
-    
     if (activeShift) {
         const startTime = new Date(activeShift.start_time);
-        const timeStr = startTime.toLocaleTimeString('en-AU', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            hour12: true 
-        });
-        statusText.innerHTML = `<span class="shift-active-indicator"></span> Active Shift • Started ${timeStr}`;
-        headerBtn.textContent = 'End Shift';
-        headerBtn.className = 'btn btn-sm btn-danger shift-header-btn';
-        headerBtn.style.display = 'inline-flex';
-        headerBtn.onclick = openEndShiftModal;
+        const timeStr = startTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const startEl = document.getElementById('shiftPillStart');
+        const kmsEl = document.getElementById('shiftPillKms');
+        if (startEl) startEl.textContent = timeStr;
+        if (kmsEl) kmsEl.textContent = (activeShift.start_kms || 0).toLocaleString();
+        if (pillWrap) pillWrap.style.display = '';
+        if (startWrap) startWrap.style.display = 'none';
     } else {
-        statusText.textContent = 'No Active Shift';
-        headerBtn.textContent = 'Start Shift';
-        headerBtn.className = 'btn btn-sm btn-primary shift-header-btn';
-        headerBtn.style.display = 'inline-flex';
-        headerBtn.onclick = openStartShiftModal;
+        if (pillWrap) pillWrap.style.display = 'none';
+        if (startWrap) startWrap.style.display = '';
     }
 }
 
 async function openStartShiftModal() {
     document.getElementById('startShiftTime').value = formatDateTimeLocal(new Date());
     document.getElementById('startShiftAlertContainer').innerHTML = '';
-
-    // Auto-fill with last shift's ending KMs
     const lastEndKms = await getLastShiftEndKms();
     document.getElementById('startShiftKms').value = lastEndKms || '';
-
     document.getElementById('startShiftModal').classList.add('active');
 }
 
@@ -744,41 +759,23 @@ function closeStartShiftModal() {
 
 async function handleStartShift(e) {
     e.preventDefault();
-    
     const startTime = document.getElementById('startShiftTime').value;
     const startKms = parseInt(document.getElementById('startShiftKms').value);
-    
-    if (!startTime || isNaN(startKms)) {
-        showAlert('Please fill in all required fields', 'error');
-        return;
-    }
-    
+    if (!startTime || isNaN(startKms)) { showAlert('Please fill in all required fields', 'error'); return; }
     const startDateTime = new Date(startTime);
-    
     const lastCloseTime = await getLastShiftCloseTime();
     if (lastCloseTime && startDateTime <= lastCloseTime) {
         showAlert(`Start time must be after your last shift ended (${formatDateTime(lastCloseTime)})`, 'error');
         return;
     }
-    
     showLoading(true);
-    
     try {
-        const { data, error } = await db
-            .from('shifts')
-            .insert([{
-                user_id: currentUserId,
-                agent_id: currentAgent,
-                start_time: startDateTime.toISOString(),
-                start_kms: startKms,
-                status: 'active',
-                depot_id: currentDepotId
-            }])
-            .select()
-            .single();
-        
+        const { data, error } = await db.from('shifts').insert([{
+            user_id: currentUserId, agent_id: currentAgent,
+            start_time: startDateTime.toISOString(), start_kms: startKms,
+            status: 'active', depot_id: currentDepotId
+        }]).select().single();
         if (error) throw error;
-        
         activeShift = data;
         closeStartShiftModal();
         updateShiftDisplay();
@@ -787,9 +784,7 @@ async function handleStartShift(e) {
     } catch (error) {
         console.error('Error starting shift:', error);
         showAlert('Error starting shift. Please try again.', 'error');
-    } finally {
-        showLoading(false);
-    }
+    } finally { showLoading(false); }
 }
 
 function openEndShiftModal() {
@@ -797,10 +792,7 @@ function openEndShiftModal() {
     document.getElementById('extraJobs').value = '0';
     document.getElementById('shiftNotes').value = '';
     document.getElementById('endShiftAlertContainer').innerHTML = '';
-
-    // Auto-fill with shift's starting KMs as minimum reference
     document.getElementById('endShiftKms').value = activeShift?.start_kms || '';
-
     document.getElementById('endShiftModal').classList.add('active');
 }
 
@@ -810,75 +802,32 @@ function closeEndShiftModal() {
 
 async function handleEndShift(e) {
     e.preventDefault();
-    
     const endTime = document.getElementById('endShiftTime').value;
     const endKms = parseInt(document.getElementById('endShiftKms').value);
     const extraJobs = parseInt(document.getElementById('extraJobs').value) || 0;
     const shiftNotes = document.getElementById('shiftNotes').value.trim();
-    
-    if (!endTime || isNaN(endKms)) {
-        showAlert('Please fill in all required fields', 'error');
-        return;
-    }
-    
-    if (endKms < activeShift.start_kms) {
-        showAlert('End kilometres cannot be less than start kilometres', 'error');
-        return;
-    }
-    
+    if (!endTime || isNaN(endKms)) { showAlert('Please fill in all required fields', 'error'); return; }
+    if (endKms < activeShift.start_kms) { showAlert('End kilometres cannot be less than start kilometres', 'error'); return; }
     const endDateTime = new Date(endTime);
     const startDateTime = new Date(activeShift.start_time);
-    
-    if (!isSameDay(startDateTime, endDateTime)) {
-        showAlert('End time must be on the same day as the shift started.', 'error');
-        return;
-    }
-    
+    if (!isSameDay(startDateTime, endDateTime)) { showAlert('End time must be on the same day as the shift started.', 'error'); return; }
     const lastJobTime = await getLastJobEntryTime();
     if (lastJobTime && endDateTime < lastJobTime) {
         showAlert(`End time must be after the last job entry (${formatDateTime(lastJobTime)})`, 'error');
         return;
     }
-    
-    if (endDateTime <= startDateTime) {
-        showAlert('End time must be after the shift start time', 'error');
-        return;
-    }
-
+    if (endDateTime <= startDateTime) { showAlert('End time must be after the shift start time', 'error'); return; }
     const kmsTravelled = endKms - activeShift.start_kms;
-
-    // Warn if 0km travelled
-    if (kmsTravelled === 0) {
-        const confirmZero = confirm('You entered 0 km travelled for this shift. Are you sure this is correct?');
-        if (!confirmZero) return;
-    }
-
-    // Confirm if over 200km travelled
-    if (kmsTravelled > 200) {
-        const confirmHighKms = confirm(`You entered ${kmsTravelled} km for this shift. This seems high. Are you sure this is correct?`);
-        if (!confirmHighKms) return;
-    }
-
+    if (kmsTravelled === 0) { if (!confirm('You entered 0 km travelled for this shift. Are you sure?')) return; }
+    if (kmsTravelled > 200) { if (!confirm(`You entered ${kmsTravelled} km for this shift. This seems high. Continue?`)) return; }
     showLoading(true);
-    
     try {
-        const { data, error } = await db
-            .from('shifts')
-            .update({
-                end_time: endDateTime.toISOString(),
-                end_kms: endKms,
-                extra_jobs: extraJobs,
-                shift_notes: shiftNotes,
-                status: 'completed'
-            })
-            .eq('id', activeShift.id)
-            .select()
-            .single();
-        
+        const { data, error } = await db.from('shifts').update({
+            end_time: endDateTime.toISOString(), end_kms: endKms,
+            extra_jobs: extraJobs, shift_notes: shiftNotes, status: 'completed'
+        }).eq('id', activeShift.id).select().single();
         if (error) throw error;
-        
         await generateShiftReport(data);
-        
         activeShift = null;
         closeEndShiftModal();
         updateShiftDisplay();
@@ -886,28 +835,17 @@ async function handleEndShift(e) {
     } catch (error) {
         console.error('Error ending shift:', error);
         showAlert('Error ending shift. Please try again.', 'error');
-    } finally {
-        showLoading(false);
-    }
+    } finally { showLoading(false); }
 }
 
 function showStaleShiftModal() {
     const shift = staleShift;
     const startDate = new Date(shift.start_time);
-    
-    document.getElementById('staleShiftDate').textContent = startDate.toLocaleDateString('en-AU', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-    });
-    
+    document.getElementById('staleShiftDate').textContent = startDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     document.getElementById('staleShiftStartInfo').value = `${formatDateTime(shift.start_time)} • ${shift.start_kms.toLocaleString()} km`;
-    
     const defaultEndTime = new Date(startDate);
     defaultEndTime.setHours(23, 59, 0, 0);
     document.getElementById('staleShiftEndTime').value = formatDateTimeLocal(defaultEndTime);
-    
     document.getElementById('staleShiftEndKms').value = shift.start_kms || '';
     document.getElementById('staleExtraJobs').value = '0';
     document.getElementById('staleShiftNotes').value = '';
@@ -917,222 +855,119 @@ function showStaleShiftModal() {
 
 async function handleStaleShift(e) {
     e.preventDefault();
-    
     const endTime = document.getElementById('staleShiftEndTime').value;
     const endKms = parseInt(document.getElementById('staleShiftEndKms').value);
     const extraJobs = parseInt(document.getElementById('staleExtraJobs').value) || 0;
     const shiftNotes = document.getElementById('staleShiftNotes').value.trim();
-    
-    if (!endTime || isNaN(endKms)) {
-        showAlert('Please fill in all required fields', 'error');
-        return;
-    }
-    
-    if (endKms < staleShift.start_kms) {
-        showAlert('End kilometres cannot be less than start kilometres', 'error');
-        return;
-    }
-    
+    if (!endTime || isNaN(endKms)) { showAlert('Please fill in all required fields', 'error'); return; }
+    if (endKms < staleShift.start_kms) { showAlert('End kilometres cannot be less than start kilometres', 'error'); return; }
     const endDateTime = new Date(endTime);
     const startDateTime = new Date(staleShift.start_time);
-    
     if (!isSameDay(startDateTime, endDateTime)) {
         showAlert('End time must be on the same day as the shift started (' + startDateTime.toLocaleDateString('en-AU') + ')', 'error');
         return;
     }
-    
-    if (endDateTime <= startDateTime) {
-        showAlert('End time must be after the shift start time', 'error');
-        return;
-    }
-    
+    if (endDateTime <= startDateTime) { showAlert('End time must be after the shift start time', 'error'); return; }
     const tempActiveShift = activeShift;
     activeShift = staleShift;
     const lastJobTime = await getLastJobEntryTime();
     activeShift = tempActiveShift;
-    
     if (lastJobTime && endDateTime < lastJobTime) {
-        const proceed = confirm(`The end time you entered is before the last job entry (${formatDateTime(lastJobTime)}). This may mean jobs were added after the shift ended. Continue anyway?`);
+        const proceed = confirm(`The end time is before the last job entry (${formatDateTime(lastJobTime)}). Continue anyway?`);
         if (!proceed) return;
     }
-
     const kmsTravelled = endKms - staleShift.start_kms;
-
-    // Warn if 0km travelled
-    if (kmsTravelled === 0) {
-        const confirmZero = confirm('You entered 0 km travelled for this shift. Are you sure this is correct?');
-        if (!confirmZero) return;
-    }
-
-    // Confirm if over 200km travelled
-    if (kmsTravelled > 200) {
-        const confirmHighKms = confirm(`You entered ${kmsTravelled} km for this shift. This seems high. Are you sure this is correct?`);
-        if (!confirmHighKms) return;
-    }
-
+    if (kmsTravelled === 0) { if (!confirm('You entered 0 km travelled. Are you sure?')) return; }
+    if (kmsTravelled > 200) { if (!confirm(`You entered ${kmsTravelled} km. This seems high. Continue?`)) return; }
     showLoading(true);
-
     try {
-        const { data, error } = await db
-            .from('shifts')
-            .update({
-                end_time: endDateTime.toISOString(),
-                end_kms: endKms,
-                extra_jobs: extraJobs,
-                shift_notes: shiftNotes,
-                status: 'completed'
-            })
-            .eq('id', staleShift.id)
-            .select()
-            .single();
-        
+        const { data, error } = await db.from('shifts').update({
+            end_time: endDateTime.toISOString(), end_kms: endKms,
+            extra_jobs: extraJobs, shift_notes: shiftNotes, status: 'completed'
+        }).eq('id', staleShift.id).select().single();
         if (error) throw error;
-        
         await generateShiftReport(data);
-        
         staleShift = null;
         document.getElementById('staleShiftModal').classList.remove('active');
-        
         await checkShiftStatus();
         showSyncStatus('✓ Synced', 'synced');
     } catch (error) {
         console.error('Error closing stale shift:', error);
         showAlert('Error closing shift. Please try again.', 'error');
-    } finally {
-        showLoading(false);
-    }
+    } finally { showLoading(false); }
 }
 
 async function generateShiftReport(shift) {
     const startTime = new Date(shift.start_time);
     const endTime = new Date(shift.end_time);
-    
     const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
     const hours = Math.floor(hoursWorked);
     const minutes = Math.round((hoursWorked - hours) * 60);
-    
     const kmsTravelled = shift.end_kms - shift.start_kms;
-    
     const dayOfWeek = startTime.getDay();
-    let timeMultiplier = 1.0;
-    let timeMultiplierLabel = '1x';
-    if (dayOfWeek === 0) {
-        timeMultiplier = 2.0;
-        timeMultiplierLabel = '2x (Sun)';
-    } else if (dayOfWeek === 6) {
-        timeMultiplier = 1.5;
-        timeMultiplierLabel = '1.5x (Sat)';
-    }
+    let timeMultiplier = 1.0; let timeMultiplierLabel = '1x';
+    if (dayOfWeek === 0) { timeMultiplier = 2.0; timeMultiplierLabel = '2x (Sun)'; }
+    else if (dayOfWeek === 6) { timeMultiplier = 1.5; timeMultiplierLabel = '1.5x (Sat)'; }
     const adjustedTime = hoursWorked * timeMultiplier;
-    
-    const { data: clientsData } = await db
-        .from('clients')
-        .select('client_id')
-        .order('client_id', { ascending: true });
-    
+    const { data: clientsData } = await db.from('clients').select('client_id').order('client_id', { ascending: true });
     const allClients = clientsData ? clientsData.map(c => c.client_id) : [];
-    
-    const { data: userData } = await db
-        .from('user_roles')
-        .select('email')
-        .eq('user_id', currentUserId)
-        .single();
-    
+    const { data: userData } = await db.from('user_roles').select('email').eq('user_id', currentUserId).single();
     const userEmail = userData?.email || '';
-    
     let systemJobs = 0;
     let jobsByClient = {};
-    allClients.forEach(client => {
-        jobsByClient[client] = 0;
-    });
-    
+    allClients.forEach(client => { jobsByClient[client] = 0; });
     try {
-        const { data: boxesData } = await db
-            .from('boxes')
-            .select('id, client')
-            .eq('agent', currentAgent);
-        
+        const { data: boxesData } = await db.from('boxes').select('id, client').eq('agent', currentAgent);
         if (boxesData && boxesData.length > 0) {
             const boxesByClient = {};
             boxesData.forEach(box => {
-                if (!boxesByClient[box.client]) {
-                    boxesByClient[box.client] = [];
-                }
+                if (!boxesByClient[box.client]) boxesByClient[box.client] = [];
                 boxesByClient[box.client].push(box.id);
             });
-            
             const clientEntries = Object.entries(boxesByClient);
             const counts = await Promise.all(clientEntries.map(([client, clientBoxIds]) =>
-                db.from('jobs')
-                    .select('*', { count: 'exact', head: true })
-                    .in('box_id', clientBoxIds)
-                    .eq('shift_id', shift.id)
+                db.from('jobs').select('*', { count: 'exact', head: true }).in('box_id', clientBoxIds).eq('shift_id', shift.id)
                     .then(({ count }) => ({ client, count: count || 0 }))
             ));
-            counts.forEach(({ client, count }) => {
-                jobsByClient[client] = count;
-                systemJobs += count;
-            });
+            counts.forEach(({ client, count }) => { jobsByClient[client] = count; systemJobs += count; });
         }
-    } catch (error) {
-        console.error('Error counting jobs:', error);
-    }
-    
+    } catch (error) { console.error('Error counting jobs:', error); }
     const totalJobs = systemJobs + (shift.extra_jobs || 0);
-    
     lastShiftReport = {
-        shiftId: shift.id,
-        shiftStartTimeRaw: shift.start_time,
-        shiftEndTimeRaw: shift.end_time,
+        shiftId: shift.id, shiftStartTimeRaw: shift.start_time, shiftEndTimeRaw: shift.end_time,
         shiftStartKms: shift.start_kms,
         date: startTime.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
         dateShort: startTime.toLocaleDateString('en-AU'),
-        startTime: formatDateTime(shift.start_time),
-        endTime: formatDateTime(shift.end_time),
-        hoursWorked: `${hours}h ${minutes}m`,
-        hoursDecimal: hoursWorked.toFixed(2),
-        timeMultiplier: timeMultiplier,
-        timeMultiplierLabel: timeMultiplierLabel,
-        adjustedTime: adjustedTime.toFixed(2),
-        startKms: shift.start_kms,
-        endKms: shift.end_kms,
-        kmsTravelled: kmsTravelled,
-        systemJobs: systemJobs,
-        extraJobs: shift.extra_jobs || 0,
-        totalJobs: totalJobs,
-        agentId: currentAgent,
-        email: userEmail,
-        jobsByClient: jobsByClient,
-        allClients: allClients,
+        startTime: formatDateTime(shift.start_time), endTime: formatDateTime(shift.end_time),
+        hoursWorked: `${hours}h ${minutes}m`, hoursDecimal: hoursWorked.toFixed(2),
+        timeMultiplier, timeMultiplierLabel, adjustedTime: adjustedTime.toFixed(2),
+        startKms: shift.start_kms, endKms: shift.end_kms, kmsTravelled,
+        systemJobs, extraJobs: shift.extra_jobs || 0, totalJobs,
+        agentId: currentAgent, email: userEmail, jobsByClient, allClients,
         shiftNotes: shift.shift_notes || ''
     };
-    
     showShiftReportModal();
 }
 
 function showShiftReportModal() {
     const report = lastShiftReport;
-    
     const html = `
         <div class="shift-report-card">
             <div class="shift-report-header">
                 <div class="shift-report-date">${escapeHTML(report.date)}</div>
                 <div class="shift-report-agent">Agent ${escapeHTML(report.agentId)}</div>
             </div>
-            
             <div class="shift-report-grid">
                 <div class="shift-report-stat">
                     <div class="shift-report-stat-value">${report.hoursWorked}</div>
                     <div class="shift-report-stat-label">Hours Worked</div>
                     <div class="shift-report-stat-detail">${report.startTime} → ${report.endTime}</div>
                 </div>
-                
                 <div class="shift-report-stat">
                     <div class="shift-report-stat-value">${report.kmsTravelled.toLocaleString()} km</div>
                     <div class="shift-report-stat-label">Distance Travelled</div>
                     <div class="shift-report-stat-detail">${report.startKms.toLocaleString()} → ${report.endKms.toLocaleString()} km</div>
                 </div>
-                
                 <div class="shift-report-stat">
                     <div class="shift-report-stat-value">${report.totalJobs}</div>
                     <div class="shift-report-stat-label">Total Jobs</div>
@@ -1141,10 +976,8 @@ function showShiftReportModal() {
             </div>
         </div>
     `;
-    
     document.getElementById('shiftReportContent').innerHTML = html;
     document.getElementById('shiftReportModal').classList.add('active');
-    // Initialize icons in the modal
     setTimeout(() => Icons.init(), 0);
 }
 
@@ -1153,138 +986,84 @@ function closeShiftReportModal() {
 }
 
 // ============================================
-// JOB TYPE MODAL FUNCTIONS
+// JOB TYPE PILLS
 // ============================================
-
-function showJobTypeModal() {
-    document.getElementById('jobTypeModal').classList.add('active');
-    // Initialize icons in the modal
-    setTimeout(() => Icons.init(), 0);
-}
-
-function closeJobTypeModal() {
-    document.getElementById('jobTypeModal').classList.remove('active');
-}
 
 async function selectJobType(jobType) {
     currentJobType = jobType;
-    closeJobTypeModal();
+
+    document.querySelectorAll('.type-pill').forEach(p => {
+        p.classList.toggle('active', p.dataset.type === jobType);
+    });
 
     const individualEntry = document.getElementById('individualEntry');
     const bulkEntry = document.getElementById('bulkEntry');
-    const jobTypeLabel = document.getElementById('jobTypeLabel');
-
-    const jobTypeLabels = {
-        'swap-upgrade': '(Swap/Upgrade)',
-        'install': '(Install)',
-        'deinstall': '(Deinstall)'
-    };
-
-    jobTypeLabel.textContent = jobTypeLabels[jobType] || '';
 
     if (jobType === 'install') {
-        // Hide both serial entry sections for Install jobs
-        individualEntry.style.display = 'none';
-        bulkEntry.style.display = 'none';
+        if (individualEntry) individualEntry.style.display = 'none';
+        if (bulkEntry) bulkEntry.style.display = 'none';
     } else {
-        // Show serial entry for Swap/Upgrade and Deinstall
-        individualEntry.style.display = '';
-        bulkEntry.style.display = '';
-        // Apply current bulk toggle state
-        const isBulk = document.getElementById("bulkToggle").checked;
-        individualEntry.classList.toggle("hidden", isBulk);
-        bulkEntry.classList.toggle("active", isBulk);
+        if (individualEntry) individualEntry.style.display = bulkModeState ? 'none' : '';
+        if (bulkEntry) bulkEntry.style.display = bulkModeState ? '' : 'none';
     }
 
-    // Check if receipt is required for this client + job type
     await checkReceiptRequirement();
 }
 
+// ============================================
+// RECEIPT UPLOAD
+// ============================================
+
 async function checkReceiptRequirement() {
     const receiptSection = document.getElementById('receiptUploadSection');
-
     if (!currentBox || !currentJobType) {
         receiptSection.style.display = 'none';
         isReceiptRequired = false;
+        updateSubmitSummary();
         return;
     }
-
     try {
-        // Load client settings if not already loaded
         if (!currentClientSettings || currentClientSettings.client_id !== currentBox.client) {
-            const { data: client, error } = await db
-                .from('depot_clients')
-                .select('*')
-                .eq('depot_id', currentDepotId)
-                .eq('client_id', currentBox.client)
-                .single();
-
+            const { data: client, error } = await db.from('depot_clients').select('*').eq('depot_id', currentDepotId).eq('client_id', currentBox.client).single();
             if (error) throw error;
             currentClientSettings = client;
         }
-
-        // Check if receipt is required for this job type
-        const receiptFields = {
-            'swap-upgrade': 'receipt_swap_upgrade_enabled',
-            'install': 'receipt_install_enabled',
-            'deinstall': 'receipt_deinstall_enabled'
-        };
-
+        const receiptFields = { 'swap-upgrade': 'receipt_swap_upgrade_enabled', 'install': 'receipt_install_enabled', 'deinstall': 'receipt_deinstall_enabled' };
         const fieldName = receiptFields[currentJobType];
         isReceiptRequired = currentClientSettings[fieldName] || false;
-
         if (isReceiptRequired) {
             receiptSection.style.display = '';
-            // Initialize icons for the newly shown section
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
+            const stepEl = document.getElementById('receiptSectionStep');
+            if (stepEl) stepEl.textContent = `03 / 03 · Required by ${escapeHTML(currentBox.client)}`;
         } else {
             receiptSection.style.display = 'none';
         }
+        updateSubmitSummary();
     } catch (error) {
         console.error('Error checking receipt requirement:', error);
         isReceiptRequired = false;
         receiptSection.style.display = 'none';
+        updateSubmitSummary();
     }
 }
 
 async function handleReceiptFileSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-        showAlert('Please select an image file', 'error');
-        return;
-    }
-
-    // Validate file size (15MB limit for raw input - will be compressed)
-    const maxSize = 15 * 1024 * 1024;
-    if (file.size > maxSize) {
-        showAlert('Image size must be less than 15MB', 'error');
-        return;
-    }
-
+    if (!file.type.startsWith('image/')) { showAlert('Please select an image file', 'error'); return; }
+    if (file.size > 15 * 1024 * 1024) { showAlert('Image size must be less than 15MB', 'error'); return; }
     try {
-        // Compress the image to ~100KB JPEG
         showSyncStatus('Compressing image...', 'syncing');
         const compressedBlob = await compressImage(file, 100);
         currentReceiptFile = compressedBlob;
-
-        // Show preview from the compressed blob
         const previewUrl = URL.createObjectURL(compressedBlob);
         document.getElementById('receiptPreviewImg').src = previewUrl;
         document.getElementById('receiptUploadControls').style.display = 'none';
         document.getElementById('receiptPreview').style.display = '';
-
-        // Initialize icons for the preview section
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
+        updateSubmitSummary();
     } catch (err) {
         console.error('Image compression failed:', err);
-        showAlert('Failed to process image.. Please try again.', 'error');
+        showAlert('Failed to process image. Please try again.', 'error');
     }
 }
 
@@ -1296,29 +1075,15 @@ function clearReceiptUpload() {
     document.getElementById('receiptPreviewImg').src = '';
     document.getElementById('receiptUploadControls').style.display = '';
     document.getElementById('receiptPreview').style.display = 'none';
+    updateSubmitSummary();
 }
 
 async function uploadReceiptToStorage(jobId) {
-    if (!currentReceiptFile) {
-        throw new Error('No receipt file selected');
-    }
-
+    if (!currentReceiptFile) throw new Error('No receipt file selected');
     try {
-        // Always .jpg since compression converts to JPEG
-        const timestamp = Date.now();
-        const filename = `${timestamp}-${jobId}.jpg`;
-
-        // Upload to Supabase Storage using the existing db client from auth.js
-        const { data, error } = await db.storage
-            .from('job-receipts')
-            .upload(filename, currentReceiptFile, {
-                contentType: 'image/jpeg',
-                upsert: false
-            });
-
+        const filename = `${Date.now()}-${jobId}.jpg`;
+        const { data, error } = await db.storage.from('job-receipts').upload(filename, currentReceiptFile, { contentType: 'image/jpeg', upsert: false });
         if (error) throw error;
-
-        // Store just the filename, we'll generate signed URLs when viewing
         return filename;
     } catch (error) {
         console.error('Error uploading receipt:', error);
@@ -1326,27 +1091,13 @@ async function uploadReceiptToStorage(jobId) {
     }
 }
 
+// ============================================
+// SHIFT REPORT COPY / CSV
+// ============================================
+
 function copyShiftReport() {
     const report = lastShiftReport;
-    
-    const text = `SHIFT REPORT - ${report.date}
-Agent: ${report.agentId}
-
-TIME
-Start: ${report.startTime}
-End: ${report.endTime}
-Duration: ${report.hoursWorked} (${report.hoursDecimal} hours)
-
-KILOMETRES
-Start: ${report.startKms.toLocaleString()} km
-End: ${report.endKms.toLocaleString()} km
-Travelled: ${report.kmsTravelled.toLocaleString()} km
-
-JOBS
-System Logged: ${report.systemJobs}
-Extra Jobs: ${report.extraJobs}
-Total: ${report.totalJobs}`;
-    
+    const text = `SHIFT REPORT - ${report.date}\nAgent: ${report.agentId}\n\nTIME\nStart: ${report.startTime}\nEnd: ${report.endTime}\nDuration: ${report.hoursWorked} (${report.hoursDecimal} hours)\n\nKILOMETRES\nStart: ${report.startKms.toLocaleString()} km\nEnd: ${report.endKms.toLocaleString()} km\nTravelled: ${report.kmsTravelled.toLocaleString()} km\n\nJOBS\nSystem Logged: ${report.systemJobs}\nExtra Jobs: ${report.extraJobs}\nTotal: ${report.totalJobs}`;
     navigator.clipboard.writeText(text).then(() => {
         showAlert('✓ Report copied to clipboard', 'success');
     }).catch(err => {
@@ -1357,79 +1108,28 @@ Total: ${report.totalJobs}`;
 
 function downloadShiftReportCSV() {
     const report = lastShiftReport;
-    
-    function escapeCSV(value) {
+    function esc(value) {
         if (value === null || value === undefined) return '';
         const str = String(value);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-            return `"${str.replace(/"/g, '""')}"`;
-        }
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
         return str;
     }
-    
-    let headers = [
-        'Date',
-        'Start Time',
-        'End Time',
-        'Agent',
-        'Email',
-        'Total Time (h:mm)',
-        'Total Time (decimal)',
-        'Time Multiplier',
-        'Adjusted Time (decimal)',
-        'Start Km',
-        'End Km',
-        'Km Travelled'
-    ];
-    
-    report.allClients.forEach(client => {
-        headers.push(`Jobs - ${client}`);
-    });
-    
-    headers.push('Extra Jobs');
-    headers.push('Total Jobs');
-    headers.push('Shift Notes');
-    
+    let headers = ['Date','Start Time','End Time','Agent','Email','Total Time (h:mm)','Total Time (decimal)','Time Multiplier','Adjusted Time (decimal)','Start Km','End Km','Km Travelled'];
+    report.allClients.forEach(client => headers.push(`Jobs - ${client}`));
+    headers.push('Extra Jobs', 'Total Jobs', 'Shift Notes');
     let csvContent = headers.join(',') + '\n';
-    
-    let row = [
-        report.dateShort,
-        report.startTime,
-        report.endTime,
-        report.agentId,
-        report.email,
-        report.hoursWorked,
-        report.hoursDecimal,
-        report.timeMultiplierLabel,
-        report.adjustedTime,
-        report.startKms,
-        report.endKms,
-        report.kmsTravelled
-    ];
-    
-    report.allClients.forEach(client => {
-        row.push(report.jobsByClient?.[client] || 0);
-    });
-    
-    row.push(report.extraJobs);
-    row.push(report.totalJobs);
-    row.push(escapeCSV(report.shiftNotes));
-    
-    csvContent += row.map(val => escapeCSV(val)).join(',') + '\n';
-    
+    let row = [report.dateShort, report.startTime, report.endTime, report.agentId, report.email, report.hoursWorked, report.hoursDecimal, report.timeMultiplierLabel, report.adjustedTime, report.startKms, report.endKms, report.kmsTravelled];
+    report.allClients.forEach(client => row.push(report.jobsByClient?.[client] || 0));
+    row.push(report.extraJobs, report.totalJobs, esc(report.shiftNotes));
+    csvContent += row.map(val => esc(val)).join(',') + '\n';
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    const filename = `shift-report-${report.date.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.csv`;
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
+    link.setAttribute('href', URL.createObjectURL(blob));
+    link.setAttribute('download', `shift-report-${report.date.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
     showAlert('✓ CSV downloaded', 'success');
 }
 
@@ -1439,18 +1139,12 @@ function downloadShiftReportCSV() {
 
 async function loadClients() {
     try {
-        const { data, error } = await db
-            .from('depot_clients')
-            .select('client_id')
-            .eq('depot_id', currentDepotId)
-            .order('client_id', { ascending: true });
-
+        const { data, error } = await db.from('depot_clients').select('client_id').eq('depot_id', currentDepotId).order('client_id', { ascending: true });
         if (error) throw new Error(error.message);
         if (!data || data.length === 0) return;
-
         const clientSelect = document.getElementById('clientSelect');
         if (clientSelect) {
-            clientSelect.innerHTML = '<option value="">Select a client...</option>';
+            clientSelect.innerHTML = '<option value="">Select a client…</option>';
             data.forEach(client => {
                 const option = document.createElement('option');
                 option.value = client.client_id;
@@ -1467,23 +1161,11 @@ async function loadClients() {
 async function updateVendorsByClient(clientId) {
     const vendorSelect = document.getElementById('vendorSelect');
     if (!vendorSelect) return;
-
-    if (!clientId) {
-        vendorSelect.innerHTML = '<option value="">Select a client first...</option>';
-        return;
-    }
-
+    if (!clientId) { vendorSelect.innerHTML = '<option value="">Select a client first…</option>'; return; }
     try {
-        const { data, error } = await db
-            .from('clients_vendors')
-            .select('vendor_id')
-            .eq('client_id', clientId)
-            .eq('depot_id', currentDepotId);
-        
+        const { data, error } = await db.from('clients_vendors').select('vendor_id').eq('client_id', clientId).eq('depot_id', currentDepotId);
         if (error) throw new Error(error.message);
-        
-        vendorSelect.innerHTML = '<option value="">Select a vendor...</option>';
-        
+        vendorSelect.innerHTML = '<option value="">Select a vendor…</option>';
         if (data && data.length > 0) {
             data.forEach(item => {
                 const option = document.createElement('option');
@@ -1493,7 +1175,7 @@ async function updateVendorsByClient(clientId) {
             });
         } else {
             const option = document.createElement('option');
-            option.textContent = "No vendors linked to this client";
+            option.textContent = 'No vendors linked to this client';
             option.disabled = true;
             vendorSelect.appendChild(option);
         }
@@ -1503,73 +1185,8 @@ async function updateVendorsByClient(clientId) {
     }
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-    const user = await initAuth(['super_admin', 'manager', 'technician']);
-    if (!user) return;
-    
-    // Initialize sidebar
-    initSidebar(user);
-    
-    currentAgent = user.agent_id;
-    currentUserRole = user.role;
-    currentUserId = user.id;
-    currentDepotId = user.depot_id;
-    shiftsEnabled = user.shifts_enabled || false;
-    
-    await Promise.all([
-        loadClients(),
-        loadBoxesForAgent(),
-        checkShiftStatus()
-    ]);
-
-    // Pre-fill from prefilled_jobs URL param
-    const urlParams = new URLSearchParams(window.location.search);
-    const pjId = urlParams.get('prefilled_job');
-    if (pjId) await prefillFromPrefilledJob(pjId);
-
-    // Event Listeners
-    document.getElementById("clientSelect").addEventListener("change", handleClientChange);
-    document.getElementById("bulkToggle").addEventListener("change", handleBulkToggle);
-    document.getElementById("bulkToggle2").addEventListener("change", handleBulkToggle2);
-    document.getElementById("addSerialBtn").addEventListener("click", addSerialRow);
-    document.getElementById("addJobBtn").addEventListener("click", handleAddJob);
-    document.getElementById("newBoxBtn").addEventListener("click", handleNewBox);
-    
-    // Shift form listeners
-    document.getElementById("startShiftForm").addEventListener("submit", handleStartShift);
-    document.getElementById("endShiftForm").addEventListener("submit", handleEndShift);
-    document.getElementById("staleShiftForm").addEventListener("submit", handleStaleShift);
-    
-    showLoading(false);
-});
-
-function handleBulkToggle() {
-    const isBulk = document.getElementById("bulkToggle").checked;
-    document.getElementById("individualEntry").classList.toggle("hidden", isBulk);
-    document.getElementById("bulkEntry").classList.toggle("active", isBulk);
-    document.getElementById("bulkToggle2").checked = isBulk;
-}
-
-function handleBulkToggle2() {
-    const isBulk = document.getElementById("bulkToggle2").checked;
-    document.getElementById("individualEntry").classList.toggle("hidden", isBulk);
-    document.getElementById("bulkEntry").classList.toggle("active", isBulk);
-    document.getElementById("bulkToggle").checked = isBulk;
-}
-
-function addSerialRow() {
-    const row = document.createElement("div");
-    row.className = "serial-input-row";
-    row.innerHTML = `
-        <input type="text" class="form-input serial-input" placeholder="Enter serial number">
-        <button type="button" class="btn btn-danger btn-icon btn-remove" onclick="this.parentElement.remove()">×</button>
-    `;
-    document.getElementById("serialInputs").appendChild(row);
-}
-
 async function handleClientChange() {
-    const client = document.getElementById("clientSelect").value;
-
+    const client = document.getElementById('clientSelect').value;
     if (!client) {
         updateVendorsByClient(client);
         currentBox = null;
@@ -1577,85 +1194,46 @@ async function handleClientChange() {
         updateCurrentBoxDisplay();
         return;
     }
-
     showLoading(true);
-
     try {
-        // Run vendor load and box query in parallel
         const [, { data, error }] = await Promise.all([
             updateVendorsByClient(client),
-            db.from("boxes")
-                .select("*")
-                .eq("agent", currentAgent)
-                .eq("client", client)
-                .eq("status", "open")
-                .eq("depot_id", currentDepotId)
-                .order("created_at", { ascending: false })
-                .limit(1)
+            db.from('boxes').select('*').eq('agent', currentAgent).eq('client', client).eq('status', 'open').eq('depot_id', currentDepotId).order('created_at', { ascending: false }).limit(1)
         ]);
-
         if (error) throw error;
-
         if (data && data.length > 0) {
             currentBox = data[0];
             await loadJobsForBox(currentBox.id);
         } else {
             const boxNumber = await getNextBoxNumber(client);
             const boxId = formatBoxId(currentAgent, client, boxNumber);
-
-            const { data: newBox, error: insertError } = await db
-                .from("boxes")
-                .insert([{
-                    box_id: boxId,
-                    agent: currentAgent,
-                    client: client,
-                    box_number: boxNumber,
-                    status: "open",
-                    created_at: new Date().toISOString(),
-                    depot_id: currentDepotId
-                }])
-                .select()
-                .single();
-
+            const { data: newBox, error: insertError } = await db.from('boxes').insert([{
+                box_id: boxId, agent: currentAgent, client, box_number: boxNumber,
+                status: 'open', created_at: new Date().toISOString(), depot_id: currentDepotId
+            }]).select().single();
             if (insertError) throw insertError;
-
             currentBox = newBox;
             currentBox.jobs = [];
         }
-
+        currentClientSettings = null;
         updateCurrentBoxDisplay();
-        showSyncStatus("✓ Synced", "synced");
-
-        // Show job type selection modal immediately, refresh boxes in background
-        showJobTypeModal();
+        renderRecentJobs();
+        if (currentJobType) await checkReceiptRequirement();
+        showSyncStatus('✓ Synced', 'synced');
         loadBoxesForAgent();
     } catch (error) {
-        showAlert("Error loading box. Please try again.", "error");
-        showSyncStatus("✕ Sync failed", "error");
-    } finally {
-        showLoading(false);
-    }
+        showAlert('Error loading box. Please try again.', 'error');
+        showSyncStatus('✕ Sync failed', 'error');
+    } finally { showLoading(false); }
 }
 
 async function prefillFromPrefilledJob(id) {
     try {
-        const { data: pj, error } = await db.from('prefilled_jobs')
-            .select('*')
-            .eq('id', id)
-            .eq('user_id', currentUserId)
-            .single();
-
+        const { data: pj, error } = await db.from('prefilled_jobs').select('*').eq('id', id).eq('user_id', currentUserId).single();
         if (error || !pj) return;
-
-        if (pj.is_completed) {
-            showAlert('This planned job is already completed.', 'info');
-            return;
-        }
-
+        if (pj.is_completed) { showAlert('This planned job is already completed.', 'info'); return; }
         prefilledJobId = pj.id;
         prefilledJobData = pj;
-
-        // Show pre-fill banner above content area
         const alertContainer = document.getElementById('alertContainer');
         const existing = document.getElementById('prefilledJobBanner');
         if (existing) existing.remove();
@@ -1668,399 +1246,265 @@ async function prefillFromPrefilledJob(id) {
         </p>`;
         alertContainer.after(banner);
         lucide.createIcons();
-
-        // Pre-select client — triggers box load + vendor load
         const clientSelect = document.getElementById('clientSelect');
         clientSelect.value = pj.client_id;
         if (clientSelect.value !== pj.client_id) {
             showAlert(`Client "${escapeHTML(pj.client_id)}" is not configured for this depot.`, 'warning');
-            prefilledJobId = null;
-            prefilledJobData = null;
-            banner.remove();
-            return;
+            prefilledJobId = null; prefilledJobData = null; banner.remove(); return;
         }
         await handleClientChange();
-
-        // Pre-select vendor after handleClientChange populates vendor dropdown
-        if (pj.vendor_id) {
-            document.getElementById('vendorSelect').value = pj.vendor_id;
-        }
-
-        // Pre-fill job number
+        if (pj.vendor_id) document.getElementById('vendorSelect').value = pj.vendor_id;
         document.getElementById('jobNumber').value = pj.job_number;
-
-        // Pre-select job type if stored
-        if (pj.job_type) {
-            await selectJobType(pj.job_type);
-        }
-
-    } catch (err) {
-        console.error('Error pre-filling from prefilled job:', err);
-    }
+        if (pj.job_type) await selectJobType(pj.job_type);
+    } catch (err) { console.error('Error pre-filling from prefilled job:', err); }
 }
 
 async function handleAddJob() {
-    if (!currentBox) {
-        showAlert("Please select a client first", "error");
-        return;
-    }
-
-    if (shiftsEnabled && !activeShift) {
-        showAlert("Cannot add jobs without an active shift. Please start a shift first.", "error");
-        return;
-    }
-
-    if (!currentJobType) {
-        showAlert("Please select a job type first", "error");
-        return;
-    }
-
-    // Check if receipt is required and uploaded
-    if (isReceiptRequired && !currentReceiptFile) {
-        showAlert("Please upload a receipt photo before adding the job", "error");
-        return;
-    }
-
-    const vendor = document.getElementById("vendorSelect").value;
-    const jobNumber = document.getElementById("jobNumber").value.trim();
-    const isBulk = document.getElementById("bulkToggle").checked;
-
-    if (!vendor || !jobNumber) {
-        showAlert("Please fill in all required fields", "error");
-        return;
-    }
-
+    if (!currentBox) { showAlert('Please select a client first', 'error'); return; }
+    if (shiftsEnabled && !activeShift) { showAlert('Cannot add jobs without an active shift. Please start a shift first.', 'error'); return; }
+    if (!currentJobType) { showAlert('Please select a job type first', 'error'); return; }
+    if (isReceiptRequired && !currentReceiptFile) { showAlert('Please upload a receipt photo before adding the job', 'error'); return; }
+    const vendor = document.getElementById('vendorSelect').value;
+    const jobNumber = document.getElementById('jobNumber').value.trim();
+    if (!vendor || !jobNumber) { showAlert('Please fill in all required fields', 'error'); return; }
     let serials = [];
-
-    // Only collect serials for Swap/Upgrade and Deinstall jobs (not Install)
     if (currentJobType !== 'install') {
-        if (isBulk) {
-            const bulkText = document.getElementById("bulkSerials").value.trim();
-            if (!bulkText) {
-                showAlert("Please enter at least one serial", "error");
-                return;
-            }
-            serials = bulkText.split("\n").map(s => s.trim()).filter(s => s.length > 0);
+        if (bulkModeState) {
+            const bulkText = document.getElementById('bulkSerials').value.trim();
+            if (!bulkText) { showAlert('Please enter at least one serial', 'error'); return; }
+            serials = bulkText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
         } else {
-            document.querySelectorAll(".serial-input").forEach(input => {
-                const value = input.value.trim();
-                if (value) serials.push(value);
-            });
+            serials = [...chips];
         }
-
-        if (serials.length === 0) {
-            showAlert("Please enter at least one serial number", "error");
-            return;
-        }
-
+        if (serials.length === 0) { showAlert('Please enter at least one serial number', 'error'); return; }
         const duplicates = await checkDuplicates(serials);
-        if (duplicates.length > 0) {
-            showAlert(`Duplicate serials found: ${duplicates.join(", ")}`, "warning");
-            return;
-        }
+        if (duplicates.length > 0) { showAlert(`Duplicate serials found: ${duplicates.join(', ')}`, 'warning'); return; }
     }
-
     showLoading(true);
-    showSyncStatus("Syncing...", "syncing");
-
+    showSyncStatus('Syncing...', 'syncing');
     try {
-        // Use custom time if provided, otherwise default to current time
         const jobTimeInput = document.getElementById('jobTimeInput').value;
         const jobTimestamp = jobTimeInput ? new Date(jobTimeInput).toISOString() : new Date().toISOString();
-
-        // Create job with job_type (receipt_url will be added after upload if needed)
-        const jobData = {
-            box_id: currentBox.id,
-            job_number: jobNumber,
-            vendor: vendor,
-            job_type: currentJobType,
-            shift_id: activeShift?.id || null,
-            created_at: jobTimestamp,
-            depot_id: currentDepotId
-        };
-
-        const { data: job, error: jobError } = await db
-            .from("jobs")
-            .insert([jobData])
-            .select()
-            .single();
-
+        const jobData = { box_id: currentBox.id, job_number: jobNumber, vendor, job_type: currentJobType, shift_id: activeShift?.id || null, created_at: jobTimestamp, depot_id: currentDepotId };
+        const { data: job, error: jobError } = await db.from('jobs').insert([jobData]).select().single();
         if (jobError) throw jobError;
-
-        // Upload receipt if required
         if (isReceiptRequired && currentReceiptFile) {
-            showSyncStatus("Uploading receipt...", "syncing");
+            showSyncStatus('Uploading receipt...', 'syncing');
             const receiptUrl = await uploadReceiptToStorage(job.id);
-
-            // Update job with receipt URL
-            const { error: updateError } = await db
-                .from("jobs")
-                .update({ receipt_url: receiptUrl })
-                .eq('id', job.id);
-
+            const { error: updateError } = await db.from('jobs').update({ receipt_url: receiptUrl }).eq('id', job.id);
             if (updateError) throw updateError;
         }
-
-        // Only insert serials if job type requires them
         if (currentJobType !== 'install' && serials.length > 0) {
-            const serialRecords = serials.map(serial => ({
-                job_id: job.id,
-                box_id: currentBox.id,
-                serial_number: serial,
-                created_at: jobTimestamp,
-                depot_id: currentDepotId
-            }));
-
-            const { error: serialError } = await db.from("serials").insert(serialRecords);
+            const serialRecords = serials.map(serial => ({ job_id: job.id, box_id: currentBox.id, serial_number: serial, created_at: jobTimestamp, depot_id: currentDepotId }));
+            const { error: serialError } = await db.from('serials').insert(serialRecords);
             if (serialError) throw serialError;
         }
-
-        const jobTypeLabels = {
-            'swap-upgrade': 'Swap/Upgrade',
-            'install': 'Install',
-            'deinstall': 'Deinstall'
-        };
+        const jobTypeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
         const jobTypeLabel = jobTypeLabels[currentJobType] || currentJobType;
-
         const message = currentJobType === 'install'
             ? `✓ ${jobTypeLabel} job ${jobNumber} added`
             : `✓ ${jobTypeLabel} job ${jobNumber} added with ${serials.length} serial(s)`;
-
-        showAlert(message, "success");
-        showSyncStatus("✓ Synced", "synced");
-
-        // Mark prefilled job as complete if this was a pre-filled entry
+        showAlert(message, 'success');
+        showSyncStatus('✓ Synced', 'synced');
         if (prefilledJobId) {
             try {
-                await db.from('prefilled_jobs')
-                    .update({ is_completed: true, completed_job_id: job.id })
-                    .eq('id', prefilledJobId);
-            } catch (err) {
-                console.error('Failed to mark prefilled job complete:', err);
-            }
-            prefilledJobId = null;
-            prefilledJobData = null;
+                await db.from('prefilled_jobs').update({ is_completed: true, completed_job_id: job.id }).eq('id', prefilledJobId);
+            } catch (err) { console.error('Failed to mark prefilled job complete:', err); }
+            prefilledJobId = null; prefilledJobData = null;
             const banner = document.getElementById('prefilledJobBanner');
             if (banner) banner.remove();
         }
-
-        // Clear form and reset to basic dashboard
         clearJobForm();
     } catch (error) {
-        showAlert("Error saving job. Please try again.", "error");
-        showSyncStatus("✕ Sync failed", "error");
-    } finally {
-        showLoading(false);
-    }
+        showAlert('Error saving job. Please try again.', 'error');
+        showSyncStatus('✕ Sync failed', 'error');
+    } finally { showLoading(false); }
 }
 
 async function handleNewBox() {
     if (!currentBox || !currentBox.jobs || currentBox.jobs.length === 0) {
-        showAlert("Cannot start new box without adding jobs to current one", "warning");
-        return;
+        showAlert('Cannot start new box without adding jobs to current one', 'warning'); return;
     }
-    
     if (!confirm(`Close current box and start new box for ${currentBox.client}?`)) return;
-    
     showLoading(true);
-    
     try {
         const client = currentBox.client;
-        
-        await db
-            .from("boxes")
-            .update({ status: "closed", closed_at: new Date().toISOString() })
-            .eq("id", currentBox.id);
-            
+        await db.from('boxes').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', currentBox.id);
         const boxNumber = await getNextBoxNumber(client);
         const boxId = formatBoxId(currentAgent, client, boxNumber);
-        
-        const { data: newBox, error } = await db
-            .from("boxes")
-            .insert([{
-                box_id: boxId,
-                agent: currentAgent,
-                client: client,
-                box_number: boxNumber,
-                status: "open",
-                created_at: new Date().toISOString(),
-                depot_id: currentDepotId
-            }])
-            .select()
-            .single();
-
+        const { data: newBox, error } = await db.from('boxes').insert([{
+            box_id: boxId, agent: currentAgent, client, box_number: boxNumber,
+            status: 'open', created_at: new Date().toISOString(), depot_id: currentDepotId
+        }]).select().single();
         if (error) throw error;
-
         currentBox = newBox;
         currentBox.jobs = [];
         updateCurrentBoxDisplay();
+        renderRecentJobs();
         await loadBoxesForAgent();
-        showAlert(`✓ New box started: ${currentBox.box_id}`, "success");
-        showSyncStatus("✓ Synced", "synced");
+        showAlert(`✓ New box started: ${currentBox.box_id}`, 'success');
+        showSyncStatus('✓ Synced', 'synced');
     } catch (error) {
-        showAlert("Error starting new box. Please try again.", "error");
-        showSyncStatus("✕ Sync failed", "error");
-    } finally {
-        showLoading(false);
-    }
+        showAlert('Error starting new box. Please try again.', 'error');
+        showSyncStatus('✕ Sync failed', 'error');
+    } finally { showLoading(false); }
 }
 
 async function loadJobsForBox(boxId) {
     try {
-        const { data: jobs, error } = await db
-            .from("jobs")
-            .select("*")
-            .eq("box_id", boxId)
-            .order("created_at", { ascending: true });
-
+        const { data: jobs, error } = await db.from('jobs').select('*').eq('box_id', boxId).order('created_at', { ascending: true });
         if (error) throw error;
-
-        // Batch fetch all serials for all jobs in one query
         const jobIds = jobs.map(j => j.id);
         let serialsByJob = {};
         if (jobIds.length > 0) {
-            const { data: allSerials } = await db
-                .from("serials")
-                .select("serial_number, job_id")
-                .in("job_id", jobIds);
-
+            const { data: allSerials } = await db.from('serials').select('serial_number, job_id').in('job_id', jobIds);
             (allSerials || []).forEach(s => {
                 if (!serialsByJob[s.job_id]) serialsByJob[s.job_id] = [];
                 serialsByJob[s.job_id].push(s.serial_number);
             });
         }
-
-        for (let job of jobs) {
-            job.serials = serialsByJob[job.id] || [];
-        }
-
+        for (let job of jobs) job.serials = serialsByJob[job.id] || [];
         currentBox.jobs = jobs;
     } catch (error) {
         currentBox.jobs = [];
     }
+    renderRecentJobs();
 }
 
 async function getNextBoxNumber(client) {
     try {
-        const { data } = await db
-            .from("boxes")
-            .select("box_number")
-            .eq("agent", currentAgent)
-            .eq("client", client)
-            .eq("depot_id", currentDepotId)
-            .order("box_number", { ascending: false })
-            .limit(1);
-            
-        if (data && data.length > 0) {
-            return String(parseInt(data[0].box_number) + 1).padStart(3, "0");
-        }
-        return "001";
-    } catch (error) {
-        return "001";
-    }
+        const { data } = await db.from('boxes').select('box_number').eq('agent', currentAgent).eq('client', client).eq('depot_id', currentDepotId).order('box_number', { ascending: false }).limit(1);
+        if (data && data.length > 0) return String(parseInt(data[0].box_number) + 1).padStart(3, '0');
+        return '001';
+    } catch (error) { return '001'; }
+}
+
+function toggleBoxStrip() {
+    document.getElementById('boxStrip').classList.toggle('expanded');
 }
 
 function updateCurrentBoxDisplay() {
-    const boxIdEl = document.getElementById("currentBoxId");
-    const boxClientEl = document.getElementById("currentBoxClient");
-    const jobsSummaryEl = document.getElementById("jobsSummary");
-    const newBoxBtn = document.getElementById("newBoxBtn");
-    
+    const boxIdEl = document.getElementById('currentBoxId');
+    const boxClientEl = document.getElementById('currentBoxClient');
+    const jobsSummaryEl = document.getElementById('jobsSummary');
+    const boxOpenedEl = document.getElementById('boxOpenedTime');
+    const submitBoxEl = document.getElementById('submitBoxId');
+    const newBoxBtn = document.getElementById('newBoxBtn');
     if (currentBox) {
-        boxIdEl.textContent = currentBox.box_id;
-        boxClientEl.textContent = `${currentBox.client} • Agent ${currentBox.agent}`;
-        
         const jobs = currentBox.jobs || [];
         const jobCount = jobs.length;
-        const serialCount = jobs.reduce((sum, job) => sum + (job.serials ? job.serials.length : 0), 0);
-        
-        jobsSummaryEl.textContent = `${jobCount} job(s) • ${serialCount} serial(s)`;
-        newBoxBtn.disabled = false;
+        if (boxIdEl) boxIdEl.textContent = currentBox.box_id;
+        if (boxClientEl) boxClientEl.textContent = currentBox.client;
+        if (jobsSummaryEl) jobsSummaryEl.textContent = `${jobCount} job${jobCount !== 1 ? 's' : ''}`;
+        if (submitBoxEl) submitBoxEl.textContent = currentBox.box_id;
+        if (boxOpenedEl) {
+            const opened = new Date(currentBox.created_at);
+            const now = new Date();
+            const isToday = opened.toDateString() === now.toDateString();
+            boxOpenedEl.textContent = isToday
+                ? opened.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true }) + ' today'
+                : opened.toLocaleDateString('en-AU');
+        }
+        if (newBoxBtn) newBoxBtn.disabled = false;
     } else {
-        boxIdEl.textContent = "No Active Box";
-        boxClientEl.textContent = "Select a client to begin";
-        jobsSummaryEl.textContent = "";
-        newBoxBtn.disabled = true;
+        if (boxIdEl) boxIdEl.textContent = 'No Active Box';
+        if (boxClientEl) boxClientEl.textContent = '—';
+        if (jobsSummaryEl) jobsSummaryEl.textContent = '—';
+        if (boxOpenedEl) boxOpenedEl.textContent = '—';
+        if (submitBoxEl) submitBoxEl.textContent = '—';
+        if (newBoxBtn) newBoxBtn.disabled = true;
     }
 }
 
 async function checkDuplicates(serials) {
     try {
-        const { data } = await db
-            .from("serials")
-            .select("serial_number")
-            .in("serial_number", serials)
-            .eq("depot_id", currentDepotId);
-
+        const { data } = await db.from('serials').select('serial_number').in('serial_number', serials).eq('depot_id', currentDepotId);
         return data ? data.map(s => s.serial_number) : [];
-    } catch (error) {
-        return [];
-    }
+    } catch (error) { return []; }
 }
 
 async function loadBoxesForAgent() {
     try {
-        const { data } = await db
-            .from("boxes")
-            .select("*")
-            .eq("agent", currentAgent)
-            .eq("depot_id", currentDepotId)
-            .order("created_at", { ascending: false });
-            
+        const { data } = await db.from('boxes').select('*').eq('agent', currentAgent).eq('depot_id', currentDepotId).order('created_at', { ascending: false });
         boxes = data || [];
-    } catch (error) {
-        boxes = [];
-    }
+    } catch (error) { boxes = []; }
 }
 
 function clearJobForm() {
-    // Reset all form fields
-    document.getElementById("clientSelect").value = "";
-    document.getElementById("vendorSelect").value = "";
-    document.getElementById("vendorSelect").innerHTML = '<option value="">Select a client first...</option>';
-    document.getElementById("jobNumber").value = "";
-    document.getElementById("jobTypeLabel").textContent = "";
-    document.getElementById("bulkSerials").value = "";
-    document.getElementById("jobTimeInput").value = "";
-    document.getElementById("bulkToggle").checked = false;
-    document.getElementById("bulkToggle2").checked = false;
-    document.getElementById("serialInputs").innerHTML = `
-        <div class="serial-input-row">
-            <input type="text" class="form-input serial-input" placeholder="Enter serial number">
-        </div>
-    `;
-
-    // Reset bulk toggle state
-    handleBulkToggle();
-
-    // Reset serial entry visibility
-    document.getElementById("individualEntry").style.display = '';
-    document.getElementById("bulkEntry").style.display = '';
-
-    // Clear current box and job type
+    document.getElementById('clientSelect').value = '';
+    document.getElementById('vendorSelect').value = '';
+    document.getElementById('vendorSelect').innerHTML = '<option value="">Select a client first…</option>';
+    document.getElementById('jobNumber').value = '';
+    document.getElementById('bulkSerials').value = '';
+    document.getElementById('jobTimeInput').value = '';
+    chips = [];
+    renderChips();
+    bulkModeState = false;
+    document.getElementById('individualEntry').style.display = '';
+    document.getElementById('bulkEntry').style.display = 'none';
+    const bt = document.getElementById('bulkToggle');
+    const bt2 = document.getElementById('bulkToggle2');
+    if (bt) bt.classList.remove('on');
+    if (bt2) bt2.classList.remove('on');
+    document.querySelectorAll('.type-pill').forEach(p => p.classList.remove('active'));
     currentBox = null;
     currentJobType = null;
-
-    // Clear receipt upload state
     clearReceiptUpload();
     isReceiptRequired = false;
     currentClientSettings = null;
     document.getElementById('receiptUploadSection').style.display = 'none';
-
-    // Update display to show no active box
+    const recentSection = document.getElementById('recentSection');
+    if (recentSection) recentSection.style.display = 'none';
     updateCurrentBoxDisplay();
+    updateSubmitSummary();
 }
 
 function showLoading(show) {
-    document.getElementById("loading").classList.toggle("active", show);
+    document.getElementById('loading').classList.toggle('active', show);
 }
 
 function showSyncStatus(message, type) {
-    const status = document.getElementById("syncStatus");
+    const status = document.getElementById('syncStatus');
     status.textContent = message;
     status.className = `sync-status active ${type}`;
-    setTimeout(() => status.classList.remove("active"), 3000);
+    setTimeout(() => status.classList.remove('active'), 3000);
 }
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = await initAuth(['super_admin', 'manager', 'technician']);
+    if (!user) return;
+
+    initSidebar(user);
+    setSeAvatar(user);
+
+    currentAgent = user.agent_id;
+    currentUserRole = user.role;
+    currentUserId = user.id;
+    currentDepotId = user.depot_id;
+    shiftsEnabled = user.shifts_enabled || false;
+
+    await Promise.all([
+        loadClients(),
+        loadBoxesForAgent(),
+        checkShiftStatus()
+    ]);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const pjId = urlParams.get('prefilled_job');
+    if (pjId) await prefillFromPrefilledJob(pjId);
+
+    document.getElementById('clientSelect').addEventListener('change', handleClientChange);
+    document.getElementById('newBoxBtn').addEventListener('click', handleNewBox);
+    document.getElementById('addJobBtn').addEventListener('click', handleAddJob);
+    document.getElementById('startShiftForm').addEventListener('submit', handleStartShift);
+    document.getElementById('endShiftForm').addEventListener('submit', handleEndShift);
+    document.getElementById('staleShiftForm').addEventListener('submit', handleStaleShift);
+
+    setupChipInput();
+    updateSubmitSummary();
+
+    showLoading(false);
+});
 </script>
 </body>
 </html>

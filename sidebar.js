@@ -2,39 +2,52 @@
 // Include this file after auth.js on all protected pages
 
 /**
- * Initialize the sidebar component
- * Call this function in your DOMContentLoaded event after initAuth()
- * 
- * @param {Object} user - The current user object from initAuth()
+ * Initialize the sidebar component.
+ * Call after initAuth() resolves with the current user.
  */
 function initSidebar(user) {
-    // Generate and inject sidebar HTML
-    injectSidebarHTML();
-    
-    // Set active page based on current URL
+    injectSidebarHTML(user);
     setActivePage();
-    
-    // Apply role-based visibility
-    if (user && user.role !== 'manager' && user.role !== 'super_admin') {
-        hideAdminMenu();
+    setupSidebarEvents(user);
+
+    // Role-based section visibility
+    if (user) {
+        const isAdmin = user.role === 'manager' || user.role === 'super_admin';
+        const isSuperAdmin = user.role === 'super_admin';
+
+        if (!isAdmin) {
+            document.querySelectorAll('#sidebar [data-section="admin"]').forEach(el => {
+                el.style.display = 'none';
+            });
+        }
+        if (!isSuperAdmin) {
+            document.querySelectorAll('#sidebar [data-role="super_admin"]').forEach(el => {
+                el.style.display = 'none';
+            });
+        }
     }
 
-    // Hide super_admin-only sidebar items from non-super_admins
-    if (user && user.role !== 'super_admin') {
-        document.querySelectorAll('#sidebar [data-role="super_admin"]').forEach(el => {
-            el.style.display = 'none';
-        });
-    }
-
-    // Setup event listeners
-    setupSidebarEvents();
+    // Async: fetch depot name and populate brand sub-label
+    _loadDepotName(user);
 }
 
-/**
- * Generate the sidebar HTML structure
- */
-function injectSidebarHTML() {
-    // Create sidebar overlay
+async function _loadDepotName(user) {
+    if (!user || !user.depot_id) return;
+    try {
+        const { data } = await db
+            .from('depots')
+            .select('depot_name')
+            .eq('depot_id', user.depot_id)
+            .single();
+        if (data && data.depot_name) {
+            const sub = document.getElementById('sbDepotSub');
+            if (sub) sub.textContent = data.depot_name;
+        }
+    } catch (_) {}
+}
+
+function injectSidebarHTML(user) {
+    // Overlay
     let overlay = document.getElementById('sidebarOverlay');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -42,253 +55,195 @@ function injectSidebarHTML() {
         overlay.id = 'sidebarOverlay';
         document.body.insertBefore(overlay, document.body.firstChild);
     }
-    
-    // Create hamburger button
-    let hamburger = document.getElementById('hamburgerBtn');
-    if (!hamburger) {
-        hamburger = document.createElement('button');
-        hamburger.className = 'hamburger-btn visible';
-        hamburger.id = 'hamburgerBtn';
-        hamburger.innerHTML = '<span></span><span></span><span></span>';
-        document.body.insertBefore(hamburger, document.body.firstChild);
-    } else {
-        hamburger.classList.add('visible');
+
+    // Inject a floating hamburger only for pages without the new topbar
+    if (!document.querySelector('.topbar-burger')) {
+        let hamburger = document.getElementById('hamburgerBtn');
+        if (!hamburger) {
+            hamburger = document.createElement('button');
+            hamburger.id = 'hamburgerBtn';
+            hamburger.className = 'hamburger-btn visible';
+            hamburger.setAttribute('aria-label', 'Menu');
+            hamburger.innerHTML = '<span></span><span></span><span></span>';
+            hamburger.addEventListener('click', toggleSidebar);
+            document.body.appendChild(hamburger);
+        }
     }
-    
-    // Create sidebar
+
+    // Sidebar element
     let sidebar = document.getElementById('sidebar');
     if (!sidebar) {
-        sidebar = document.createElement('div');
+        sidebar = document.createElement('aside');
         sidebar.className = 'sidebar';
         sidebar.id = 'sidebar';
         document.body.insertBefore(sidebar, document.body.firstChild);
     }
-    
-    // Set sidebar content
-    sidebar.innerHTML = `
-        <div class="sidebar-header">
-            <h2>Navigation</h2>
-            <button class="sidebar-close" id="sidebarClose">×</button>
-        </div>
-        <div class="sidebar-menu">
-            <a href="home.html" class="sidebar-menu-item" data-page="home">
-                <span><i data-lucide="layout-dashboard" width="20" height="20"></i></span>
-                <span>Home</span>
-            </a>
-            <a href="stock-entry.html" class="sidebar-menu-item" data-page="stock-entry">
-                <span><i data-lucide="clipboard" width="20" height="20"></i></span>
-                <span>Stock Entry</span>
-            </a>
-            <a href="inventory.html" class="sidebar-menu-item" data-page="boxes">
-                <span><i data-lucide="package-open" width="20" height="20"></i></span>
-                <span>Inventory</span>
-            </a>
-            <a href="user.html" class="sidebar-menu-item" data-page="user">
-                <span><i data-lucide="user" width="20" height="20"></i></span>
-                <span>User</span>
-            </a>
 
-            <!-- Admin Panel Dropdown (Manager only) -->
-            <div class="sidebar-dropdown" data-role="manager" id="adminDropdown">
-                <div class="sidebar-menu-item dropdown-toggle" id="adminToggle" data-page="admin">
-                    <span><i data-lucide="settings" width="20" height="20"></i></span>
-                    <span>Admin Panel</span>
-                    <span class="dropdown-arrow"><i data-lucide="chevron-down" width="16" height="16"></i></span>
-                </div>
-                <div class="dropdown-content" id="adminSubmenu">
-                    <a href="my-depot.html" class="sidebar-menu-item sub-item" data-page="my-depot">
-                        <span><i data-lucide="house" width="20" height="20"></i></span>
-                        <span>My Depot</span>
-                    </a>
-                    <a href="shifts.html" class="sidebar-menu-item sub-item" data-page="shifts">
-                        <span><i data-lucide="clock" width="20" height="20"></i></span>
-                        <span>Shift Reports</span>
-                    </a>
-                    <a href="manage-depots.html" class="sidebar-menu-item sub-item" data-page="manage-depots" data-role="super_admin" id="manageDepotsLink">
-                        <span><i data-lucide="building-2" width="20" height="20"></i></span>
-                        <span>Manage Depots</span>
-                    </a>
-                </div>
+    // User display info
+    let initials = '??';
+    let displayName = 'Account';
+    let roleLabel = '';
+    if (user) {
+        const meta = user.user_metadata || {};
+        const fullName = meta.full_name || meta.name || '';
+        if (fullName) {
+            const parts = fullName.trim().split(/\s+/);
+            initials = parts.map(p => p[0]).join('').toUpperCase().slice(0, 2);
+            displayName = fullName.trim();
+        } else if (user.email) {
+            const local = user.email.split('@')[0];
+            initials = local.slice(0, 2).toUpperCase();
+            displayName = user.email;
+        }
+        const roleName = user.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1).replace('_', ' ')) : '';
+        const agentPart = user.agent_id ? ` · Agent ${user.agent_id}` : '';
+        roleLabel = roleName + agentPart;
+    }
+
+    sidebar.innerHTML = `
+        <div class="sb-head">
+            <span class="sb-logo-mark">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg>
+            </span>
+            <div class="sb-brand">
+                <span class="sb-name">Stock Control</span>
+                <span class="sb-sub" id="sbDepotSub">Loading…</span>
+            </div>
+            <button class="sb-close" id="sidebarClose" aria-label="Close sidebar">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <form class="sb-search" id="sbSearchForm" onsubmit="return _sbSearch(event)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="search" id="sbSearchInput" placeholder="Search inventory…" autocomplete="off" />
+            <span class="kbd">⌘ K</span>
+        </form>
+
+        <nav class="sb-nav">
+
+            <div class="sb-section">
+                <div class="sb-section-label">Workspace</div>
+                <a class="sb-item" href="home.html" data-page="home">
+                    <span class="sb-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span>
+                    <span class="sb-label">Home</span>
+                </a>
+                <a class="sb-item" href="stock-entry.html" data-page="stock-entry">
+                    <span class="sb-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/></svg></span>
+                    <span class="sb-label">Stock Entry</span>
+                </a>
+                <a class="sb-item" href="inventory.html" data-page="inventory">
+                    <span class="sb-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.4 7.55 4.24"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg></span>
+                    <span class="sb-label">Inventory</span>
+                </a>
             </div>
 
-            <div class="sidebar-menu-item" id="logoutBtn">
-                <span><i data-lucide="log-out" width="20" height="20"></i></span>
-                <span>Sign Out</span>
+            <div class="sb-section" data-section="admin">
+                <div class="sb-section-label">Admin</div>
+                <a class="sb-item" href="my-depot.html" data-page="my-depot">
+                    <span class="sb-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+                    <span class="sb-label">My Depot</span>
+                </a>
+                <a class="sb-item" href="shifts.html" data-page="shifts">
+                    <span class="sb-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                    <span class="sb-label">Shift Reports</span>
+                </a>
+                <a class="sb-item" href="manage-depots.html" data-page="manage-depots" data-role="super_admin">
+                    <span class="sb-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></svg></span>
+                    <span class="sb-label">Manage Depots</span>
+                </a>
+            </div>
+
+            <div class="sb-section">
+                <div class="sb-section-label">Account</div>
+                <a class="sb-item" href="user.html" data-page="user">
+                    <span class="sb-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span>
+                    <span class="sb-label">Profile</span>
+                </a>
+            </div>
+
+        </nav>
+
+        <div class="sb-foot">
+            <div class="sb-user" id="sbUserCard" onclick="location.href='user.html'" title="My Profile">
+                <span class="sb-av" id="sbAvatar">${initials}</span>
+                <div class="sb-meta">
+                    <span class="sb-uname" id="sbDisplayName">${typeof escapeHTML === 'function' ? escapeHTML(displayName) : displayName}</span>
+                    <span class="sb-urole" id="sbRoleLabel">${typeof escapeHTML === 'function' ? escapeHTML(roleLabel) : roleLabel}</span>
+                </div>
+                <button class="sb-signout" id="sbSignout" title="Sign out" onclick="_sbSignout(event)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+                </button>
             </div>
         </div>
     `;
+}
 
-    // Initialize Lucide icons after injecting HTML
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    } else if (typeof Icons !== 'undefined') {
-        Icons.init();
+function _sbSearch(e) {
+    e.preventDefault();
+    const q = (document.getElementById('sbSearchInput') || {}).value || '';
+    if (q.trim().length >= 2) {
+        closeSidebar();
+        window.location.href = 'inventory.html?search=' + encodeURIComponent(q.trim());
+    }
+    return false;
+}
+
+function _sbSignout(e) {
+    e.stopPropagation();
+    if (typeof logout === 'function') {
+        logout();
     }
 }
 
-/**
- * Determine and set the active page based on current URL
- */
 function setActivePage() {
-    const currentPath = window.location.pathname;
-    const filename = currentPath.split('/').pop().toLowerCase() || 'index';
-    
-    // Remove active class from all items
-    document.querySelectorAll('.sidebar-menu-item').forEach(item => {
+    const filename = (window.location.pathname.split('/').pop() || 'home.html').toLowerCase();
+
+    const pageMap = {
+        'home.html': 'home',
+        'stock-entry.html': 'stock-entry',
+        'inventory.html': 'inventory',
+        'boxes.html': 'inventory',
+        'user.html': 'user',
+        'my-depot.html': 'my-depot',
+        'shifts.html': 'shifts',
+        'manage-depots.html': 'manage-depots',
+    };
+
+    const activePage = pageMap[filename] || '';
+    if (!activePage) return;
+
+    document.querySelectorAll('#sidebar .sb-item').forEach(item => {
         item.classList.remove('active');
     });
-    
-    // Determine which page is active
-    let activePage = '';
-    let isAdminPage = false;
-    
-    if (filename === 'stock-entry.html') {
-        activePage = 'stock-entry';
-    } else if (filename === 'boxes.html') {
-        activePage = 'boxes';
-    } else if (filename === 'user.html') {
-        activePage = 'user';
-    } else if (filename === 'my-depot.html') {
-        activePage = 'my-depot';
-        isAdminPage = true;
-    } else if (filename === 'shifts.html') {
-        activePage = 'shifts';
-        isAdminPage = true;
-    } else if (filename === 'manage-depots.html') {
-        activePage = 'manage-depots';
-        isAdminPage = true;
-    } else if (filename === 'guides.html') {
-        activePage = 'guides';
-    }
-    
-    // Set active state
-    if (activePage) {
-        const activeItem = document.querySelector(`[data-page="${activePage}"]`);
-        if (activeItem) {
-            activeItem.classList.add('active');
-        }
-    }
-    
-    // If on admin page, expand the dropdown and mark toggle as active
-    if (isAdminPage) {
-        const adminToggle = document.getElementById('adminToggle');
-        const adminSubmenu = document.getElementById('adminSubmenu');
-        const arrow = adminToggle ? adminToggle.querySelector('.dropdown-arrow i') : null;
 
-        if (adminToggle && adminSubmenu) {
-            adminToggle.classList.add('active', 'open');
-            adminSubmenu.classList.add('show');
-
-            // Rotate the chevron icon to show it's open
-            if (arrow) {
-                arrow.style.transform = 'rotate(180deg)';
-            }
-        }
-    }
+    const activeItem = document.querySelector(`#sidebar .sb-item[data-page="${activePage}"]`);
+    if (activeItem) activeItem.classList.add('active');
 }
 
-/**
- * Hide admin menu for non-manager users
- */
-function hideAdminMenu() {
-    const adminDropdown = document.getElementById('adminDropdown');
-    if (adminDropdown) {
-        adminDropdown.style.display = 'none';
-    }
-}
-
-/**
- * Setup all sidebar event listeners
- */
-function setupSidebarEvents() {
-    // Hamburger button
-    const hamburgerBtn = document.getElementById('hamburgerBtn');
-    if (hamburgerBtn) {
-        hamburgerBtn.addEventListener('click', toggleSidebar);
-    }
-    
-    // Sidebar overlay
+function setupSidebarEvents(user) {
     const overlay = document.getElementById('sidebarOverlay');
-    if (overlay) {
-        overlay.addEventListener('click', closeSidebar);
-    }
-    
-    // Sidebar close button
+    if (overlay) overlay.addEventListener('click', closeSidebar);
+
     const closeBtn = document.getElementById('sidebarClose');
-    if (closeBtn) {
-        closeBtn.addEventListener('click', closeSidebar);
-    }
-    
-    // Admin dropdown toggle
-    const adminToggle = document.getElementById('adminToggle');
-    if (adminToggle) {
-        adminToggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            toggleAdminDropdown();
-        });
-    }
-    
-    // Logout button
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', function() {
-            if (typeof logout === 'function') {
-                logout();
-            } else {
-                console.error('logout function not found. Make sure auth.js is loaded.');
-            }
-        });
-    }
+    if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
 }
 
-/**
- * Toggle sidebar open/closed
- */
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
-    const hamburger = document.getElementById('hamburgerBtn');
-    
-    if (sidebar) sidebar.classList.toggle('active');
-    if (overlay) overlay.classList.toggle('active');
-    if (hamburger) hamburger.classList.toggle('active');
+    if (!sidebar) return;
+    const isOpen = sidebar.classList.toggle('active');
+    if (overlay) overlay.classList.toggle('active', isOpen);
 }
 
-/**
- * Close the sidebar
- */
 function closeSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
-    const hamburger = document.getElementById('hamburgerBtn');
-    
     if (sidebar) sidebar.classList.remove('active');
     if (overlay) overlay.classList.remove('active');
-    if (hamburger) hamburger.classList.remove('active');
 }
 
-/**
- * Toggle the admin dropdown menu
- */
-function toggleAdminDropdown() {
-    const toggle = document.getElementById('adminToggle');
-    const submenu = document.getElementById('adminSubmenu');
-    const arrow = toggle ? toggle.querySelector('.dropdown-arrow i') : null;
-
-    if (toggle && submenu) {
-        const isOpen = toggle.classList.toggle('open');
-        submenu.classList.toggle('show');
-
-        // Rotate the chevron icon
-        if (arrow) {
-            arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
-            arrow.style.transition = 'transform 0.2s ease';
-        }
-    }
-}
-
-// Export functions for global use
 window.initSidebar = initSidebar;
 window.toggleSidebar = toggleSidebar;
 window.closeSidebar = closeSidebar;
-window.toggleAdminDropdown = toggleAdminDropdown;

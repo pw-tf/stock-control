@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -c \"^\\\\s*}\\\\s*$\" G:/Projects/stock-control/home.html)",
+      "Bash(node -e \"const fs=require\\('fs'\\);const html=fs.readFileSync\\('G:/Projects/stock-control/home.html','utf8'\\);const m=html.match\\(/<script>\\([\\\\s\\\\S]*?\\)<\\\\/script>\\\\s*<!--\\\\s*Start\\\\s+Shift/\\);if\\(!m\\){console.log\\('script block not found via pattern'\\);process.exit\\(1\\);}try{new Function\\(m[1]\\);console.log\\('SCRIPT_OK length='+m[1].length\\);}catch\\(e\\){console.log\\('SYNTAX ERROR:',e.message\\);}\")",
+      "Bash(node -e ' *)",
+      "Bash(node *)",
+      "Bash(Get-ChildItem *)"
+    ]
+  }
+}

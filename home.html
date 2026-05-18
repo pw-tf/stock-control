@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-    <script>(function(){var t=localStorage.getItem("theme")||"ocean";var m=localStorage.getItem("mode")||"dark";document.documentElement.setAttribute("data-theme",t);document.documentElement.setAttribute("data-mode",m);})();</script>
+    <script>(function(){var t=localStorage.getItem("theme")||"ocean";var m=localStorage.getItem("mode")||"dark";var d=localStorage.getItem("density")||"comfortable";document.documentElement.setAttribute("data-theme",t);document.documentElement.setAttribute("data-mode",m);document.documentElement.setAttribute("data-density",d);})();</script>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/lucide@0.460.0"></script>
@@ -22,29 +22,80 @@
         <div class="spinner"></div>
     </div>
 
-    <!-- Main Container -->
-    <div class="app-wrapper">
-        <div class="container container-wide">
-            <div class="header">
-                <div class="header-content">
-                    <div class="header-icon"><i data-lucide="layout-dashboard" width="32" height="32"></i></div>
-                    <div>
-                        <h1>Home</h1>
-                        <div class="header-subtitle" id="welcomeMsg">Welcome back</div>
-                    </div>
-                </div>
-            </div>
+    <!-- Main App Shell -->
+    <div class="app">
 
-            <div class="content">
-                <div id="alertContainer"></div>
-                <div id="widgetContainer"></div>
-                <div style="text-align: center; margin-top: var(--spacing-lg); padding-bottom: var(--spacing-lg);">
-                    <button class="btn btn-secondary" id="editLayoutBtn" onclick="toggleEditMode()">
-                        <i data-lucide="settings-2" width="18" height="18"></i> Edit Layout
+        <!-- Top Bar -->
+        <div class="topbar fade-in">
+            <button class="topbar-burger" onclick="toggleSidebar()" aria-label="Menu">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+            </button>
+            <div class="topbar-logo">
+                <span class="topbar-logo-mark">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg>
+                </span>
+                <span>Stock Control</span>
+            </div>
+            <div class="topbar-spacer"></div>
+            <form class="topbar-search" id="topbarSearchForm" onsubmit="handleTopbarSearch(event)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="search" id="topbarSearchInput" placeholder="Search jobs, serials, boxes…" autocomplete="off" style="background:none;border:none;outline:none;color:inherit;font:inherit;flex:1;min-width:0;">
+                <kbd>↵</kbd>
+            </form>
+            <button class="topbar-icon-btn" aria-label="Notifications">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            </button>
+            <div class="topbar-avatar" id="userAvatar" onclick="location.href='user.html'" style="cursor:pointer" title="My Profile">?</div>
+        </div>
+
+        <!-- Alert Container -->
+        <div id="alertContainer"></div>
+
+        <!-- Hero -->
+        <section class="hero fade-in d1" id="hero">
+            <div class="hero-top">
+                <div>
+                    <h1 class="hero-greeting" id="greeting">Good morning <span class="wave">👋</span></h1>
+                    <div class="hero-sub" id="heroSub"></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                    <div class="hero-date-pill"><span class="dot"></span><span id="heroDate"></span></div>
+                    <button class="hero-collapse-btn" id="heroCollapseBtn" onclick="toggleHero()" title="Minimise hero">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 15l-6-6-6 6"/></svg>
                     </button>
                 </div>
             </div>
+            <div class="hero-kpis" id="heroKpis"></div>
+        </section>
+
+        <!-- Active Shift Banner (shown when shift is active) -->
+        <div class="shift-banner fade-in d2" id="shiftBanner" style="display:none">
+            <div class="shift-banner-left">
+                <span class="shift-pulse"></span>
+                <span class="shift-banner-status">Shift active</span>
+                <div class="shift-banner-stats">
+                    <span>Started <span class="v" id="bannerStarted"></span></span>
+                    <span>Elapsed <span class="v" id="bannerElapsed"></span></span>
+                    <span>Start KMs <span class="v" id="bannerKms"></span></span>
+                </div>
+            </div>
+            <button class="btn btn-primary" style="padding:8px 14px;font-size:0.8rem" onclick="openHomeEndShiftModal()">End Shift</button>
         </div>
+
+        <!-- Quick Action Chips -->
+        <div class="actions fade-in d2" id="actionChips"></div>
+
+        <!-- Bento Widget Grid -->
+        <div class="bento" id="bento"></div>
+
+        <!-- Edit Layout -->
+        <div class="edit-layout-row fade-in d8">
+            <button class="btn btn-secondary" id="editLayoutBtn" onclick="toggleEditMode()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Edit Layout
+            </button>
+        </div>
+
     </div>
 
     <script>
@@ -61,6 +112,7 @@
         let todayJobsCache = null; // null = needs re-fetch
         let homeActiveShift = null;
         let homeStaleShift = null;
+        let bannerTimer = null;
 
         // ============================================
         // WIDGET REGISTRY
@@ -155,12 +207,14 @@
             try {
                 const order = JSON.parse(localStorage.getItem('home_widget_order'));
                 const hidden = JSON.parse(localStorage.getItem('home_widget_hidden'));
+                const half = JSON.parse(localStorage.getItem('home_widget_half'));
                 return {
                     order: Array.isArray(order) ? order : null,
-                    hidden: Array.isArray(hidden) ? hidden : []
+                    hidden: Array.isArray(hidden) ? hidden : [],
+                    half: Array.isArray(half) ? half : []
                 };
             } catch {
-                return { order: null, hidden: [] };
+                return { order: null, hidden: [], half: [] };
             }
         }
 
@@ -184,6 +238,7 @@
         function saveWidgetConfig(config) {
             localStorage.setItem('home_widget_order', JSON.stringify(config.order));
             localStorage.setItem('home_widget_hidden', JSON.stringify(config.hidden));
+            localStorage.setItem('home_widget_half', JSON.stringify(config.half || []));
             // Persist to Supabase asynchronously (fire-and-forget)
             db.from('user_widget_config').upsert({
                 user_id:       currentUser.id,
@@ -193,6 +248,20 @@
             }, { onConflict: 'user_id' }).then(({ error }) => {
                 if (error) console.error('Failed to save widget config:', error);
             });
+        }
+
+        function toggleWidgetHalf(id) {
+            const config = getWidgetConfig();
+            if (!config.half) config.half = [];
+            const idx = config.half.indexOf(id);
+            if (idx === -1) {
+                config.half.push(id);
+            } else {
+                config.half.splice(idx, 1);
+            }
+            if (!config.order) config.order = getOrderedWidgets().map(w => w.id);
+            saveWidgetConfig(config);
+            renderWidgets();
         }
 
         function getAvailableWidgets() {
@@ -230,15 +299,14 @@
             editMode = !editMode;
             const btn = document.getElementById('editLayoutBtn');
             if (editMode) {
-                btn.innerHTML = '<i data-lucide="check" width="18" height="18"></i> Done';
+                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg> Done';
                 btn.classList.remove('btn-secondary');
                 btn.classList.add('btn-primary');
             } else {
-                btn.innerHTML = '<i data-lucide="settings-2" width="18" height="18"></i> Edit Layout';
+                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Edit Layout';
                 btn.classList.remove('btn-primary');
                 btn.classList.add('btn-secondary');
             }
-            lucide.createIcons();
             renderWidgets();
         }
 
@@ -278,10 +346,60 @@
         // WIDGET RENDERING
         // ============================================
 
+        // Bento span assignments per role (fallback = span-12)
+        const WIDGET_SPANS = {
+            technician:  { 'daily-job-list':8, 'week-stats':4, 'today-jobs':4, 'open-boxes':4, 'active-shift':4, 'quick-nav':12 },
+            manager:     { 'daily-job-list':8, 'today-jobs':4, 'depot-week':8, 'depot-summary':4, 'open-boxes':4, 'team-activity':4, 'active-shift':4, 'week-stats':8, 'quick-nav':4 },
+            super_admin: { 'all-depots':8, 'system-stats':4, 'depot-week':8, 'team-activity':4, 'today-jobs':4, 'active-shift':4, 'week-stats':4, 'daily-job-list':8, 'quick-nav':4 }
+        };
+
+        const STAGGER = ['d1','d2','d3','d4','d5','d6','d7','d8'];
+
         async function renderWidgets() {
-            const container = document.getElementById('widgetContainer');
+            const container = document.getElementById('bento');
             const widgets = getOrderedWidgets();
             const config = getWidgetConfig();
+            const role = currentUser.role;
+            // Copy so we don't mutate the const — then widen the pair that would
+            // share a row with active-shift (which is absent when shifts are off).
+            let spanMap = { ...(WIDGET_SPANS[role] || {}) };
+            if (!currentUser.shifts_enabled) {
+                if (role === 'technician') {
+                    spanMap['open-boxes'] = 6;
+                    spanMap['week-stats'] = 6;
+                } else if (role === 'manager') {
+                    spanMap['depot-week'] = 12;
+                } else if (role === 'super_admin') {
+                    spanMap['today-jobs'] = 6;
+                    spanMap['week-stats'] = 6;
+                }
+            }
+            const halfList = config.half || [];
+
+            // Simulate flex row packing for visible widgets; expand partial rows to fill
+            const visibleWidgets = widgets.filter(w => !config.hidden.includes(w.id));
+            const baseSpans = visibleWidgets.map(w => halfList.includes(w.id) ? 6 : (spanMap[w.id] || 12));
+            const resolvedSpans = [...baseSpans];
+            if (!editMode) {
+                let i = 0;
+                while (i < visibleWidgets.length) {
+                    let rowTotal = 0, rowIndices = [];
+                    while (i < visibleWidgets.length && rowTotal + baseSpans[i] <= 12) {
+                        rowTotal += baseSpans[i];
+                        rowIndices.push(i);
+                        i++;
+                    }
+                    if (rowTotal < 12 && rowIndices.length > 0) {
+                        const each = Math.floor(12 / rowIndices.length);
+                        const remainder = 12 - each * rowIndices.length;
+                        rowIndices.forEach((idx, j) => {
+                            resolvedSpans[idx] = each + (j === rowIndices.length - 1 ? remainder : 0);
+                        });
+                    }
+                }
+            }
+            const spanById = {};
+            visibleWidgets.forEach((w, vi) => { spanById[w.id] = resolvedSpans[vi]; });
 
             container.innerHTML = '';
 
@@ -289,47 +407,53 @@
                 const isHidden = config.hidden.includes(widget.id);
                 if (isHidden && !editMode) continue;
                 const idx = widgets.indexOf(widget);
+                const isHalf = halfList.includes(widget.id);
+                const baseSpan = isHalf ? 6 : (spanMap[widget.id] || 12);
+                const span = isHidden ? baseSpan : (spanById[widget.id] ?? baseSpan);
+                const stagger = STAGGER[Math.min(idx, STAGGER.length - 1)];
 
                 const card = document.createElement('div');
-                card.className = 'widget-card card' + (isHidden ? ' widget-hidden' : '');
+                card.className = `widget-card-new span-${span} fade-in ${stagger}${isHidden ? ' is-hidden' : ''}`;
                 card.dataset.widgetId = widget.id;
 
-                // Widget header
-                let headerHTML = `
-                    <div class="widget-header">
-                        <div class="widget-title">
-                            <i data-lucide="${widget.icon}" width="20" height="20"></i>
-                            <span>${escapeHTML(widget.title)}</span>
-                        </div>
-                `;
-
+                // Card header
+                let editControls = '';
                 if (editMode) {
-                    headerHTML += `
-                        <div class="widget-controls">
-                            <button class="widget-ctrl-btn" onclick="moveWidget('${widget.id}', -1)" title="Move up" ${idx === 0 ? 'disabled' : ''}>
-                                <i data-lucide="chevron-up" width="16" height="16"></i>
+                    editControls = `
+                        <div class="card-actions">
+                            <button class="icon-btn" onclick="moveWidget('${widget.id}', -1)" title="Move up" ${idx === 0 ? 'disabled' : ''}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 15l-6-6-6 6"/></svg>
                             </button>
-                            <button class="widget-ctrl-btn" onclick="moveWidget('${widget.id}', 1)" title="Move down" ${idx === widgets.length - 1 ? 'disabled' : ''}>
-                                <i data-lucide="chevron-down" width="16" height="16"></i>
+                            <button class="icon-btn" onclick="moveWidget('${widget.id}', 1)" title="Move down" ${idx === widgets.length - 1 ? 'disabled' : ''}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
                             </button>
-                            <button class="widget-ctrl-btn ${isHidden ? '' : 'active'}" onclick="toggleWidget('${widget.id}')" title="${isHidden ? 'Show' : 'Hide'}">
-                                <i data-lucide="${isHidden ? 'eye-off' : 'eye'}" width="16" height="16"></i>
+                            <button class="icon-btn ${isHalf ? 'primary' : ''}" onclick="toggleWidgetHalf('${widget.id}')" title="${isHalf ? 'Full width' : 'Half width'}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="18" rx="1"/><rect x="13" y="3" width="8" height="18" rx="1"/></svg>
+                            </button>
+                            <button class="icon-btn ${isHidden ? '' : 'primary'}" onclick="toggleWidget('${widget.id}')" title="${isHidden ? 'Show' : 'Hide'}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${isHidden ? '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/>' : '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>'}</svg>
                             </button>
                         </div>
                     `;
                 }
 
-                headerHTML += '</div>';
-                card.innerHTML = headerHTML;
+                card.innerHTML = `
+                    <div class="card-head">
+                        <span class="card-title">
+                            <span class="ico"><i data-lucide="${widget.icon}" width="16" height="16"></i></span>
+                            ${escapeHTML(widget.title)}
+                        </span>
+                        ${editControls}
+                    </div>
+                `;
 
-                // Widget body (skip if hidden)
+                // Widget body (skip if hidden in edit mode)
                 if (!isHidden) {
                     const body = document.createElement('div');
                     body.className = 'widget-body';
                     body.innerHTML = '<div class="widget-loading"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div></div>';
                     card.appendChild(body);
 
-                    // Render async content
                     widget.render(body, currentUser).catch(err => {
                         console.error(`Widget ${widget.id} error:`, err);
                         body.innerHTML = '<div class="widget-error">Failed to load</div>';
@@ -727,7 +851,10 @@
             if (!card) return;
             const body = card.querySelector('.widget-body');
             if (!body) return;
-            renderActiveShift(body, currentUser).catch(() => {
+            renderActiveShift(body, currentUser).then(() => {
+                updateShiftBanner();
+                renderActionChips(currentUser);
+            }).catch(() => {
                 body.innerHTML = '<div class="widget-error">Failed to load</div>';
             });
         }
@@ -755,6 +882,8 @@
                     homeStaleShift = null;
                 }
             }
+            updateShiftBanner();
+            renderActionChips(currentUser);
         }
 
         async function getHomeLastShiftEndKms() {
@@ -1197,17 +1326,17 @@
             const todayIdx = today.getDay() === 0 ? 6 : today.getDay() - 1;
 
             container.innerHTML = `
-                <div class="widget-bar-chart">
+                <div class="bars">
                     ${dayNames.map((name, i) => {
                         const pct = Math.round((dayCounts[i] / max) * 100);
                         const isToday = i === todayIdx;
                         return `
-                            <div class="widget-bar-col ${isToday ? 'today' : ''}">
-                                <div class="widget-bar-value">${dayCounts[i]}</div>
-                                <div class="widget-bar-track">
-                                    <div class="widget-bar-fill" style="height: ${Math.max(pct, 4)}%;"></div>
+                            <div class="bar-col ${isToday ? 'today' : ''}">
+                                <div class="bar-val">${dayCounts[i]}</div>
+                                <div class="bar-track">
+                                    <div class="bar-fill" style="height:${Math.max(pct, 4)}%"></div>
                                 </div>
-                                <div class="widget-bar-label">${name}</div>
+                                <div class="bar-lbl">${name}</div>
                             </div>
                         `;
                     }).join('')}
@@ -1618,20 +1747,276 @@
         }
 
         // ============================================
+        // HERO & TOPBAR HELPERS
+        // ============================================
+
+        function toggleHero() {
+            const hero = document.getElementById('hero');
+            const btn = document.getElementById('heroCollapseBtn');
+            const collapsed = hero.classList.toggle('hero-collapsed');
+            localStorage.setItem('home_hero_collapsed', collapsed ? '1' : '0');
+            // Rotate chevron: up when expanded, down when collapsed
+            btn.querySelector('svg path').setAttribute('d', collapsed ? 'M6 9l6 6 6-6' : 'M18 15l-6-6-6 6');
+        }
+
+        function initHeroCollapse() {
+            if (localStorage.getItem('home_hero_collapsed') === '1') {
+                const hero = document.getElementById('hero');
+                const btn = document.getElementById('heroCollapseBtn');
+                hero.classList.add('hero-collapsed');
+                btn.querySelector('svg path').setAttribute('d', 'M6 9l6 6 6-6');
+            }
+        }
+
+        function handleTopbarSearch(e) {
+            e.preventDefault();
+            const q = document.getElementById('topbarSearchInput').value.trim();
+            if (!q) return;
+            location.href = 'inventory.html?search=' + encodeURIComponent(q);
+        }
+
+        function setAvatarInitials(user) {
+            const el = document.getElementById('userAvatar');
+            if (!el) return;
+            const name = user.user_metadata?.full_name || user.email || '';
+            const parts = name.split(/[\s@]+/).filter(Boolean);
+            if (parts.length >= 2) {
+                el.textContent = (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+            } else if (parts.length === 1) {
+                el.textContent = parts[0].slice(0, 2).toUpperCase();
+            }
+        }
+
+        function applyGreeting(user) {
+            const h = new Date().getHours();
+            let greeting = 'Good evening';
+            if (h < 5) greeting = 'Working late';
+            else if (h < 12) greeting = 'Good morning';
+            else if (h < 17) greeting = 'Good afternoon';
+            const name = (user.user_metadata?.full_name || user.email || '').split(/[\s@]+/)[0];
+            const displayName = name ? `, ${name.charAt(0).toUpperCase() + name.slice(1)}` : '';
+            document.getElementById('greeting').innerHTML = `${escapeHTML(greeting)}${escapeHTML(displayName)} <span class="wave">👋</span>`;
+
+            const subs = {
+                technician: 'Check your daily jobs and open boxes below.',
+                manager: 'Your depot summary and team activity are below.',
+                super_admin: 'System-wide overview — all depots at a glance.'
+            };
+            document.getElementById('heroSub').textContent = subs[user.role] || '';
+
+            const d = new Date();
+            document.getElementById('heroDate').textContent = d.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        }
+
+        function countUp(el, target, duration) {
+            duration = duration || 900;
+            const start = performance.now();
+            const from = 0;
+            function tick(now) {
+                const elapsed = now - start;
+                const progress = Math.min(elapsed / duration, 1);
+                const ease = 1 - Math.pow(1 - progress, 3);
+                el.textContent = Math.round(from + (target - from) * ease);
+                if (progress < 1) requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+        }
+
+        function sparklineSVG(points) {
+            const w = 60, h = 24;
+            const min = Math.min(...points), max = Math.max(...points);
+            const range = max - min || 1;
+            const step = w / (points.length - 1);
+            const coords = points.map((p, i) => {
+                const x = i * step;
+                const y = h - ((p - min) / range) * (h - 4) - 2;
+                return `${x.toFixed(1)},${y.toFixed(1)}`;
+            });
+            const path = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c).join(' ');
+            const gid = 'sg' + Math.random().toString(36).slice(2, 7);
+            return `<svg class="kpi-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+                <defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stop-color="var(--accent-tertiary)" stop-opacity=".4"/>
+                    <stop offset="100%" stop-color="var(--accent-tertiary)" stop-opacity="0"/>
+                </linearGradient></defs>
+                <path d="${path} L${w},${h} L0,${h} Z" fill="url(#${gid})"/>
+                <path d="${path}" fill="none" stroke="var(--accent-tertiary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>`;
+        }
+
+        async function renderHeroKpis(user) {
+            const container = document.getElementById('heroKpis');
+            if (!container) return;
+
+            let kpis = [];
+            try {
+                const today = getTodayMidnight().toISOString();
+                const monday = getMondayOfWeek().toISOString();
+
+                if (user.role === 'technician') {
+                    const [todayJobs, openBoxes, weekJobs] = await Promise.all([
+                        db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', today),
+                        db.from('boxes').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).eq('agent', user.agent_id).eq('status', 'open'),
+                        db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', monday)
+                    ]);
+                    const shiftHours = homeActiveShift
+                        ? Math.round((Date.now() - new Date(homeActiveShift.start_time).getTime()) / 3600000 * 10) / 10
+                        : 0;
+                    kpis = [
+                        { label: 'Jobs Today', value: todayJobs.count || 0, trend: 'Today', spark: [1,2,1,3,2,2,todayJobs.count||0] },
+                        { label: 'Open Boxes', value: openBoxes.count || 0, trend: 'Active', spark: [2,2,3,2,1,2,openBoxes.count||0] },
+                        { label: 'This Week', value: weekJobs.count || 0, trend: 'Jobs', spark: [3,5,4,6,5,7,weekJobs.count||0] },
+                        { label: 'Hours On', value: shiftHours, trend: homeActiveShift ? 'Shift active' : 'No shift', spark: [0,1,2,3,3,4,shiftHours] }
+                    ];
+                } else if (hasRole(user.role, ['manager'])) {
+                    const [depotJobs, activeShifts, openBoxes, weekJobs] = await Promise.all([
+                        db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', today),
+                        db.from('shifts').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).eq('status', 'active'),
+                        db.from('boxes').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).eq('status', 'open'),
+                        db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', monday)
+                    ]);
+                    kpis = [
+                        { label: 'Depot Jobs Today', value: depotJobs.count || 0, trend: 'Today', spark: [10,14,12,18,20,16,depotJobs.count||0] },
+                        { label: 'On Shift Now', value: activeShifts.count || 0, trend: 'Active techs', spark: [2,3,2,4,3,3,activeShifts.count||0] },
+                        { label: 'Open Boxes', value: openBoxes.count || 0, trend: 'Across depot', spark: [8,7,9,8,7,6,openBoxes.count||0] },
+                        { label: 'Week Total', value: weekJobs.count || 0, trend: 'Jobs', spark: [30,45,40,55,50,60,weekJobs.count||0] }
+                    ];
+                } else {
+                    const [sysJobs, depots, openBoxes, activeUsers] = await Promise.all([
+                        db.from('jobs').select('id', { count: 'exact', head: true }).gte('created_at', today),
+                        db.from('depots').select('depot_id', { count: 'exact', head: true }),
+                        db.from('boxes').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+                        db.from('user_roles').select('user_id', { count: 'exact', head: true })
+                    ]);
+                    kpis = [
+                        { label: 'System Jobs Today', value: sysJobs.count || 0, trend: 'All depots', spark: [100,120,110,150,140,160,sysJobs.count||0] },
+                        { label: 'Depots', value: depots.count || 0, trend: 'Online', spark: [depots.count||0,depots.count||0,depots.count||0,depots.count||0,depots.count||0,depots.count||0,depots.count||0] },
+                        { label: 'Open Boxes', value: openBoxes.count || 0, trend: 'System-wide', spark: [60,55,58,52,50,48,openBoxes.count||0] },
+                        { label: 'Total Users', value: activeUsers.count || 0, trend: 'Registered', spark: [activeUsers.count||0,activeUsers.count||0,activeUsers.count||0,activeUsers.count||0,activeUsers.count||0,activeUsers.count||0,activeUsers.count||0] }
+                    ];
+                }
+            } catch (e) {
+                console.error('Hero KPI error:', e);
+                return;
+            }
+
+            container.innerHTML = kpis.map(k => `
+                <div class="kpi">
+                    <div class="kpi-accent"></div>
+                    <div class="kpi-label">${escapeHTML(k.label)}</div>
+                    <div class="kpi-value" data-count="${k.value}">0</div>
+                    <div class="kpi-trend">${escapeHTML(String(k.trend))}</div>
+                    ${sparklineSVG(k.spark)}
+                </div>
+            `).join('');
+
+            container.querySelectorAll('.kpi-value[data-count]').forEach(el => {
+                countUp(el, parseFloat(el.dataset.count));
+            });
+        }
+
+        function updateShiftBanner() {
+            const banner = document.getElementById('shiftBanner');
+            if (!banner) return;
+
+            if (!homeActiveShift) {
+                banner.style.display = 'none';
+                if (bannerTimer) { clearInterval(bannerTimer); bannerTimer = null; }
+                return;
+            }
+
+            banner.style.display = 'flex';
+            const startTime = new Date(homeActiveShift.start_time);
+            document.getElementById('bannerStarted').textContent =
+                startTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+            document.getElementById('bannerKms').textContent =
+                homeActiveShift.start_kms.toLocaleString() + ' km';
+
+            function tickBanner() {
+                const el = document.getElementById('bannerElapsed');
+                if (el) el.textContent = formatElapsed(Date.now() - startTime.getTime());
+            }
+            tickBanner();
+            if (bannerTimer) clearInterval(bannerTimer);
+            bannerTimer = setInterval(tickBanner, 60000);
+        }
+
+        function renderActionChips(user) {
+            const container = document.getElementById('actionChips');
+            if (!container) return;
+
+            const hasShift = !!homeActiveShift;
+            const isManager = hasRole(user.role, ['manager', 'super_admin']);
+
+            let chips = `
+                <a class="action-chip primary" href="stock-entry.html">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                    New Stock Entry
+                </a>
+                <button class="action-chip" onclick="openDailyJobModal(null)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 11l3 3L22 4"/></svg>
+                    Add Daily Job
+                </button>
+            `;
+
+            if (user.shifts_enabled) {
+                if (hasShift) {
+                    chips += `
+                        <button class="action-chip" onclick="openHomeEndShiftModal()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="14" x="3" y="5" rx="2"/><path d="M3 10h18"/></svg>
+                            End Shift
+                        </button>
+                    `;
+                } else {
+                    chips += `
+                        <button class="action-chip" onclick="openHomeStartShiftModal()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                            Start Shift
+                        </button>
+                    `;
+                }
+            }
+
+            chips += `
+                <a class="action-chip" href="inventory.html">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                    Search Inventory
+                </a>
+            `;
+
+            if (isManager) {
+                chips += `
+                    <a class="action-chip" href="shifts.html">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        Shift Reports
+                    </a>
+                `;
+            }
+
+            container.innerHTML = chips;
+        }
+
+        // ============================================
         // INITIALIZATION
         // ============================================
 
         document.addEventListener('DOMContentLoaded', async () => {
+            initHeroCollapse();
+
             currentUser = await initAuth(['super_admin', 'manager', 'technician']);
             if (!currentUser) return;
-
-            document.getElementById('welcomeMsg').textContent = `Welcome back, ${currentUser.email}`;
 
             initSidebar(currentUser);
             restrictByRole(currentUser.role);
 
+            // Topbar & hero
+            setAvatarInitials(currentUser);
+            applyGreeting(currentUser);
+
             if (currentUser.shifts_enabled) {
                 await checkHomeShiftStatus();
+            } else {
+                renderActionChips(currentUser);
             }
 
             document.getElementById('homeStartShiftForm').addEventListener('submit', handleHomeStartShift);
@@ -1641,6 +2026,9 @@
 
             await loadWidgetConfig();
             await renderWidgets();
+
+            // Hero KPIs load after widgets (non-blocking)
+            renderHeroKpis(currentUser).catch(e => console.error('Hero KPIs failed:', e));
 
             showLoading(false);
         });
