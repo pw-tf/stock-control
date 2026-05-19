@@ -3689,6 +3689,167 @@ body:has(.topbar) .hamburger-btn { display: none !important; }
 }
 .cmdbar-btn.primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px var(--accent-glow-strong); }
 
+/* DEPOT CARD GRID (manage-depots Depots pane) */
+.depot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--gap);
+}
+.depot-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius);
+  padding: 18px;
+  display: flex; flex-direction: column;
+  gap: 14px;
+  transition: all .2s;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+.depot-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px; height: 100%;
+  background: linear-gradient(180deg, var(--accent-secondary), var(--accent-tertiary));
+  opacity: 0.6;
+  transition: opacity .2s;
+}
+.depot-card:hover { transform: translateY(-2px); border-color: var(--border-secondary); box-shadow: 0 8px 24px -8px rgba(0,0,0,.4); }
+.depot-card:hover::before { opacity: 1; }
+.depot-card.empty { opacity: 0.55; }
+.depot-card.empty::before { opacity: 0.2; }
+.depot-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.depot-card-title { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
+.depot-card-id {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.depot-card-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.depot-card-stat { background: var(--bg-tertiary); border-radius: 4px; padding: 10px 12px; }
+.depot-card-stat .v { font-family: var(--font-mono); font-size: 1.05rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; line-height: 1; display: block; }
+.depot-card-stat .l { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; margin-top: 6px; display: block; }
+.depot-card-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid var(--border-primary); font-size: 0.72rem; color: var(--text-muted); }
+.depot-card-foot .actions { display: flex; gap: 4px; }
+.depot-card-foot button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.depot-card-foot button:hover { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-primary); }
+.depot-card-foot button.danger:hover { background: var(--error); color: white; border-color: var(--error); }
+
+/* DEPOT CONTEXT BAR (manage-depots Users/Agents panes) */
+.depot-context {
+  background: linear-gradient(90deg, var(--accent-glow) 0%, transparent 80%);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+  flex-wrap: wrap;
+}
+.depot-context-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.depot-context-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  padding: 8px 14px;
+  border-radius: 5px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+}
+.depot-context-pill:hover { border-color: var(--accent-tertiary); }
+.depot-context-pill .id { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
+.depot-context-pill .chev { color: var(--text-muted); }
+.depot-context-mini { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--text-secondary); }
+.depot-context-mini .v { font-family: var(--font-mono); font-weight: 700; color: var(--text-primary); }
+
+@media (max-width: 720px) {
+  .depot-grid { grid-template-columns: 1fr; }
+  .depot-context { flex-direction: column; align-items: stretch; padding: 10px 14px; box-sizing: border-box; max-width: 100%; }
+  .depot-context-left { width: 100%; min-width: 0; }
+  .depot-context-pill { max-width: 100%; min-width: 0; }
+  .depot-context-pill > span:not(.chev) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .depot-context > .btn { width: 100%; justify-content: center; }
+}
+
+/* Pending invitation row tint */
+.pending-row { background: var(--warning-bg); }
+.pending-row td { color: var(--warning); }
+
+/* MY-DEPOT page-specific (moved out of my-depot.html inline <style>) */
+.pane { display: none; }
+.pane.active { display: block; }
+
+.entity-chip {
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--accent-tertiary);
+  flex-shrink: 0;
+}
+.entity-chip.muted { color: var(--text-secondary); }
+
+.receipt-toggles { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.rcpt {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.7rem;
+  padding: 4px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.rcpt.on { background: var(--success-bg); color: var(--success); border-color: rgba(16,185,129,.25); }
+.rcpt .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+.vendor-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.v-chip {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.v-chip-add {
+  background: transparent;
+  border: 1px dashed var(--border-secondary);
+  color: var(--text-muted);
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color .15s, border-color .15s;
+}
+.v-chip-add:hover { color: var(--accent-tertiary); border-color: var(--accent-tertiary); border-style: solid; }
+
 /* DATA TABLE */
 .dt-wrap {
   border: 1px solid var(--border-primary);
@@ -3841,8 +4002,38 @@ body:has(.topbar) .hamburger-btn { display: none !important; }
   .stat-strip > * { border-right: 1px solid var(--border-primary); border-bottom: 1px solid var(--border-primary); }
   .stat-strip > *:nth-child(2n) { border-right: none; }
   .stat-strip > *:nth-last-child(-n+2) { border-bottom: none; }
-  .tabs-row { overflow-x: auto; flex-wrap: nowrap; }
+  /* inventory uses `<div class="tabs-row"><div class="tabs">…</div></div>` — keep
+     that inner row scrolling horizontally. my-depot puts buttons directly in
+     `.tabs-row`, which should wrap so Vendors + Add stays visible. */
+  .tabs-row:has(> .tabs) { overflow-x: auto; flex-wrap: nowrap; }
+  .tabs-row > .tabs { flex-direction: row; flex-wrap: nowrap; }
   .topbar-search { display: none; }
+
+  /* ---- Mobile data-table → card layout (EXACTLY matches shared-tokens.css
+         + my-depot-layout.html reference). No extras. */
+  .app { padding: 12px; }
+  .dt thead { display: none; }
+  .dt tbody td {
+    padding: 10px 12px;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: none;
+  }
+  .dt tbody td::before {
+    content: attr(data-label);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 600;
+    align-self: center;
+  }
+  .dt tbody td:not([data-label])::before { content: none; }
+  .dt tbody td:first-child { border-top: 1px solid var(--border-primary); padding-top: 14px; }
+  .dt .actions-cell .row-actions { opacity: 1; }
+  .tabs-row { overflow-x: auto; flex-wrap: nowrap; }
+  .tabs-row .tab { white-space: nowrap; }
+  .tabs-row .btn.primary { margin-left: auto !important; flex-shrink: 0; }
 }
 
 /* ============================================================
@@ -5310,7 +5501,7 @@ table.tbl td.num { font-family: var(--font-mono); font-variant-numeric: tabular-
 /* Inventory responsive */
 @media (max-width: 720px) {
   .inv-advanced-row { flex-direction: column; }
-  .cmdbar-kbd, .cmdbar-divider, .cmdbar-btn:not(.primary) { display: none; }
+  .cmdbar .cmdbar-kbd, .cmdbar .cmdbar-divider, .cmdbar .cmdbar-btn:not(.primary) { display: none; }
   .tabs-actions { display: none; }
   .row-date { display: none; }
   .row-actions { opacity: 1; }

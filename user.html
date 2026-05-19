@@ -3,200 +3,691 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User - Stock Submission</title>
+    <title>Profile - Stock Submission</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-    <script>(function(){var t=localStorage.getItem("theme")||"ocean";var m=localStorage.getItem("mode")||"dark";document.documentElement.setAttribute("data-theme",t);document.documentElement.setAttribute("data-mode",m);})();</script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+    <script>(function(){var t=localStorage.getItem("theme")||"ocean";var m=localStorage.getItem("mode")||"dark";var d=localStorage.getItem("density")||"comfortable";document.documentElement.setAttribute("data-theme",t);document.documentElement.setAttribute("data-mode",m);document.documentElement.setAttribute("data-density",d);})();</script>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Icons -->
     <script src="https://unpkg.com/lucide@0.460.0"></script>
     <script src="icons.js"></script>
     <script src="auth.js"></script>
     <script src="sidebar.js"></script>
     <script src="utils.js"></script>
+<style>
+.profile-hero {
+  background:
+    radial-gradient(ellipse at top right, var(--accent-glow) 0%, transparent 60%),
+    var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius);
+  padding: 26px 28px;
+  margin-bottom: var(--gap);
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  position: relative;
+  overflow: hidden;
+}
+.profile-hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px; height: 100%;
+  background: linear-gradient(180deg, var(--accent-secondary), var(--accent-tertiary));
+}
+.avatar-big {
+  width: 84px; height: 84px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent-secondary), var(--accent-tertiary));
+  display: inline-flex; align-items: center; justify-content: center;
+  color: white;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  box-shadow: 0 4px 16px var(--accent-glow-strong);
+  flex-shrink: 0;
+  position: relative;
+  font-family: var(--font-sans);
+}
+.profile-info { flex: 1; min-width: 240px; }
+.profile-name {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+.profile-email {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  margin-top: 4px;
+  word-break: break-all;
+}
+.profile-badges {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.role-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--accent-glow);
+  color: var(--accent-tertiary);
+  border: 1px solid var(--border-secondary);
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.role-badge.muted {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-color: var(--border-primary);
+}
+.role-badge.success {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: rgba(16,185,129,.30);
+}
+.profile-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.btn-new {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  border-radius: 5px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all .15s;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.btn-new:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-secondary); }
+.btn-new.primary {
+  background: linear-gradient(135deg, var(--accent-secondary), var(--accent-tertiary));
+  color: white;
+  border-color: transparent;
+  font-weight: 600;
+}
+.btn-new.primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px var(--accent-glow-strong); color: white; }
+.btn-new.danger { color: var(--error); border-color: rgba(239,68,68,.3); background: var(--error-bg); }
+.btn-new.danger:hover { background: var(--error); color: white; border-color: var(--error); }
+.btn-new.sm { padding: 7px 12px; font-size: 0.78rem; }
+.btn-new:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.preset-row { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+.preset {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  transition: all .15s;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.preset:hover { background: var(--bg-hover); color: var(--text-primary); }
+.preset.active {
+  background: var(--accent-glow);
+  border-color: var(--accent-tertiary);
+  color: var(--accent-tertiary);
+  font-weight: 600;
+}
+
+.filter-row-new {
+  display: flex; align-items: flex-end; gap: 12px;
+  flex-wrap: wrap;
+}
+.filter-row-new .filter-item { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 180px; }
+.filter-row-new .filter-item label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.filter-row-new .input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  transition: all .15s;
+}
+.filter-row-new .input:focus {
+  outline: none;
+  border-color: var(--accent-tertiary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.stat {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.stat::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px; height: 100%;
+  background: var(--accent-tertiary);
+}
+.stat .v {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.stat .l {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-top: 10px;
+  font-weight: 600;
+}
+.stat .delta {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+.shifts-list-new { display: flex; flex-direction: column; gap: 8px; }
+.shift-card-new {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: all .15s;
+  position: relative;
+}
+.shift-card-new:hover { border-color: var(--accent-tertiary); background: var(--bg-tertiary); }
+.shift-card-new.weekend { border-left: 3px solid var(--warning); padding-left: 15px; }
+.shift-date-col {
+  display: flex; flex-direction: column;
+  text-align: center;
+}
+.shift-date-col .dow {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.shift-date-col .day {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.shift-date-col .mon {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.shift-mid { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.shift-stats-new { display: flex; gap: 18px; flex-wrap: wrap; }
+.shift-stat-new { display: flex; flex-direction: column; gap: 1px; }
+.shift-stat-new .v {
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.shift-stat-new .l {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.shift-timebar {
+  position: relative;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  margin-top: 10px;
+}
+.shift-timebar .seg {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: linear-gradient(90deg, var(--accent-secondary), var(--accent-tertiary));
+  border-radius: 3px;
+}
+.shift-timebar .label-left, .shift-timebar .label-right {
+  position: absolute;
+  top: -16px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.shift-timebar .label-left { left: 0; }
+.shift-timebar .label-right { right: 0; }
+.shift-right { display: flex; align-items: center; gap: 8px; }
+.shift-mult {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+.shift-mult.weekend { background: var(--warning-bg); color: var(--warning); }
+.shift-arrow { color: var(--text-muted); transition: all .15s; }
+.shift-card-new:hover .shift-arrow { color: var(--accent-tertiary); transform: translateX(2px); }
+
+.kv-list { display: flex; flex-direction: column; }
+.kv-row {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-primary);
+  font-size: 0.88rem;
+  gap: 16px;
+}
+.kv-row:last-child { border-bottom: none; }
+.kv-row .k { color: var(--text-secondary); font-weight: 500; }
+.kv-row .v {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  font-weight: 500;
+  word-break: break-all;
+}
+.kv-row .v .badge-new {
+  font-family: var(--font-sans);
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--accent-glow);
+  color: var(--accent-tertiary);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.kv-row .v .badge-new.muted { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-primary); }
+.kv-row .v .badge-new.success { background: var(--success-bg); color: var(--success); }
+.kv-row .v .badge-new.muted-soft { background: var(--bg-tertiary); color: var(--text-muted); }
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.swatch-new {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-tertiary);
+  border: 2px solid transparent;
+  border-radius: 5px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all .15s;
+  text-align: left;
+  font-family: var(--font-sans);
+}
+.swatch-new:hover { background: var(--bg-hover); }
+.swatch-new.active {
+  border-color: var(--accent-tertiary);
+  background: var(--accent-glow);
+}
+.swatch-palette {
+  display: flex;
+  flex-direction: column;
+  width: 28px; height: 28px;
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  flex-shrink: 0;
+}
+.swatch-palette i { display: block; flex: 1; }
+.swatch-meta { flex: 1; min-width: 0; }
+.swatch-name {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.swatch-mode {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.modepicker {
+  display: inline-flex;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  padding: 4px;
+  gap: 2px;
+}
+.modepicker button {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 7px 16px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  border-radius: 3px;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all .15s;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.modepicker button:hover { color: var(--text-primary); }
+.modepicker button.active {
+  background: var(--accent-glow);
+  color: var(--accent-tertiary);
+  font-weight: 600;
+}
+
+.field-new { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.field-new label {
+  font-size: 0.78rem; font-weight: 600;
+  color: var(--text-secondary);
+}
+.field-new .input-pw {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  transition: all .15s;
+  font-family: var(--font-sans);
+}
+.field-new .input-pw:focus {
+  outline: none;
+  border-color: var(--accent-tertiary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  background: var(--bg-secondary);
+}
+.strength-meter { display: flex; gap: 3px; margin-top: 6px; }
+.strength-meter span {
+  height: 3px;
+  flex: 1;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+}
+.strength-meter[data-level="1"] span:nth-child(-n+1) { background: var(--error); }
+.strength-meter[data-level="2"] span:nth-child(-n+2) { background: var(--warning); }
+.strength-meter[data-level="3"] span:nth-child(-n+3) { background: var(--info, var(--accent-tertiary)); }
+.strength-meter[data-level="4"] span:nth-child(-n+4) { background: var(--success); }
+.strength-label { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+
+@media (max-width: 720px) {
+  .profile-hero { padding: 18px; gap: 14px; }
+  .avatar-big { width: 64px; height: 64px; font-size: 1.5rem; }
+  .profile-name { font-size: 1.25rem; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .shift-card-new { grid-template-columns: 60px 1fr; }
+  .shift-right { display: none; }
+  .shift-date-col .day { font-size: 1.3rem; }
+  .kv-row { grid-template-columns: 1fr; gap: 4px; }
+  .swatches { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
 </head>
 <body>
-    <!-- Loading Overlay -->
     <div class="loading-overlay" id="loading">
         <div class="spinner"></div>
     </div>
-    
-    <!-- Main Container -->
-    <div class="app-wrapper">
-        <div class="container container-wide">
-            <div class="header">
-                <div class="header-content">
-                    <div class="header-icon"><i data-lucide="user" width="32" height="32"></i></div>
-                    <div>
-                        <h1>User</h1>
-                        <div class="header-subtitle">Shift Reports & Settings</div>
+
+    <div class="app">
+
+        <!-- Top Bar -->
+        <div class="topbar fade-in">
+            <button class="topbar-burger" onclick="toggleSidebar()" aria-label="Menu">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+            </button>
+            <div class="topbar-logo">
+                <span class="topbar-logo-mark">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg>
+                </span>
+                <span>Stock Control</span>
+            </div>
+            <div class="topbar-spacer"></div>
+            <button class="topbar-icon-btn" aria-label="Notifications">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            </button>
+            <div class="topbar-avatar" id="topbarAvatar">?</div>
+        </div>
+
+        <div id="alertContainer"></div>
+
+        <!-- Profile Hero -->
+        <div class="profile-hero fade-in d1">
+            <div class="avatar-big" id="heroAvatar">?</div>
+            <div class="profile-info">
+                <div class="profile-name" id="heroName">Loading…</div>
+                <div class="profile-email" id="heroEmail"></div>
+                <div class="profile-badges" id="heroBadges"></div>
+            </div>
+            <div class="profile-actions">
+                <button class="btn-new danger" onclick="logout()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+                    Sign out
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs-row fade-in d2">
+            <button class="tab active" data-tab="shifts">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Shift Reports <span class="count" id="shiftCount" style="display:none"></span>
+            </button>
+            <button class="tab" data-tab="settings">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Settings
+            </button>
+        </div>
+
+        <!-- SHIFTS TAB -->
+        <div class="tab-content active" id="shifts-tab">
+
+            <div class="section fade-in d3">
+                <div class="section-head">
+                    <div class="section-title">
+                        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+                        Date range
+                    </div>
+                    <div style="display:flex;gap:8px">
+                        <button class="btn-new sm" id="downloadShiftsBtn" onclick="downloadShiftsCSV()" disabled>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                            Download CSV
+                        </button>
+                        <button class="btn-new sm primary" id="loadShiftsBtn">Load shifts</button>
+                    </div>
+                </div>
+                <div class="preset-row" id="presetRow">
+                    <button class="preset" data-preset="week">This week</button>
+                    <button class="preset" data-preset="30">Last 30 days</button>
+                    <button class="preset" data-preset="90">Last 90 days</button>
+                    <button class="preset" data-preset="year">This year</button>
+                    <button class="preset" data-preset="custom">Custom</button>
+                </div>
+                <div class="filter-row-new">
+                    <div class="filter-item">
+                        <label>From</label>
+                        <input class="input" type="date" id="shiftDateFrom">
+                    </div>
+                    <div class="filter-item">
+                        <label>To</label>
+                        <input class="input" type="date" id="shiftDateTo">
                     </div>
                 </div>
             </div>
-            
-            <div class="content">
-                <div id="alertContainer"></div>
-                
-                <!-- Tabs -->
-                <div class="tabs">
-                    <button class="tab active" data-tab="shifts">Shift Reports</button>
-                    <button class="tab" data-tab="settings">Settings</button>
-                </div>
-                
-                <!-- Shifts Tab -->
-                <div class="tab-content active" id="shifts-tab">
-                    <!-- Date Range Filter -->
-                    <div class="card" style="margin-bottom: 24px;">
-                        <div class="filter-row">
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label class="form-label">From Date</label>
-                                <input type="date" id="shiftDateFrom" class="form-input">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label class="form-label">To Date</label>
-                                <input type="date" id="shiftDateTo" class="form-input">
-                            </div>
-                        </div>
-                        <div class="button-group" style="margin-top: 16px;">
-                            <button class="btn btn-primary" id="loadShiftsBtn">Load Shifts</button>
-                            <button class="btn btn-secondary" id="downloadShiftsBtn" onclick="downloadShiftsCSV()" disabled>Download CSV</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Shift Summary -->
-                    <div class="card" id="shiftSummary" style="display: none; margin-bottom: 24px;">
-                        <h3 style="margin-bottom: 16px;">Summary</h3>
-                        <div class="shift-summary-grid">
-                            <div class="shift-summary-stat">
-                                <div class="shift-summary-value" id="summaryShifts">0</div>
-                                <div class="shift-summary-label">Total Shifts</div>
-                            </div>
-                            <div class="shift-summary-stat">
-                                <div class="shift-summary-value" id="summaryHours">0h</div>
-                                <div class="shift-summary-label">Hours Worked</div>
-                            </div>
-                            <div class="shift-summary-stat">
-                                <div class="shift-summary-value" id="summaryKms">0 km</div>
-                                <div class="shift-summary-label">Distance Travelled</div>
-                            </div>
-                            <div class="shift-summary-stat">
-                                <div class="shift-summary-value" id="summaryJobs">0</div>
-                                <div class="shift-summary-label">Total Jobs</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Shifts List -->
-                    <div class="card">
-                        <div id="shiftsContainer">
-                            <div class="empty-state">
-                                <div class="empty-state-icon"><i data-lucide="clock" width="48" height="48"></i></div>
-                                <p>Select a date range and click "Load Shifts" to view your shift reports</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Settings Tab -->
-                <div class="tab-content" id="settings-tab">
-                    <div class="card">
-                        <h3 style="margin-bottom: 16px; color: var(--text-primary);">Account Information</h3>
-                        <div class="settings-info-row">
-                            <span class="settings-label">Email</span>
-                            <span class="settings-value" id="userEmail">Loading...</span>
-                        </div>
-                        <div class="settings-info-row">
-                            <span class="settings-label">Role</span>
-                            <span class="settings-value" id="userRole">Loading...</span>
-                        </div>
-                        <div class="settings-info-row">
-                            <span class="settings-label">Agent ID</span>
-                            <span class="settings-value" id="userAgent">Loading...</span>
-                        </div>
-                        <div class="settings-info-row">
-                            <span class="settings-label">Shifts Enabled</span>
-                            <span class="settings-value" id="userShiftsEnabled">Loading...</span>
-                        </div>
-                    </div>
-                    
-                    <div class="card" style="margin-top: 24px;">
-                        <h3 style="margin-bottom: 16px; color: var(--text-primary);">Appearance</h3>
-                        <div style="margin-bottom: 20px;">
-                            <label class="form-label" style="margin-bottom: 12px; display: block;">Theme</label>
-                            <div id="themePicker" style="display: flex; gap: 16px; flex-wrap: wrap;">
-                                <button class="theme-swatch" data-theme-value="ocean" onclick="selectTheme('ocean')" title="Ocean">
-                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #2B4F63, #3d6b80);"></span>
-                                    <span class="theme-swatch-label">Ocean</span>
-                                </button>
-                                <button class="theme-swatch" data-theme-value="forest" onclick="selectTheme('forest')" title="Forest">
-                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #2d6b45, #3d8a5e);"></span>
-                                    <span class="theme-swatch-label">Forest</span>
-                                </button>
-                                <button class="theme-swatch" data-theme-value="sunset" onclick="selectTheme('sunset')" title="Sunset">
-                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #8b4528, #d4804e);"></span>
-                                    <span class="theme-swatch-label">Sunset</span>
-                                </button>
-                                <button class="theme-swatch" data-theme-value="slate" onclick="selectTheme('slate')" title="Slate">
-                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #5a6270, #8e9aab);"></span>
-                                    <span class="theme-swatch-label">Slate</span>
-                                </button>
-                                <button class="theme-swatch" data-theme-value="cherry" onclick="selectTheme('cherry')" title="Cherry">
-                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #8b2252, #d44e85);"></span>
-                                    <span class="theme-swatch-label">Cherry</span>
-                                </button>
-                                <button class="theme-swatch" data-theme-value="lavender" onclick="selectTheme('lavender')" title="Lavender">
-                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #6b52a8, #a388e0);"></span>
-                                    <span class="theme-swatch-label">Lavender</span>
-                                </button>
-                                <button class="theme-swatch" data-theme-value="teal" onclick="selectTheme('teal')" title="Teal">
-                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #1a8a8a, #40c8c4);"></span>
-                                    <span class="theme-swatch-label">Teal</span>
-                                </button>
-                                <button class="theme-swatch" data-theme-value="sand" onclick="selectTheme('sand')" title="Sand">
-                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #8a7440, #c8ae68);"></span>
-                                    <span class="theme-swatch-label">Sand</span>
-                                </button>
-                                <button class="theme-swatch" data-theme-value="perrys-beach" onclick="selectTheme('perrys-beach')" title="Perry's Beach">
-                                    <span class="theme-swatch-color" style="background: linear-gradient(135deg, #FF6F69, #FFCC5C);"></span>
-                                    <span class="theme-swatch-label">Perry's Beach</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="form-label" style="margin-bottom: 12px; display: block;">Mode</label>
-                            <div id="modePicker" style="display: flex; gap: 0; border-radius: var(--radius-md); overflow: hidden; width: fit-content; border: 1px solid var(--border-primary);">
-                                <button class="mode-btn" data-mode-value="dark" onclick="selectMode('dark')" style="padding: 8px 20px; border: none; cursor: pointer; font-family: var(--font-sans); font-size: 0.875rem; font-weight: 500; transition: var(--transition-fast); background: var(--bg-tertiary); color: var(--text-secondary);">
-                                    <i data-lucide="moon" width="14" height="14" style="vertical-align: -2px; margin-right: 4px;"></i> Dark
-                                </button>
-                                <button class="mode-btn" data-mode-value="light" onclick="selectMode('light')" style="padding: 8px 20px; border: none; cursor: pointer; font-family: var(--font-sans); font-size: 0.875rem; font-weight: 500; transition: var(--transition-fast); background: var(--bg-tertiary); color: var(--text-secondary);">
-                                    <i data-lucide="sun" width="14" height="14" style="vertical-align: -2px; margin-right: 4px;"></i> Light
-                                </button>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div class="card" style="margin-top: 24px;">
-                        <h3 style="margin-bottom: 16px; color: var(--text-primary);">Change Password</h3>
-                        <form id="changePasswordForm" style="max-width: 400px;">
-                            <div class="form-group">
-                                <label class="form-label" for="newPassword">New Password</label>
-                                <input type="password" id="newPassword" class="form-input" required minlength="6" placeholder="At least 6 characters">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="confirmPassword">Confirm New Password</label>
-                                <input type="password" id="confirmPassword" class="form-input" required minlength="6" placeholder="Confirm your new password">
-                            </div>
-                            <button type="submit" class="btn btn-primary">Update Password</button>
-                        </form>
+            <div class="section fade-in d3" id="shiftSummary" style="display:none">
+                <div class="section-head">
+                    <div class="section-title">
+                        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg></span>
+                        Summary
                     </div>
-
-                    <div class="card" style="margin-top: 24px;">
-                        <h3 style="margin-bottom: 16px; color: var(--text-primary);">Actions</h3>
-                        <button class="btn btn-ghost" onclick="logout()"><i data-lucide="log-out" width="20" height="20"></i> Sign Out</button>
+                    <span class="section-sub" id="summaryRange"></span>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat">
+                        <div class="v" id="summaryShifts">0</div>
+                        <div class="l">Shifts</div>
+                    </div>
+                    <div class="stat">
+                        <div class="v" id="summaryHours">0h</div>
+                        <div class="l">Hours worked</div>
+                    </div>
+                    <div class="stat">
+                        <div class="v" id="summaryKms">0</div>
+                        <div class="l">Kms travelled</div>
+                        <div class="delta" id="summaryKmAvg"></div>
+                    </div>
+                    <div class="stat">
+                        <div class="v" id="summaryJobs">0</div>
+                        <div class="l">Jobs logged</div>
                     </div>
                 </div>
+            </div>
+
+            <div class="section fade-in d4">
+                <div class="section-head">
+                    <div class="section-title">
+                        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                        Shifts <span class="role-badge muted" id="shiftFoundBadge" style="margin-left:8px;display:none"></span>
+                    </div>
+                </div>
+                <div id="shiftsContainer">
+                    <div class="empty-state">
+                        <div class="empty-state-icon"><i data-lucide="clock" width="48" height="48"></i></div>
+                        <p>Select a date range and click "Load shifts" to view your shift reports</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SETTINGS TAB -->
+        <div class="tab-content" id="settings-tab">
+
+            <div class="section">
+                <div class="section-head">
+                    <div class="section-title">
+                        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span>
+                        Account information
+                    </div>
+                </div>
+                <div class="kv-list">
+                    <div class="kv-row">
+                        <span class="k">Email</span>
+                        <span class="v" id="userEmail">Loading…</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="k">Role</span>
+                        <span class="v" id="userRole">Loading…</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="k">Agent ID</span>
+                        <span class="v" id="userAgent">Loading…</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="k">Depot</span>
+                        <span class="v" id="userDepot">Loading…</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="k">Shifts enabled</span>
+                        <span class="v" id="userShiftsEnabled">Loading…</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="k">Member since</span>
+                        <span class="v" id="userMemberSince">Loading…</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-head">
+                    <div class="section-title">
+                        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="19" cy="13" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="10" cy="20" r="2.5"/><path d="M2 12c0 5.5 4.5 10 10 10s10-4.5 10-10S17.5 2 12 2c-.7 0-1.4.1-2 .2"/></svg></span>
+                        Appearance
+                    </div>
+                    <span class="section-sub">Synced across devices</span>
+                </div>
+
+                <div style="margin-bottom:18px">
+                    <div style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
+                        <span>Theme</span>
+                        <span style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">9 palettes</span>
+                    </div>
+                    <div class="swatches" id="swatches"></div>
+                </div>
+
+                <div>
+                    <div style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:10px">Mode</div>
+                    <div class="modepicker" id="modepicker">
+                        <button data-mode="dark">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                            Dark
+                        </button>
+                        <button data-mode="light">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                            Light
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-head">
+                    <div class="section-title">
+                        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                        Change password
+                    </div>
+                </div>
+                <form id="changePasswordForm" style="max-width:440px;display:flex;flex-direction:column;gap:6px" autocomplete="off">
+                    <div class="field-new">
+                        <label for="newPassword">New password</label>
+                        <input class="input-pw" type="password" id="newPassword" required minlength="6" placeholder="At least 6 characters">
+                        <div class="strength-meter" id="strength" data-level="0"><span></span><span></span><span></span><span></span></div>
+                        <div class="strength-label" id="strengthLabel">Enter a password to see strength</div>
+                    </div>
+                    <div class="field-new">
+                        <label for="confirmPassword">Confirm new password</label>
+                        <input class="input-pw" type="password" id="confirmPassword" required minlength="6" placeholder="Re-enter new password">
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:6px">
+                        <button type="submit" class="btn-new primary">Update password</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -207,8 +698,7 @@
             <div class="modal-header">
                 <h3><i data-lucide="clock" width="20" height="20"></i> Shift Details</h3>
             </div>
-            <div id="shiftDetailContent">
-            </div>
+            <div id="shiftDetailContent"></div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-ghost" onclick="closeShiftDetailModal()">Close</button>
                 <button type="button" class="btn btn-secondary" onclick="copyShiftDetail()"><i data-lucide="clipboard" width="20" height="20"></i> Copy</button>
@@ -222,6 +712,18 @@
         let allClients = [];
         let selectedShiftDetail = null;
 
+        const THEMES = [
+            { id: 'ocean',        name: 'Ocean',        palette: ['#0c1417','#1c2936','#3d6b80','#5a8a9e','#f0f4f7'] },
+            { id: 'forest',       name: 'Forest',       palette: ['#0c1510','#1c3626','#3d8a5e','#5aaa7a','#f0f7f2'] },
+            { id: 'sunset',       name: 'Sunset',       palette: ['#1a1010','#382020','#d97757','#f0a487','#f7f0ec'] },
+            { id: 'slate',        name: 'Slate',        palette: ['#101418','#222a35','#64748b','#cbd5e1','#f1f5f9'] },
+            { id: 'cherry',       name: 'Cherry',       palette: ['#1a0c12','#382030','#c53670','#e87aa0','#fcecf3'] },
+            { id: 'lavender',     name: 'Lavender',     palette: ['#15101a','#2e2440','#8a6bb8','#bca5e0','#f0eaf7'] },
+            { id: 'teal',         name: 'Teal',         palette: ['#0a1416','#1c3336','#14b8a6','#5eead4','#ecfdfa'] },
+            { id: 'sand',         name: 'Sand',         palette: ['#181410','#3a3024','#b89968','#e8cea2','#f5efe4'] },
+            { id: 'perrys-beach', name: "Perry's Beach", palette: ['#1a1a2e','#FF6F69','#FFCC5C','#88D8B0','#F4F1DE'] },
+        ];
+
         function saveThemeToSupabase(theme, mode) {
             db.from('user_widget_config').upsert({
                 user_id:    currentUser.id,
@@ -233,96 +735,163 @@
             });
         }
 
-        function selectTheme(theme) {
-            const { mode } = getTheme();
-            setTheme(theme, mode);
-            saveThemeToSupabase(theme, mode);
-            updateThemePickerUI();
-        }
-
-        function selectMode(mode) {
-            const { theme } = getTheme();
-            setTheme(theme, mode);
-            saveThemeToSupabase(theme, mode);
-            updateThemePickerUI();
-            lucide.createIcons();
-        }
-
-        function updateThemePickerUI() {
+        function renderSwatches() {
             const { theme, mode } = getTheme();
-            document.querySelectorAll('.theme-swatch').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.themeValue === theme);
-            });
-            document.querySelectorAll('.mode-btn').forEach(btn => {
-                const isActive = btn.dataset.modeValue === mode;
-                btn.classList.toggle('active', isActive);
-                btn.style.background = isActive ? 'var(--accent-primary)' : 'var(--bg-tertiary)';
-                btn.style.color = isActive ? '#fff' : 'var(--text-secondary)';
+            const container = document.getElementById('swatches');
+            container.innerHTML = THEMES.map(t => `
+                <button class="swatch-new ${t.id === theme ? 'active' : ''}" data-theme="${t.id}">
+                    <span class="swatch-palette">${t.palette.map(c => `<i style="background:${c}"></i>`).join('')}</span>
+                    <span class="swatch-meta">
+                        <span class="swatch-name">${t.name}</span>
+                        <span class="swatch-mode">${t.id === theme ? mode.charAt(0).toUpperCase() + mode.slice(1) + ' · active' : 'Tap to apply'}</span>
+                    </span>
+                </button>
+            `).join('');
+            container.querySelectorAll('.swatch-new').forEach(s => {
+                s.addEventListener('click', () => {
+                    const { mode } = getTheme();
+                    setTheme(s.dataset.theme, mode);
+                    saveThemeToSupabase(s.dataset.theme, mode);
+                    renderSwatches();
+                });
             });
         }
 
-        // Helper function to format date for input fields (avoids UTC timezone issues)
-        function formatLocalDate(date) {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
+        function syncModePicker() {
+            const { mode } = getTheme();
+            document.querySelectorAll('#modepicker button').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === mode);
+            });
         }
-        
-        // Helper function to format datetime for display
+
+        function bindModePicker() {
+            document.querySelectorAll('#modepicker button').forEach(b => {
+                b.addEventListener('click', () => {
+                    const { theme } = getTheme();
+                    setTheme(theme, b.dataset.mode);
+                    saveThemeToSupabase(theme, b.dataset.mode);
+                    syncModePicker();
+                    renderSwatches();
+                    lucide.createIcons();
+                });
+            });
+        }
+
+        function getInitials(email, name) {
+            if (name) {
+                const parts = name.trim().split(/\s+/);
+                if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                return parts[0].slice(0, 2).toUpperCase();
+            }
+            if (email) {
+                const local = email.split('@')[0];
+                const parts = local.split(/[._-]/);
+                if (parts.length >= 2 && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase();
+                return local.slice(0, 2).toUpperCase();
+            }
+            return '?';
+        }
+
+        function formatNameFromEmail(email) {
+            if (!email) return 'User';
+            const local = email.split('@')[0];
+            return local.split(/[._-]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+        }
+
+        function formatLocalDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
         function formatDateTime(date) {
             return new Date(date).toLocaleString('en-AU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', hour12: true
             });
         }
-        
+
+        function setPresetRange(preset) {
+            const today = new Date();
+            let from = new Date(today);
+            if (preset === 'week') {
+                const dow = today.getDay();
+                const diff = (dow + 6) % 7;
+                from.setDate(today.getDate() - diff);
+            } else if (preset === '30') {
+                from.setDate(today.getDate() - 30);
+            } else if (preset === '90') {
+                from.setDate(today.getDate() - 90);
+            } else if (preset === 'year') {
+                from = new Date(today.getFullYear(), 0, 1);
+            } else {
+                return;
+            }
+            document.getElementById('shiftDateFrom').value = formatLocalDate(from);
+            document.getElementById('shiftDateTo').value = formatLocalDate(today);
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             currentUser = await initAuth(['super_admin', 'manager', 'technician']);
             if (!currentUser) return;
-            
-            // Set default date range (today)
+
             const today = new Date();
+            const monthAgo = new Date(today);
+            monthAgo.setDate(today.getDate() - 30);
+            document.getElementById('shiftDateFrom').value = formatLocalDate(monthAgo);
             document.getElementById('shiftDateTo').value = formatLocalDate(today);
-            document.getElementById('shiftDateFrom').value = formatLocalDate(today);
-            
-            // Load user info
+            document.querySelector('.preset[data-preset="30"]').classList.add('active');
+
             await loadUserInfo();
-            
-            // Setup tabs
+
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.addEventListener('click', () => {
                     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
                     tab.classList.add('active');
                     document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+                    lucide.createIcons();
                 });
             });
-            
-            // Setup load button
+
+            document.querySelectorAll('#presetRow .preset').forEach(p => {
+                p.addEventListener('click', () => {
+                    document.querySelectorAll('#presetRow .preset').forEach(x => x.classList.remove('active'));
+                    p.classList.add('active');
+                    setPresetRange(p.dataset.preset);
+                });
+            });
+
             document.getElementById('loadShiftsBtn').addEventListener('click', loadShifts);
-
-            // Setup change password form
             document.getElementById('changePasswordForm').addEventListener('submit', handleChangePassword);
-            
-            // Initialize sidebar
-            initSidebar(currentUser);
-            
-            // Apply role-based restrictions
-            restrictByRole(currentUser.role);
+            document.getElementById('newPassword').addEventListener('input', updateStrength);
 
-            // Initialize theme picker UI
-            updateThemePickerUI();
+            renderSwatches();
+            syncModePicker();
+            bindModePicker();
+
+            initSidebar(currentUser);
+            restrictByRole(currentUser.role);
+            lucide.createIcons();
         });
-        
+
+        function updateStrength(e) {
+            const v = e.target.value;
+            let score = 0;
+            if (v.length >= 8) score++;
+            if (/[A-Z]/.test(v) && /[a-z]/.test(v)) score++;
+            if (/\d/.test(v)) score++;
+            if (/[^A-Za-z0-9]/.test(v)) score++;
+            const labels = ['Enter a password to see strength', 'Weak', 'Fair', 'Good', 'Strong'];
+            document.getElementById('strength').dataset.level = score;
+            document.getElementById('strengthLabel').textContent = labels[score];
+        }
+
         function showLoading(show) {
             document.getElementById("loading").classList.toggle("active", show);
         }
-        
+
         async function loadUserInfo() {
             try {
                 const { data, error } = await db
@@ -330,23 +899,62 @@
                     .select('*')
                     .eq('user_id', currentUser.id)
                     .single();
-                
                 if (error) throw error;
-                
-                document.getElementById('userEmail').textContent = data.email || currentUser.email;
-                document.getElementById('userRole').innerHTML = `<span class="badge badge-${escapeHTML(data.role)}">${escapeHTML(data.role)}</span>`;
+
+                const email = data.email || currentUser.email;
+                const name = formatNameFromEmail(email);
+                const initials = getInitials(email, name);
+
+                document.getElementById('heroName').textContent = name;
+                document.getElementById('heroEmail').textContent = email;
+                document.getElementById('heroAvatar').textContent = initials;
+                document.getElementById('topbarAvatar').textContent = initials;
+
+                const badges = [];
+                badges.push(`<span class="role-badge">${escapeHTML(data.role.charAt(0).toUpperCase() + data.role.slice(1).replace('_', ' '))}</span>`);
+                if (data.agent_id) badges.push(`<span class="role-badge muted">Agent ${escapeHTML(data.agent_id)}</span>`);
+                if (data.depot_id) {
+                    const { data: depot } = await db.from('depots').select('depot_name').eq('depot_id', data.depot_id).single();
+                    if (depot && depot.depot_name) {
+                        badges.push(`<span class="role-badge muted">${escapeHTML(depot.depot_name)}</span>`);
+                    }
+                }
+                if (data.shifts_enabled) {
+                    badges.push(`<span class="role-badge success"><span style="width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block"></span>Shifts enabled</span>`);
+                }
+                document.getElementById('heroBadges').innerHTML = badges.join('');
+
+                document.getElementById('userEmail').textContent = email;
+                document.getElementById('userRole').innerHTML = `<span class="badge-new">${escapeHTML(data.role.charAt(0).toUpperCase() + data.role.slice(1).replace('_', ' '))}</span>`;
                 document.getElementById('userAgent').textContent = data.agent_id || 'Not assigned';
-                document.getElementById('userShiftsEnabled').innerHTML = data.shifts_enabled 
-                    ? '<span style="color: var(--success);">✓ Enabled</span>' 
-                    : '<span style="color: var(--text-muted);">Disabled</span>';
+
+                if (data.depot_id) {
+                    const { data: depot } = await db.from('depots').select('depot_name').eq('depot_id', data.depot_id).single();
+                    if (depot && depot.depot_name) {
+                        document.getElementById('userDepot').innerHTML = `${escapeHTML(depot.depot_name)} <span class="badge-new muted">${escapeHTML(data.depot_id)}</span>`;
+                    } else {
+                        document.getElementById('userDepot').textContent = data.depot_id;
+                    }
+                } else {
+                    document.getElementById('userDepot').innerHTML = '<span class="badge-new muted-soft">None</span>';
+                }
+
+                document.getElementById('userShiftsEnabled').innerHTML = data.shifts_enabled
+                    ? '<span class="badge-new success"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg> Active</span>'
+                    : '<span class="badge-new muted-soft">Disabled</span>';
+
+                if (data.created_at) {
+                    document.getElementById('userMemberSince').textContent = new Date(data.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+                } else {
+                    document.getElementById('userMemberSince').textContent = '—';
+                }
             } catch (error) {
                 console.error('Error loading user info:', error);
             }
         }
-        
+
         async function handleChangePassword(e) {
             e.preventDefault();
-
             const newPassword = document.getElementById('newPassword').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
 
@@ -354,7 +962,6 @@
                 showAlert('Passwords do not match', 'error');
                 return;
             }
-
             if (newPassword.length < 6) {
                 showAlert('Password must be at least 6 characters', 'error');
                 return;
@@ -363,9 +970,10 @@
             try {
                 const { error } = await db.auth.updateUser({ password: newPassword });
                 if (error) throw error;
-
                 showAlert('Password updated successfully!', 'success');
                 document.getElementById('changePasswordForm').reset();
+                document.getElementById('strength').dataset.level = 0;
+                document.getElementById('strengthLabel').textContent = 'Enter a password to see strength';
             } catch (error) {
                 console.error('Password change error:', error);
                 showAlert('Error changing password. Please try again.', 'error');
@@ -375,16 +983,15 @@
         async function loadShifts() {
             const dateFrom = document.getElementById('shiftDateFrom').value;
             const dateTo = document.getElementById('shiftDateTo').value;
-            
+
             if (!dateFrom || !dateTo) {
                 showAlert('Please select both from and to dates', 'error');
                 return;
             }
-            
+
             showLoading(true);
-            
+
             try {
-                // Query shifts - users only see their own shifts
                 const { data: shifts, error } = await db
                     .from('shifts')
                     .select('*')
@@ -393,27 +1000,22 @@
                     .gte('start_time', new Date(dateFrom + 'T00:00:00').toISOString())
                     .lte('start_time', new Date(dateTo + 'T23:59:59').toISOString())
                     .order('start_time', { ascending: false });
-                
+
                 if (error) throw error;
-                
                 allShifts = shifts || [];
-                
-                // Load all clients for dynamic columns
+
                 const { data: clientsData } = await db
                     .from('clients')
                     .select('client_id')
                     .order('client_id', { ascending: true });
-                
                 allClients = clientsData ? clientsData.map(c => c.client_id) : [];
-                
-                // Get user info
+
                 const { data: userData } = await db
                     .from('user_roles')
                     .select('email, agent_id')
                     .eq('user_id', currentUser.id)
                     .single();
-                
-                // Fetch boxes once for this user's agent (same agent for all their shifts)
+
                 const agentId = userData?.agent_id || allShifts[0]?.agent_id;
                 let agentBoxes = [];
                 if (agentId) {
@@ -425,21 +1027,16 @@
                     agentBoxes = boxes || [];
                 }
 
-                // Group boxes by client once
                 const boxesByClient = {};
                 agentBoxes.forEach(box => {
                     if (!boxesByClient[box.client]) boxesByClient[box.client] = [];
                     boxesByClient[box.client].push(box.id);
                 });
 
-                // Calculate jobs for each shift in parallel
                 await Promise.all(allShifts.map(async (shift) => {
                     shift.userInfo = userData || { email: currentUser.email, agent_id: shift.agent_id };
-
                     shift.jobsByClient = {};
-                    allClients.forEach(client => {
-                        shift.jobsByClient[client] = 0;
-                    });
+                    allClients.forEach(client => { shift.jobsByClient[client] = 0; });
 
                     if (agentBoxes.length === 0) {
                         shift.systemJobs = 0;
@@ -447,31 +1044,40 @@
                         return;
                     }
 
-                    // Count jobs per client in parallel
                     const clientEntries = Object.entries(boxesByClient);
-                    const counts = await Promise.all(clientEntries.map(([client, clientBoxIds]) =>
+                    const counts = await Promise.all(clientEntries.map(([client, ids]) =>
                         db.from('jobs')
                             .select('*', { count: 'exact', head: true })
-                            .in('box_id', clientBoxIds)
+                            .in('box_id', ids)
                             .gte('created_at', shift.start_time)
                             .lte('created_at', shift.end_time)
                             .then(({ count }) => ({ client, count: count || 0 }))
                     ));
 
-                    let totalSystemJobs = 0;
+                    let totalSystem = 0;
                     counts.forEach(({ client, count }) => {
                         shift.jobsByClient[client] = count;
-                        totalSystemJobs += count;
+                        totalSystem += count;
                     });
-                    shift.systemJobs = totalSystemJobs;
-                    shift.totalJobs = totalSystemJobs + (shift.extra_jobs || 0);
+                    shift.systemJobs = totalSystem;
+                    shift.totalJobs = totalSystem + (shift.extra_jobs || 0);
                 }));
-                
+
                 renderShifts();
                 renderSummary();
-                
                 document.getElementById('downloadShiftsBtn').disabled = allShifts.length === 0;
-                
+
+                const countEl = document.getElementById('shiftCount');
+                const foundBadge = document.getElementById('shiftFoundBadge');
+                if (allShifts.length > 0) {
+                    countEl.textContent = allShifts.length;
+                    countEl.style.display = '';
+                    foundBadge.textContent = `${allShifts.length} found`;
+                    foundBadge.style.display = '';
+                } else {
+                    countEl.style.display = 'none';
+                    foundBadge.style.display = 'none';
+                }
             } catch (error) {
                 console.error('Error loading shifts:', error);
                 showAlert('Error loading shifts. Please try again.', 'error');
@@ -479,10 +1085,13 @@
                 showLoading(false);
             }
         }
-        
+
+        const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const MON_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
         function renderShifts() {
             const container = document.getElementById('shiftsContainer');
-            
+
             if (!allShifts || allShifts.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
@@ -490,126 +1099,130 @@
                         <p>No completed shifts found for the selected date range</p>
                     </div>
                 `;
+                lucide.createIcons();
                 return;
             }
-            
-            let html = '<div class="shifts-list">';
-            
-            allShifts.forEach(shift => {
+
+            const html = '<div class="shifts-list-new">' + allShifts.map(shift => {
                 const startTime = new Date(shift.start_time);
                 const endTime = new Date(shift.end_time);
-                const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
+                const durMs = endTime - startTime;
+                const hoursWorked = durMs / (1000 * 60 * 60);
                 const hours = Math.floor(hoursWorked);
                 const minutes = Math.round((hoursWorked - hours) * 60);
-                const kmsTravelled = shift.end_kms - shift.start_kms;
-                
-                const dateStr = startTime.toLocaleDateString('en-AU', {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric'
-                });
-                
-                const timeStr = `${startTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })} - ${endTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
-                
-                html += `
-                    <div class="shift-card" onclick="showShiftDetail(${shift.id})">
-                        <div class="shift-card-header">
-                            <div class="shift-card-date">${dateStr}</div>
-                            <div class="shift-card-agent">Agent ${escapeHTML(shift.agent_id)}</div>
+                const kms = shift.end_kms - shift.start_kms;
+
+                const dow = DAY_NAMES[startTime.getDay()];
+                const day = String(startTime.getDate()).padStart(2, '0');
+                const mon = MON_NAMES[startTime.getMonth()];
+                const isSat = startTime.getDay() === 6;
+                const isSun = startTime.getDay() === 0;
+                const isWeekend = isSat || isSun;
+                const mult = isSun ? '2×' : isSat ? '1.5×' : '1×';
+
+                const startMin = startTime.getHours() * 60 + startTime.getMinutes();
+                const endMin = endTime.getHours() * 60 + endTime.getMinutes();
+                const winStart = 4 * 60, winEnd = 22 * 60;
+                const leftPct = Math.max(0, Math.min(100, (startMin - winStart) / (winEnd - winStart) * 100));
+                const widthPct = Math.max(2, Math.min(100 - leftPct, (endMin - startMin) / (winEnd - winStart) * 100));
+
+                const startStr = startTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false });
+                const endStr = endTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+                return `
+                    <div class="shift-card-new ${isWeekend ? 'weekend' : ''}" onclick="showShiftDetail('${shift.id}')">
+                        <div class="shift-date-col">
+                            <span class="dow">${dow}</span>
+                            <span class="day">${day}</span>
+                            <span class="mon">${mon}</span>
                         </div>
-                        <div class="shift-card-time">${timeStr}</div>
-                        <div class="shift-card-stats">
-                            <div class="shift-card-stat">
-                                <span class="shift-card-stat-value">${hours}h ${minutes}m</span>
-                                <span class="shift-card-stat-label">Duration</span>
+                        <div class="shift-mid">
+                            <div class="shift-stats-new">
+                                <div class="shift-stat-new"><span class="v">${hours}h ${minutes}m</span><span class="l">Duration</span></div>
+                                <div class="shift-stat-new"><span class="v">${startStr} – ${endStr}</span><span class="l">Time window</span></div>
+                                <div class="shift-stat-new"><span class="v">${kms.toLocaleString()} km</span><span class="l">Distance</span></div>
+                                <div class="shift-stat-new"><span class="v">${shift.totalJobs}</span><span class="l">Jobs</span></div>
                             </div>
-                            <div class="shift-card-stat">
-                                <span class="shift-card-stat-value">${kmsTravelled.toLocaleString()} km</span>
-                                <span class="shift-card-stat-label">Distance</span>
+                            <div class="shift-timebar">
+                                <span class="label-left">04:00</span>
+                                <span class="label-right">22:00</span>
+                                <div class="seg" style="left:${leftPct.toFixed(1)}%;width:${widthPct.toFixed(1)}%"></div>
                             </div>
-                            <div class="shift-card-stat">
-                                <span class="shift-card-stat-value">${shift.totalJobs}</span>
-                                <span class="shift-card-stat-label">Jobs</span>
-                            </div>
+                        </div>
+                        <div class="shift-right">
+                            <span class="shift-mult ${isWeekend ? 'weekend' : ''}">${mult}</span>
+                            <svg class="shift-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                         </div>
                     </div>
                 `;
-            });
-            
-            html += '</div>';
+            }).join('') + '</div>';
+
             container.innerHTML = html;
         }
-        
+
         function renderSummary() {
             if (!allShifts || allShifts.length === 0) {
                 document.getElementById('shiftSummary').style.display = 'none';
                 return;
             }
-            
-            let totalHours = 0;
-            let totalKms = 0;
-            let totalJobs = 0;
-            
+
+            let totalHours = 0, totalKms = 0, totalJobs = 0;
             allShifts.forEach(shift => {
-                const startTime = new Date(shift.start_time);
-                const endTime = new Date(shift.end_time);
-                totalHours += (endTime - startTime) / (1000 * 60 * 60);
+                totalHours += (new Date(shift.end_time) - new Date(shift.start_time)) / (1000 * 60 * 60);
                 totalKms += shift.end_kms - shift.start_kms;
                 totalJobs += shift.totalJobs;
             });
-            
             const hours = Math.floor(totalHours);
             const minutes = Math.round((totalHours - hours) * 60);
-            
+
             document.getElementById('summaryShifts').textContent = allShifts.length;
             document.getElementById('summaryHours').textContent = `${hours}h ${minutes}m`;
-            document.getElementById('summaryKms').textContent = `${totalKms.toLocaleString()} km`;
+            document.getElementById('summaryKms').textContent = totalKms.toLocaleString();
             document.getElementById('summaryJobs').textContent = totalJobs;
-            
-            document.getElementById('shiftSummary').style.display = 'block';
+            document.getElementById('summaryKmAvg').textContent = allShifts.length ? `~${Math.round(totalKms / allShifts.length)} km / shift` : '';
+
+            const from = document.getElementById('shiftDateFrom').value;
+            const to = document.getElementById('shiftDateTo').value;
+            if (from && to) {
+                const f = new Date(from), t = new Date(to);
+                const days = Math.round((t - f) / (1000 * 60 * 60 * 24)) + 1;
+                document.getElementById('summaryRange').textContent =
+                    `${f.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} — ${t.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} · ${days} days`;
+            }
+
+            document.getElementById('shiftSummary').style.display = '';
         }
-        
+
         function showShiftDetail(shiftId) {
-            const shift = allShifts.find(s => s.id === shiftId);
+            const shift = allShifts.find(s => String(s.id) === String(shiftId));
             if (!shift) return;
-            
             selectedShiftDetail = shift;
-            
+
             const startTime = new Date(shift.start_time);
             const endTime = new Date(shift.end_time);
             const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
             const hours = Math.floor(hoursWorked);
             const minutes = Math.round((hoursWorked - hours) * 60);
-            const kmsTravelled = shift.end_kms - shift.start_kms;
-            
-            const dateStr = startTime.toLocaleDateString('en-AU', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            });
-            
+            const kms = shift.end_kms - shift.start_kms;
+            const dateStr = startTime.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
             const html = `
                 <div class="shift-report-card">
                     <div class="shift-report-header">
                         <div class="shift-report-date">${dateStr}</div>
                         <div class="shift-report-agent">Agent ${escapeHTML(shift.agent_id)}</div>
                     </div>
-
                     <div class="shift-report-grid">
                         <div class="shift-report-stat">
                             <div class="shift-report-stat-value">${hours}h ${minutes}m</div>
                             <div class="shift-report-stat-label">Hours Worked</div>
                             <div class="shift-report-stat-detail">${formatDateTime(shift.start_time)} → ${formatDateTime(shift.end_time)}</div>
                         </div>
-                        
                         <div class="shift-report-stat">
-                            <div class="shift-report-stat-value">${kmsTravelled.toLocaleString()} km</div>
+                            <div class="shift-report-stat-value">${kms.toLocaleString()} km</div>
                             <div class="shift-report-stat-label">Distance Travelled</div>
                             <div class="shift-report-stat-detail">${shift.start_kms.toLocaleString()} → ${shift.end_kms.toLocaleString()} km</div>
                         </div>
-                        
                         <div class="shift-report-stat">
                             <div class="shift-report-stat-value">${shift.totalJobs}</div>
                             <div class="shift-report-stat-label">Total Jobs</div>
@@ -618,34 +1231,27 @@
                     </div>
                 </div>
             `;
-            
+
             document.getElementById('shiftDetailContent').innerHTML = html;
             document.getElementById('shiftDetailModal').classList.add('active');
         }
-        
+
         function closeShiftDetailModal() {
             document.getElementById('shiftDetailModal').classList.remove('active');
             selectedShiftDetail = null;
         }
-        
+
         function copyShiftDetail() {
             if (!selectedShiftDetail) return;
-            
             const shift = selectedShiftDetail;
             const startTime = new Date(shift.start_time);
             const endTime = new Date(shift.end_time);
             const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
             const hours = Math.floor(hoursWorked);
             const minutes = Math.round((hoursWorked - hours) * 60);
-            const kmsTravelled = shift.end_kms - shift.start_kms;
-            
-            const dateStr = startTime.toLocaleDateString('en-AU', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            });
-            
+            const kms = shift.end_kms - shift.start_kms;
+            const dateStr = startTime.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
             const text = `SHIFT REPORT - ${dateStr}
 Agent: ${shift.agent_id}
 
@@ -657,13 +1263,13 @@ Duration: ${hours}h ${minutes}m (${hoursWorked.toFixed(2)} hours)
 KILOMETRES
 Start: ${shift.start_kms.toLocaleString()} km
 End: ${shift.end_kms.toLocaleString()} km
-Travelled: ${kmsTravelled.toLocaleString()} km
+Travelled: ${kms.toLocaleString()} km
 
 JOBS
 System Logged: ${shift.systemJobs}
 Extra Jobs: ${shift.extra_jobs || 0}
 Total: ${shift.totalJobs}`;
-            
+
             navigator.clipboard.writeText(text).then(() => {
                 showAlert('✓ Report copied to clipboard', 'success');
             }).catch(err => {
@@ -671,27 +1277,27 @@ Total: ${shift.totalJobs}`;
                 showAlert('Failed to copy report', 'error');
             });
         }
-        
+
         function getTimeMultiplier(date) {
-            const dayOfWeek = new Date(date).getDay();
-            if (dayOfWeek === 0) return 2.0;   // Sunday
-            if (dayOfWeek === 6) return 1.5;   // Saturday
-            return 1.0;                         // Monday-Friday
+            const d = new Date(date).getDay();
+            if (d === 0) return 2.0;
+            if (d === 6) return 1.5;
+            return 1.0;
         }
-        
+
         function getTimeMultiplierLabel(date) {
-            const dayOfWeek = new Date(date).getDay();
-            if (dayOfWeek === 0) return '2x (Sun)';
-            if (dayOfWeek === 6) return '1.5x (Sat)';
+            const d = new Date(date).getDay();
+            if (d === 0) return '2x (Sun)';
+            if (d === 6) return '1.5x (Sat)';
             return '1x';
         }
-        
+
         function formatTimeHMM(decimalHours) {
-            const hours = Math.floor(decimalHours);
-            const minutes = Math.round((decimalHours - hours) * 60);
-            return `${hours}:${String(minutes).padStart(2, '0')}`;
+            const h = Math.floor(decimalHours);
+            const m = Math.round((decimalHours - h) * 60);
+            return `${h}:${String(m).padStart(2, '0')}`;
         }
-        
+
         function escapeCSV(value) {
             if (value === null || value === undefined) return '';
             const str = String(value);
@@ -700,51 +1306,28 @@ Total: ${shift.totalJobs}`;
             }
             return str;
         }
-        
+
         function downloadShiftsCSV() {
             if (!allShifts || allShifts.length === 0) {
                 showAlert('No shifts to export', 'warning');
                 return;
             }
-            
-            // Build header row with dynamic client columns
-            let headers = [
-                'Date',
-                'Start Time',
-                'End Time',
-                'Agent',
-                'Email',
-                'Total Time (h:mm)',
-                'Total Time (decimal)',
-                'Time Multiplier',
-                'Adjusted Time (decimal)',
-                'Start Km',
-                'End Km',
-                'Km Travelled'
-            ];
-            
-            // Add dynamic client columns
-            allClients.forEach(client => {
-                headers.push(`Jobs - ${client}`);
-            });
-            
-            // Add remaining columns
-            headers.push('Extra Jobs');
-            headers.push('Total Jobs');
-            headers.push('Shift Notes');
-            
-            let csvContent = headers.join(',') + '\n';
-            
+
+            let headers = ['Date','Start Time','End Time','Agent','Email','Total Time (h:mm)','Total Time (decimal)','Time Multiplier','Adjusted Time (decimal)','Start Km','End Km','Km Travelled'];
+            allClients.forEach(c => headers.push(`Jobs - ${c}`));
+            headers.push('Extra Jobs','Total Jobs','Shift Notes');
+
+            let csv = headers.join(',') + '\n';
+
             allShifts.forEach(shift => {
                 const startTime = new Date(shift.start_time);
                 const endTime = new Date(shift.end_time);
                 const hoursWorked = (endTime - startTime) / (1000 * 60 * 60);
-                const kmsTravelled = shift.end_kms - shift.start_kms;
-                const multiplier = getTimeMultiplier(shift.start_time);
-                const adjustedTime = hoursWorked * multiplier;
-                
+                const kms = shift.end_kms - shift.start_kms;
+                const mult = getTimeMultiplier(shift.start_time);
+                const adjusted = hoursWorked * mult;
                 const dateStr = startTime.toLocaleDateString('en-AU');
-                
+
                 let row = [
                     dateStr,
                     formatDateTime(shift.start_time),
@@ -754,40 +1337,30 @@ Total: ${shift.totalJobs}`;
                     formatTimeHMM(hoursWorked),
                     hoursWorked.toFixed(2),
                     getTimeMultiplierLabel(shift.start_time),
-                    adjustedTime.toFixed(2),
+                    adjusted.toFixed(2),
                     shift.start_kms,
                     shift.end_kms,
-                    kmsTravelled
+                    kms
                 ];
-                
-                // Add job counts for each client
-                allClients.forEach(client => {
-                    row.push(shift.jobsByClient?.[client] || 0);
-                });
-                
-                // Add remaining data
+                allClients.forEach(c => row.push(shift.jobsByClient?.[c] || 0));
                 row.push(shift.extra_jobs || 0);
                 row.push(shift.totalJobs);
-                row.push(escapeCSV(shift.shift_notes || ''));
-                
-                csvContent += row.map(val => escapeCSV(val)).join(',') + '\n';
+                row.push(shift.shift_notes || '');
+
+                csv += row.map(escapeCSV).join(',') + '\n';
             });
-            
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            
+            link.href = URL.createObjectURL(blob);
             const dateFrom = document.getElementById('shiftDateFrom').value;
             const dateTo = document.getElementById('shiftDateTo').value;
-            const filename = `shifts-${dateFrom}-to-${dateTo}.csv`;
-            
-            link.setAttribute('href', url);
-            link.setAttribute('download', filename);
+            link.download = `shifts-${dateFrom}-to-${dateTo}.csv`;
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            
+
             showAlert('✓ CSV downloaded', 'success');
         }
     </script>

@@ -228,6 +228,8 @@
         let currentTab = 'all';
         let currentDrawerJobId = null;
         let currentDrawerBoxId = null;
+        let drawerHasHistoryEntry = false;
+        let closingFromPopstate = false;
 
         // ============================================================
         // INIT
@@ -248,6 +250,16 @@
             document.getElementById('jobSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchJob(); });
             document.getElementById('dateFrom').addEventListener('change', handleCustomDateChange);
             document.getElementById('dateTo').addEventListener('change', handleCustomDateChange);
+
+            window.addEventListener('popstate', () => {
+                const drawerOpen = document.getElementById('detailDrawer').classList.contains('open');
+                if (drawerOpen) {
+                    closingFromPopstate = true;
+                    drawerHasHistoryEntry = false;
+                    closeDrawer();
+                    closingFromPopstate = false;
+                }
+            });
 
             showLoading(false);
 
@@ -751,13 +763,26 @@
         }
 
         function closeDrawer() {
+            if (drawerHasHistoryEntry && !closingFromPopstate) {
+                history.back();
+                return;
+            }
             document.getElementById('detailDrawer').classList.remove('open');
             document.getElementById('drawerOverlay').classList.remove('open');
             currentDrawerJobId = null;
             currentDrawerBoxId = null;
+            drawerHasHistoryEntry = false;
+        }
+
+        function pushDrawerHistoryEntry() {
+            if (!drawerHasHistoryEntry) {
+                history.pushState({ drawer: true }, '');
+                drawerHasHistoryEntry = true;
+            }
         }
 
         async function openJobDrawer(jobId) {
+            pushDrawerHistoryEntry();
             currentDrawerJobId = jobId;
             currentDrawerBoxId = null;
             openDrawerShell('Job', '—');
@@ -895,6 +920,7 @@
         }
 
         async function openBoxDrawer(boxId) {
+            pushDrawerHistoryEntry();
             currentDrawerBoxId = boxId;
             currentDrawerJobId = null;
             openDrawerShell('Box', '—');
