@@ -4252,20 +4252,227 @@ body:has(.topbar) .hamburger-btn { display: none !important; }
 
 /* BENTO GRID — flex so partial rows centre instead of anchor-left */
 .bento {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
   gap: var(--gap);
+  grid-auto-flow: dense;
+  align-items: start;
+  position: relative;
 }
-.bento > * { flex-shrink: 0; }
-/* Width = N columns of a 12-col grid: (container - 11 gaps) / 12 * N + (N-1) gaps */
-.bento .span-3  { width: calc((100% - 11 * var(--gap)) / 12 * 3  + 2 * var(--gap)); }
-.bento .span-4  { width: calc((100% - 11 * var(--gap)) / 12 * 4  + 3 * var(--gap)); }
-.bento .span-5  { width: calc((100% - 11 * var(--gap)) / 12 * 5  + 4 * var(--gap)); }
-.bento .span-6  { width: calc((100% - 11 * var(--gap)) / 12 * 6  + 5 * var(--gap)); }
-.bento .span-7  { width: calc((100% - 11 * var(--gap)) / 12 * 7  + 6 * var(--gap)); }
-.bento .span-8  { width: calc((100% - 11 * var(--gap)) / 12 * 8  + 7 * var(--gap)); }
-.bento .span-12 { width: 100%; }
+.span-3  { grid-column: span 3; }
+.span-4  { grid-column: span 4; }
+.span-5  { grid-column: span 5; }
+.span-6  { grid-column: span 6; }
+.span-7  { grid-column: span 7; }
+.span-8  { grid-column: span 8; }
+.span-9  { grid-column: span 9; }
+.span-10 { grid-column: span 10; }
+.span-11 { grid-column: span 11; }
+.span-12 { grid-column: span 12; }
+
+/* ============================================================
+   HOME LAYOUT EDITOR (v2) — grid overlay + drag/resize chrome
+   ============================================================ */
+.bento.editing {
+  background-image:
+    linear-gradient(to right,
+      transparent 0, transparent calc((100% - 11 * var(--gap)) / 12),
+      var(--accent-glow) calc((100% - 11 * var(--gap)) / 12),
+      var(--accent-glow) calc((100% - 11 * var(--gap)) / 12 + 1px),
+      transparent calc((100% - 11 * var(--gap)) / 12 + 1px));
+  background-size: calc((100% - 11 * var(--gap)) / 12 + var(--gap)) 100%;
+  background-position: 0 0;
+  border-radius: var(--radius);
+  outline: 1px dashed var(--border-secondary);
+  outline-offset: 6px;
+  padding: 2px;
+  margin: -2px;
+  transition: outline-color .2s;
+}
+.bento.editing .widget-card-new {
+  cursor: grab;
+  user-select: none;
+  transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .2s, border-color .2s, opacity .2s;
+}
+.bento.editing .widget-card-new:hover {
+  border-color: var(--accent-tertiary);
+  box-shadow: 0 4px 18px rgba(0,0,0,.35), 0 0 0 1px var(--accent-tertiary);
+}
+.bento.editing .widget-card-new.dragging { opacity: 0.35; cursor: grabbing; }
+.widget-card-new.ghost {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.92;
+  cursor: grabbing;
+  box-shadow: 0 24px 60px rgba(0,0,0,.6), 0 0 0 1px var(--accent-tertiary);
+  transform: rotate(-1.2deg) scale(1.02);
+  transition: transform .15s ease;
+}
+.bento.editing .widget-card-new.resizing {
+  border-color: var(--accent-tertiary);
+  box-shadow: 0 0 0 1px var(--accent-tertiary), 0 8px 24px rgba(0,0,0,.4);
+}
+.bento.editing .widget-card-new.hidden-card { opacity: 0.35; filter: grayscale(0.7); }
+
+/* Card edit chrome (overlay injected per card while editing) */
+.card-edit-chrome { position: absolute; inset: 0; pointer-events: none; display: none; }
+.bento.editing .card-edit-chrome { display: block; }
+/* In edit mode the card body is inert so the whole card is a drag source and
+   inner links don't navigate; the chrome buttons re-enable pointer events. */
+.bento.editing .widget-body { pointer-events: none; }
+
+.drag-handle {
+  position: absolute; top: 8px; left: 8px;
+  width: 26px; height: 26px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab; pointer-events: auto; z-index: 3;
+  backdrop-filter: blur(8px); transition: all .15s;
+}
+.drag-handle:hover { background: var(--accent-glow); color: var(--accent-tertiary); border-color: var(--accent-tertiary); }
+.drag-handle:active { cursor: grabbing; }
+
+.hide-btn {
+  position: absolute; top: 8px; right: 8px;
+  width: 26px; height: 26px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: auto; z-index: 3; transition: all .15s;
+}
+.hide-btn:hover { background: var(--error-bg); color: var(--error); border-color: var(--error); }
+
+.resize-handle-x {
+  position: absolute; top: 25%; bottom: 25%; right: -4px;
+  width: 8px;
+  background: var(--accent-tertiary);
+  border-radius: 4px;
+  cursor: ew-resize; pointer-events: auto; z-index: 3;
+  opacity: 0; transition: opacity .15s;
+  box-shadow: 0 0 0 1px var(--bg-primary);
+}
+.bento.editing .widget-card-new:hover .resize-handle-x { opacity: 0.55; }
+.bento.editing .widget-card-new:hover .resize-handle-x:hover { opacity: 1; }
+.bento.editing .widget-card-new.resizing .resize-handle-x { opacity: 1; }
+
+.span-pill {
+  position: absolute; bottom: 8px; right: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem; font-weight: 600;
+  padding: 3px 8px; border-radius: 4px;
+  pointer-events: auto; z-index: 3;
+  display: flex; align-items: center; gap: 6px;
+}
+.span-pill button {
+  background: transparent; border: none; color: var(--text-muted);
+  width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 3px; cursor: pointer; font-size: 0.9rem; line-height: 1; font-weight: 700;
+}
+.span-pill button:hover { background: var(--accent-glow); color: var(--accent-tertiary); }
+.span-pill button:disabled { opacity: 0.3; cursor: not-allowed; }
+.span-pill .val { min-width: 38px; text-align: center; }
+
+/* Mobile inline edit chips (reorder + hide on touch) */
+.mobile-edit-chips {
+  position: absolute; top: 8px; right: 40px;
+  display: none; gap: 4px; z-index: 3; pointer-events: auto;
+}
+.mobile-edit-chips button {
+  width: 26px; height: 26px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  border-radius: 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.mobile-edit-chips button:hover:not(:disabled) { background: var(--accent-glow); color: var(--accent-tertiary); }
+.mobile-edit-chips button:disabled { opacity: 0.3; }
+
+/* Edit-mode toolbar */
+.edit-toolbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent-tertiary);
+  border-radius: var(--radius);
+  margin-bottom: var(--gap);
+  flex-wrap: wrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+  animation: toolbarSlide .25s ease;
+}
+@keyframes toolbarSlide { from { transform: translateY(-8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.edit-toolbar-title { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text-primary); font-size: 0.9rem; }
+.edit-toolbar-title .pulse { width: 8px; height: 8px; background: var(--accent-tertiary); border-radius: 50%; animation: pulse-sm 1.5s infinite; }
+.edit-toolbar-hint { font-size: 0.78rem; color: var(--text-muted); flex: 1; min-width: 200px; }
+.edit-toolbar-hint kbd { font-family: var(--font-mono); background: var(--bg-tertiary); border: 1px solid var(--border-primary); padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; }
+.edit-toolbar .btn-group { display: flex; gap: 6px; }
+.edit-btn-sm {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  border-radius: 5px;
+  font-size: 0.8rem; font-weight: 500;
+  transition: all .15s; position: relative;
+}
+.edit-btn-sm:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-secondary); }
+.edit-btn-sm.primary {
+  background: linear-gradient(135deg, var(--accent-secondary), var(--accent-tertiary));
+  color: white; border-color: transparent;
+  box-shadow: 0 2px 10px var(--accent-glow-strong);
+}
+
+/* Add-widget menu */
+.add-menu-wrap { position: relative; }
+.add-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  min-width: 240px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius);
+  padding: 6px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.5);
+  z-index: 100; display: none; flex-direction: column; gap: 2px;
+}
+.add-menu.open { display: flex; }
+.add-menu-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 4px;
+  font-size: 0.85rem; color: var(--text-primary);
+  cursor: pointer; transition: all .12s;
+  background: transparent; border: none; text-align: left;
+}
+.add-menu-item:hover { background: var(--accent-glow); color: var(--accent-tertiary); }
+.add-menu-item .ico {
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-tertiary); color: var(--text-secondary);
+  border-radius: 4px; flex-shrink: 0;
+}
+.add-menu-empty { padding: 12px; text-align: center; font-size: 0.8rem; color: var(--text-muted); }
+
+/* Floating "Done editing" FAB */
+.edit-fab {
+  position: fixed; bottom: 24px; right: 24px; z-index: 200;
+  display: none; padding: 14px 22px;
+  background: linear-gradient(135deg, var(--accent-secondary), var(--accent-tertiary));
+  color: white; border-radius: 999px;
+  font-size: 0.9rem; font-weight: 600;
+  box-shadow: 0 12px 30px var(--accent-glow-strong), 0 0 0 4px var(--bg-primary);
+  border: none; align-items: center; gap: 8px;
+}
+.edit-fab.show { display: inline-flex; }
 
 /* WIDGET CARD (new) */
 .widget-card-new {
@@ -4524,8 +4731,8 @@ table.tbl td.num { font-family: var(--font-mono); font-variant-numeric: tabular-
 
 /* Home responsive */
 @media (max-width: 1100px) {
-  .bento .span-3, .bento .span-4, .bento .span-5 { width: calc(50% - var(--gap) / 2); }
-  .bento .span-7, .bento .span-8 { width: 100%; }
+  .bento .span-3, .bento .span-4, .bento .span-5 { grid-column: span 6; }
+  .bento .span-7, .bento .span-8, .bento .span-9, .bento .span-10, .bento .span-11 { grid-column: span 12; }
 }
 @media (max-width: 720px) {
   .hero { padding: 18px; }
@@ -4535,7 +4742,7 @@ table.tbl td.num { font-family: var(--font-mono); font-variant-numeric: tabular-
   .kpi-value { font-size: 1.4rem; }
   .kpi-spark { width: 40px; height: 18px; right: 8px; top: 8px; }
   .bento { gap: 12px; }
-  .bento .span-3, .bento .span-4, .bento .span-5, .bento .span-6, .bento .span-7, .bento .span-8, .bento .span-12 { width: 100%; }
+  .bento > * { grid-column: span 12 !important; }
   .qn-grid { grid-template-columns: repeat(2, 1fr); }
   .bars { height: 140px; }
   .shift-banner { padding: 12px 14px; }
@@ -4543,6 +4750,18 @@ table.tbl td.num { font-family: var(--font-mono); font-variant-numeric: tabular-
   .actions { margin-left: -4px; margin-right: -4px; padding-left: 4px; padding-right: 4px; }
   /* bottom padding so content isn't obscured by mobile FAB */
   .edit-layout-row { padding-bottom: 80px; }
+
+  /* MOBILE EDIT MODE: drag/resize are finicky on touch — use up/down + hide chips,
+     hide the grid overlay, resize handle, span pill and drag handle. */
+  .bento.editing { background-image: none; outline: none; padding: 0; margin: 0; }
+  .bento.editing .resize-handle-x,
+  .bento.editing .span-pill,
+  .bento.editing .drag-handle { display: none; }
+  .bento.editing .mobile-edit-chips { display: flex; }
+  .bento.editing .widget-card-new { cursor: default; }
+  .edit-toolbar { padding: 10px 12px; }
+  .edit-toolbar-hint { display: none; }
+  .edit-fab { bottom: 90px; right: 16px; padding: 12px 18px; }
 }
 
 /* ============================================================

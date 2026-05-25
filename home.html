@@ -85,6 +85,34 @@
         <!-- Quick Action Chips -->
         <div class="actions fade-in d2" id="actionChips"></div>
 
+        <!-- Layout editor toolbar (shown in edit mode) -->
+        <div class="edit-toolbar" id="editToolbar" style="display:none">
+            <div class="edit-toolbar-title">
+                <span class="pulse"></span>
+                Editing layout
+            </div>
+            <div class="edit-toolbar-hint">
+                Drag a card to reorder &middot; drag the right edge or use <kbd>&minus; +</kbd> to resize &middot; click <kbd>&times;</kbd> to hide
+            </div>
+            <div class="btn-group">
+                <button class="edit-btn-sm" id="resetLayoutBtn" title="Reset to default layout">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                    Reset
+                </button>
+                <div class="add-menu-wrap">
+                    <button class="edit-btn-sm" id="addWidgetBtn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                        Add widget
+                    </button>
+                    <div class="add-menu" id="addMenu"></div>
+                </div>
+                <button class="edit-btn-sm primary" id="doneEditBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                    Done
+                </button>
+            </div>
+        </div>
+
         <!-- Bento Widget Grid -->
         <div class="bento" id="bento"></div>
 
@@ -209,21 +237,27 @@
             try {
                 const order = JSON.parse(localStorage.getItem('home_widget_order'));
                 const hidden = JSON.parse(localStorage.getItem('home_widget_hidden'));
-                const half = JSON.parse(localStorage.getItem('home_widget_half'));
+                let spans = JSON.parse(localStorage.getItem('home_widget_spans'));
+                if (!spans || typeof spans !== 'object' || Array.isArray(spans)) {
+                    // Migrate from the old half-width list (each half widget -> span 6)
+                    const half = JSON.parse(localStorage.getItem('home_widget_half'));
+                    spans = {};
+                    if (Array.isArray(half)) half.forEach(id => { spans[id] = 6; });
+                }
                 return {
                     order: Array.isArray(order) ? order : null,
                     hidden: Array.isArray(hidden) ? hidden : [],
-                    half: Array.isArray(half) ? half : []
+                    spans
                 };
             } catch {
-                return { order: null, hidden: [], half: [] };
+                return { order: null, hidden: [], spans: {} };
             }
         }
 
         async function loadWidgetConfig() {
             try {
                 const { data } = await db.from('user_widget_config')
-                    .select('widget_order, widget_hidden')
+                    .select('widget_order, widget_hidden, widget_spans')
                     .eq('user_id', currentUser.id)
                     .maybeSingle();
                 if (data) {
@@ -231,6 +265,8 @@
                         localStorage.setItem('home_widget_order', JSON.stringify(data.widget_order));
                     if (Array.isArray(data.widget_hidden))
                         localStorage.setItem('home_widget_hidden', JSON.stringify(data.widget_hidden));
+                    if (data.widget_spans && typeof data.widget_spans === 'object' && !Array.isArray(data.widget_spans))
+                        localStorage.setItem('home_widget_spans', JSON.stringify(data.widget_spans));
                 }
             } catch {
                 // Fall back to whatever is already in localStorage
@@ -240,30 +276,17 @@
         function saveWidgetConfig(config) {
             localStorage.setItem('home_widget_order', JSON.stringify(config.order));
             localStorage.setItem('home_widget_hidden', JSON.stringify(config.hidden));
-            localStorage.setItem('home_widget_half', JSON.stringify(config.half || []));
+            localStorage.setItem('home_widget_spans', JSON.stringify(config.spans || {}));
             // Persist to Supabase asynchronously (fire-and-forget)
             db.from('user_widget_config').upsert({
                 user_id:       currentUser.id,
                 widget_order:  config.order,
                 widget_hidden: config.hidden,
+                widget_spans:  config.spans || {},
                 updated_at:    new Date().toISOString()
             }, { onConflict: 'user_id' }).then(({ error }) => {
                 if (error) console.error('Failed to save widget config:', error);
             });
-        }
-
-        function toggleWidgetHalf(id) {
-            const config = getWidgetConfig();
-            if (!config.half) config.half = [];
-            const idx = config.half.indexOf(id);
-            if (idx === -1) {
-                config.half.push(id);
-            } else {
-                config.half.splice(idx, 1);
-            }
-            if (!config.order) config.order = getOrderedWidgets().map(w => w.id);
-            saveWidgetConfig(config);
-            renderWidgets();
         }
 
         function getAvailableWidgets() {
@@ -297,51 +320,121 @@
         // LAYOUT EDITING
         // ============================================
 
-        function toggleEditMode() {
-            editMode = !editMode;
-            const btn = document.getElementById('editLayoutBtn');
-            if (editMode) {
-                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg> Done';
-                btn.classList.remove('btn-secondary');
-                btn.classList.add('btn-primary');
+        // Enter/exit edit mode. Bodies are already rendered, so we only inject or
+        // remove the edit chrome (no widget re-fetch) and toggle the editor shell.
+        function setEditing(on) {
+            editMode = on;
+            const bento = document.getElementById('bento');
+            const toolbar = document.getElementById('editToolbar');
+            const fab = document.getElementById('editFab');
+            const editRow = document.querySelector('.edit-layout-row');
+            bento.classList.toggle('editing', on);
+            if (toolbar) toolbar.style.display = on ? 'flex' : 'none';
+            if (fab) fab.classList.toggle('show', on);
+            if (editRow) editRow.style.display = on ? 'none' : '';
+            if (on) {
+                refreshEditChrome();
             } else {
-                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Edit Layout';
-                btn.classList.remove('btn-primary');
-                btn.classList.add('btn-secondary');
+                removeAllChrome();
+                toggleAddMenu(false);
             }
-            renderWidgets();
         }
 
+        function toggleEditMode() { setEditing(!editMode); }
+
+        // Mobile up/down chips — reorder the DOM directly, then persist.
         function moveWidget(id, direction) {
-            const widgets = getOrderedWidgets();
-            const config = getWidgetConfig();
-            const order = widgets.map(w => w.id);
-            const idx = order.indexOf(id);
+            const cards = [...document.querySelectorAll('#bento .widget-card-new')];
+            const idx = cards.findIndex(c => c.dataset.widgetId === id);
             if (idx === -1) return;
+            const swap = idx + direction;
+            if (swap < 0 || swap >= cards.length) return;
+            const card = cards[idx], other = cards[swap];
+            if (direction < 0) other.parentNode.insertBefore(card, other);
+            else other.parentNode.insertBefore(card, other.nextSibling);
+            syncLayoutFromDom();
+            refreshEditChrome();
+        }
 
-            const newIdx = idx + direction;
-            if (newIdx < 0 || newIdx >= order.length) return;
-
-            [order[idx], order[newIdx]] = [order[newIdx], order[idx]];
-            config.order = order;
+        function hideWidget(id) {
+            const config = getWidgetConfig();
+            if (!config.hidden.includes(id)) config.hidden.push(id);
+            if (!config.order) config.order = getOrderedWidgets().map(w => w.id);
             saveWidgetConfig(config);
+            const card = document.querySelector(`#bento .widget-card-new[data-widget-id="${id}"]`);
+            if (card) card.remove();
+            refreshEditChrome();
+        }
+
+        function addWidget(id) {
+            const config = getWidgetConfig();
+            config.hidden = (config.hidden || []).filter(h => h !== id);
+            if (!config.order) config.order = getOrderedWidgets().map(w => w.id);
+            if (!config.order.includes(id)) config.order.push(id);
+            saveWidgetConfig(config);
+            toggleAddMenu(false);
+            const widget = WIDGET_REGISTRY.find(w => w.id === id);
+            if (!widget) return;
+            const span = getWidgetSpan(id, config, resolveSpanMap());
+            const total = document.querySelectorAll('#bento .widget-card-new').length + 1;
+            document.getElementById('bento').appendChild(buildWidgetCard(widget, total - 1, total, span));
+            lucide.createIcons();
+            refreshEditChrome();
+        }
+
+        function changeSpan(id, delta) {
+            const card = document.querySelector(`#bento .widget-card-new[data-widget-id="${id}"]`);
+            if (!card) return;
+            const cur = parseInt(card.dataset.span, 10) || 12;
+            const i = SNAP_SPANS.indexOf(cur);
+            const next = i === -1
+                ? (delta > 0 ? SNAP_SPANS.find(s => s > cur) : [...SNAP_SPANS].reverse().find(s => s < cur))
+                : SNAP_SPANS[i + delta];
+            if (!next) return;
+            applyCardSpan(card, next);
+            const config = getWidgetConfig();
+            config.spans = config.spans || {};
+            config.spans[id] = next;
+            saveWidgetConfig(config);
+            refreshEditChrome();
+        }
+
+        function resetLayout() {
+            if (!confirm('Reset to the default layout for your role?')) return;
+            localStorage.removeItem('home_widget_half');
+            saveWidgetConfig({ order: getAvailableWidgets().map(w => w.id), hidden: [], spans: {} });
             renderWidgets();
         }
 
-        function toggleWidget(id) {
-            const config = getWidgetConfig();
-            const idx = config.hidden.indexOf(id);
-            if (idx === -1) {
-                config.hidden.push(id);
-            } else {
-                config.hidden.splice(idx, 1);
+        // ============================================
+        // ADD-WIDGET MENU
+        // ============================================
+        function availableHiddenWidgets() {
+            const visibleIds = new Set([...document.querySelectorAll('#bento .widget-card-new')].map(c => c.dataset.widgetId));
+            return getAvailableWidgets().filter(w => !visibleIds.has(w.id));
+        }
+
+        function renderAddMenu() {
+            const menu = document.getElementById('addMenu');
+            const hidden = availableHiddenWidgets();
+            if (hidden.length === 0) {
+                menu.innerHTML = '<div class="add-menu-empty">All widgets are visible</div>';
+                return;
             }
-            // Ensure order is saved too
-            if (!config.order) {
-                config.order = getOrderedWidgets().map(w => w.id);
-            }
-            saveWidgetConfig(config);
-            renderWidgets();
+            menu.innerHTML = hidden.map(w => `
+                <button class="add-menu-item" data-add="${w.id}">
+                    <span class="ico"><i data-lucide="${w.icon}" width="16" height="16"></i></span>
+                    <span>${escapeHTML(w.title)}</span>
+                </button>`).join('');
+            lucide.createIcons();
+        }
+
+        function toggleAddMenu(open) {
+            const menu = document.getElementById('addMenu');
+            if (!menu) return;
+            if (open === undefined) open = !menu.classList.contains('open');
+            if (open) renderAddMenu();
+            menu.classList.toggle('open', open);
         }
 
         // ============================================
@@ -357,115 +450,270 @@
 
         const STAGGER = ['d1','d2','d3','d4','d5','d6','d7','d8'];
 
+        // Layout-editor constants
+        const SNAP_SPANS = [3, 4, 6, 8, 12];
+        const MIN_SPAN = 3, MAX_SPAN = 12;
+        let drag = null, rsz = null;
+
+        // Per-role default widths, widened to fill rows that would otherwise pair
+        // with active-shift when shifts are off. Used as the seed for new/reset layouts.
+        function resolveSpanMap() {
+            const role = currentUser.role;
+            const spanMap = { ...(WIDGET_SPANS[role] || {}) };
+            if (!currentUser.shifts_enabled) {
+                if (role === 'technician') { spanMap['open-boxes'] = 6; spanMap['week-stats'] = 6; }
+                else if (role === 'manager') { spanMap['depot-week'] = 12; }
+                else if (role === 'super_admin') { spanMap['today-jobs'] = 6; spanMap['week-stats'] = 6; }
+            }
+            return spanMap;
+        }
+
+        function getWidgetSpan(id, config, spanMap) {
+            const s = config.spans && config.spans[id];
+            if (s) return Math.max(MIN_SPAN, Math.min(MAX_SPAN, s));
+            return spanMap[id] || 12;
+        }
+
+        function applyCardSpan(card, span) {
+            card.className = card.className.replace(/\s*span-\d+/g, '');
+            card.classList.add('span-' + span);
+            card.dataset.span = span;
+            const val = card.querySelector('.span-pill .val');
+            if (val) val.textContent = Math.round(span / 12 * 100) + '%';
+        }
+
+        function editChromeHTML(idx, total, span) {
+            const pct = Math.round(span / 12 * 100);
+            return `
+                <div class="card-edit-chrome">
+                    <button class="drag-handle" title="Drag to reorder" data-role="drag">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="5" r="1.2"/><circle cx="15" cy="5" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="19" r="1.2"/><circle cx="15" cy="19" r="1.2"/></svg>
+                    </button>
+                    <button class="hide-btn" title="Hide widget" data-role="hide">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    </button>
+                    <div class="mobile-edit-chips">
+                        <button data-role="mv-up" ${idx === 0 ? 'disabled' : ''} title="Move up">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m18 15-6-6-6 6"/></svg>
+                        </button>
+                        <button data-role="mv-down" ${idx === total - 1 ? 'disabled' : ''} title="Move down">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                    </div>
+                    <div class="resize-handle-x" data-role="resize" title="Drag to resize"></div>
+                    <div class="span-pill" title="Card width">
+                        <button data-role="span-dec" ${span <= MIN_SPAN ? 'disabled' : ''}>&minus;</button>
+                        <span class="val">${pct}%</span>
+                        <button data-role="span-inc" ${span >= MAX_SPAN ? 'disabled' : ''}>+</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Build one widget card (header + body rendered once + edit chrome if editing)
+        function buildWidgetCard(widget, idx, total, span) {
+            const stagger = STAGGER[Math.min(idx, STAGGER.length - 1)];
+            const card = document.createElement('div');
+            card.className = `widget-card-new span-${span} fade-in ${stagger}`;
+            card.dataset.widgetId = widget.id;
+            card.dataset.span = span;
+            card.dataset.idx = idx;
+            card.innerHTML = `
+                <div class="card-head">
+                    <span class="card-title">
+                        <span class="ico"><i data-lucide="${widget.icon}" width="16" height="16"></i></span>
+                        ${escapeHTML(widget.title)}
+                    </span>
+                </div>
+            `;
+            const body = document.createElement('div');
+            body.className = 'widget-body';
+            body.innerHTML = '<div class="widget-loading"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div></div>';
+            card.appendChild(body);
+            widget.render(body, currentUser).catch(err => {
+                console.error(`Widget ${widget.id} error:`, err);
+                body.innerHTML = '<div class="widget-error">Failed to load</div>';
+            });
+            if (editMode) card.insertAdjacentHTML('beforeend', editChromeHTML(idx, total, span));
+            return card;
+        }
+
+        // Full rebuild (initial load, role change, reset). Bodies render once here.
         async function renderWidgets() {
             const container = document.getElementById('bento');
-            const widgets = getOrderedWidgets();
+            container.classList.toggle('editing', editMode);
             const config = getWidgetConfig();
-            const role = currentUser.role;
-            // Copy so we don't mutate the const — then widen the pair that would
-            // share a row with active-shift (which is absent when shifts are off).
-            let spanMap = { ...(WIDGET_SPANS[role] || {}) };
-            if (!currentUser.shifts_enabled) {
-                if (role === 'technician') {
-                    spanMap['open-boxes'] = 6;
-                    spanMap['week-stats'] = 6;
-                } else if (role === 'manager') {
-                    spanMap['depot-week'] = 12;
-                } else if (role === 'super_admin') {
-                    spanMap['today-jobs'] = 6;
-                    spanMap['week-stats'] = 6;
-                }
-            }
-            const halfList = config.half || [];
-
-            // Simulate flex row packing for visible widgets; expand partial rows to fill
-            const visibleWidgets = widgets.filter(w => !config.hidden.includes(w.id));
-            const baseSpans = visibleWidgets.map(w => halfList.includes(w.id) ? 6 : (spanMap[w.id] || 12));
-            const resolvedSpans = [...baseSpans];
-            if (!editMode) {
-                let i = 0;
-                while (i < visibleWidgets.length) {
-                    let rowTotal = 0, rowIndices = [];
-                    while (i < visibleWidgets.length && rowTotal + baseSpans[i] <= 12) {
-                        rowTotal += baseSpans[i];
-                        rowIndices.push(i);
-                        i++;
-                    }
-                    if (rowTotal < 12 && rowIndices.length > 0) {
-                        const each = Math.floor(12 / rowIndices.length);
-                        const remainder = 12 - each * rowIndices.length;
-                        rowIndices.forEach((idx, j) => {
-                            resolvedSpans[idx] = each + (j === rowIndices.length - 1 ? remainder : 0);
-                        });
-                    }
-                }
-            }
-            const spanById = {};
-            visibleWidgets.forEach((w, vi) => { spanById[w.id] = resolvedSpans[vi]; });
-
+            const spanMap = resolveSpanMap();
+            const cards = getOrderedWidgets().filter(w => !config.hidden.includes(w.id));
             container.innerHTML = '';
-
-            for (const widget of widgets) {
-                const isHidden = config.hidden.includes(widget.id);
-                if (isHidden && !editMode) continue;
-                const idx = widgets.indexOf(widget);
-                const isHalf = halfList.includes(widget.id);
-                const baseSpan = isHalf ? 6 : (spanMap[widget.id] || 12);
-                const span = isHidden ? baseSpan : (spanById[widget.id] ?? baseSpan);
-                const stagger = STAGGER[Math.min(idx, STAGGER.length - 1)];
-
-                const card = document.createElement('div');
-                card.className = `widget-card-new span-${span} fade-in ${stagger}${isHidden ? ' is-hidden' : ''}`;
-                card.dataset.widgetId = widget.id;
-
-                // Card header
-                let editControls = '';
-                if (editMode) {
-                    editControls = `
-                        <div class="card-actions">
-                            <button class="icon-btn" onclick="moveWidget('${widget.id}', -1)" title="Move up" ${idx === 0 ? 'disabled' : ''}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 15l-6-6-6 6"/></svg>
-                            </button>
-                            <button class="icon-btn" onclick="moveWidget('${widget.id}', 1)" title="Move down" ${idx === widgets.length - 1 ? 'disabled' : ''}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
-                            </button>
-                            <button class="icon-btn ${isHalf ? 'primary' : ''}" onclick="toggleWidgetHalf('${widget.id}')" title="${isHalf ? 'Full width' : 'Half width'}">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="18" rx="1"/><rect x="13" y="3" width="8" height="18" rx="1"/></svg>
-                            </button>
-                            <button class="icon-btn ${isHidden ? '' : 'primary'}" onclick="toggleWidget('${widget.id}')" title="${isHidden ? 'Show' : 'Hide'}">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${isHidden ? '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/>' : '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>'}</svg>
-                            </button>
-                        </div>
-                    `;
-                }
-
-                card.innerHTML = `
-                    <div class="card-head">
-                        <span class="card-title">
-                            <span class="ico"><i data-lucide="${widget.icon}" width="16" height="16"></i></span>
-                            ${escapeHTML(widget.title)}
-                        </span>
-                        ${editControls}
-                    </div>
-                `;
-
-                // Widget body (skip if hidden in edit mode)
-                if (!isHidden) {
-                    const body = document.createElement('div');
-                    body.className = 'widget-body';
-                    body.innerHTML = '<div class="widget-loading"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div></div>';
-                    card.appendChild(body);
-
-                    widget.render(body, currentUser).catch(err => {
-                        console.error(`Widget ${widget.id} error:`, err);
-                        body.innerHTML = '<div class="widget-error">Failed to load</div>';
-                    });
-                }
-
-                container.appendChild(card);
-            }
-
+            cards.forEach((widget, idx) => {
+                const span = getWidgetSpan(widget.id, config, spanMap);
+                container.appendChild(buildWidgetCard(widget, idx, cards.length, span));
+            });
             lucide.createIcons();
+        }
+
+        // Re-inject edit chrome with fresh idx/disabled states WITHOUT touching bodies.
+        function refreshEditChrome() {
+            if (!editMode) return;
+            const cards = [...document.querySelectorAll('#bento .widget-card-new')];
+            const total = cards.length;
+            cards.forEach((card, idx) => {
+                card.dataset.idx = idx;
+                const old = card.querySelector('.card-edit-chrome');
+                if (old) old.remove();
+                const span = parseInt(card.dataset.span, 10) || 12;
+                card.insertAdjacentHTML('beforeend', editChromeHTML(idx, total, span));
+            });
+        }
+
+        function removeAllChrome() {
+            document.querySelectorAll('#bento .card-edit-chrome').forEach(el => el.remove());
+        }
+
+        // Rewrite saved order from current DOM order; keep hidden ids appended.
+        function syncLayoutFromDom() {
+            const visibleIds = [...document.querySelectorAll('#bento .widget-card-new')].map(c => c.dataset.widgetId);
+            const config = getWidgetConfig();
+            const hidden = config.hidden || [];
+            config.order = [...visibleIds, ...hidden.filter(id => !visibleIds.includes(id))];
+            saveWidgetConfig(config);
+        }
+
+        // ---------- Drag to reorder (pointer events) ----------
+        function startDrag(e, card) {
+            if (window.matchMedia('(max-width: 720px)').matches) return; // mobile uses chips
+            e.preventDefault();
+            const rect = card.getBoundingClientRect();
+            drag = {
+                card, id: card.dataset.widgetId,
+                offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top,
+                width: rect.width, height: rect.height,
+                ghost: null, moved: false, startX: e.clientX, startY: e.clientY
+            };
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'grabbing';
+            window.addEventListener('pointermove', onDragMove);
+            window.addEventListener('pointerup', onDragEnd, { once: true });
+        }
+
+        function onDragMove(e) {
+            if (!drag) return;
+            const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+            if (!drag.moved && Math.hypot(dx, dy) < 4) return; // dead zone
+            if (!drag.moved) {
+                drag.moved = true;
+                const clone = drag.card.cloneNode(true);
+                clone.classList.add('ghost');
+                clone.style.width = drag.width + 'px';
+                clone.style.height = drag.height + 'px';
+                clone.querySelectorAll('.card-edit-chrome').forEach(el => el.remove());
+                document.body.appendChild(clone);
+                drag.ghost = clone;
+                drag.card.classList.add('dragging');
+            }
+            drag.ghost.style.left = (e.clientX - drag.offsetX) + 'px';
+            drag.ghost.style.top = (e.clientY - drag.offsetY) + 'px';
+            const elBelow = document.elementFromPoint(e.clientX, e.clientY);
+            const targetCard = elBelow ? elBelow.closest('.widget-card-new') : null;
+            if (targetCard && targetCard !== drag.card && !targetCard.classList.contains('ghost')) {
+                const r = targetCard.getBoundingClientRect();
+                const isWideRow = r.width > r.height * 1.4;
+                const before = isWideRow ? (e.clientX < r.left + r.width / 2) : (e.clientY < r.top + r.height / 2);
+                moveCardInDom(drag.card, targetCard, before);
+            }
+        }
+
+        function moveCardInDom(card, target, before) {
+            if (before) target.parentNode.insertBefore(card, target);
+            else target.parentNode.insertBefore(card, target.nextSibling);
+        }
+
+        function onDragEnd() {
+            if (!drag) return;
+            if (drag.ghost) drag.ghost.remove();
+            drag.card.classList.remove('dragging');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            window.removeEventListener('pointermove', onDragMove);
+            const moved = drag.moved;
+            drag = null;
+            if (moved) { syncLayoutFromDom(); refreshEditChrome(); }
+        }
+
+        // ---------- Drag to resize (right edge) ----------
+        function startResize(e, card) {
+            e.preventDefault();
+            e.stopPropagation();
+            const bento = document.getElementById('bento');
+            const bRect = bento.getBoundingClientRect();
+            const colWidth = bRect.width / 12;
+            const cardRect = card.getBoundingClientRect();
+            rsz = {
+                card, id: card.dataset.widgetId, bRect, colWidth,
+                span: parseInt(card.dataset.span, 10) || 12,
+                cardLeftCol: Math.round((cardRect.left - bRect.left) / colWidth)
+            };
+            card.classList.add('resizing');
+            document.body.style.cursor = 'ew-resize';
+            window.addEventListener('pointermove', onResizeMove);
+            window.addEventListener('pointerup', onResizeEnd, { once: true });
+        }
+
+        function onResizeMove(e) {
+            if (!rsz) return;
+            const col = Math.round((e.clientX - rsz.bRect.left) / rsz.colWidth);
+            let desired = Math.max(MIN_SPAN, Math.min(MAX_SPAN, col - rsz.cardLeftCol));
+            const snapped = SNAP_SPANS.reduce((best, s) =>
+                Math.abs(s - desired) < Math.abs(best - desired) ? s : best, SNAP_SPANS[0]);
+            if (snapped !== rsz.span) {
+                rsz.span = snapped;
+                applyCardSpan(rsz.card, snapped);
+            }
+        }
+
+        function onResizeEnd() {
+            if (!rsz) return;
+            rsz.card.classList.remove('resizing');
+            document.body.style.cursor = '';
+            window.removeEventListener('pointermove', onResizeMove);
+            const config = getWidgetConfig();
+            config.spans = config.spans || {};
+            config.spans[rsz.id] = rsz.span;
+            saveWidgetConfig(config);
+            rsz = null;
+            refreshEditChrome();
+        }
+
+        // ---------- Bento event delegation ----------
+        function wireBentoEvents() {
+            const bento = document.getElementById('bento');
+            bento.addEventListener('pointerdown', (e) => {
+                if (!editMode) return;
+                const card = e.target.closest('.widget-card-new');
+                if (!card) return;
+                const role = e.target.closest('[data-role]')?.dataset.role;
+                if (role === 'resize') return startResize(e, card);
+                if (role === 'hide' || role === 'mv-up' || role === 'mv-down' || role === 'span-inc' || role === 'span-dec') return;
+                if (e.target.closest('.span-pill') || e.target.closest('button')) return;
+                startDrag(e, card);
+            });
+            bento.addEventListener('click', (e) => {
+                if (!editMode) return;
+                const action = e.target.closest('[data-role]');
+                if (!action) return;
+                const card = action.closest('.widget-card-new');
+                const id = card?.dataset.widgetId;
+                if (!id) return;
+                e.stopPropagation();
+                switch (action.dataset.role) {
+                    case 'hide':     hideWidget(id); break;
+                    case 'mv-up':    moveWidget(id, -1); break;
+                    case 'mv-down':  moveWidget(id, 1); break;
+                    case 'span-inc': changeSpan(id, +1); break;
+                    case 'span-dec': changeSpan(id, -1); break;
+                }
+            });
         }
 
         // ============================================
@@ -2116,6 +2364,23 @@
 
             await loadWidgetConfig();
             await renderWidgets();
+            wireBentoEvents();
+
+            // Layout-editor controls
+            document.getElementById('doneEditBtn').addEventListener('click', () => setEditing(false));
+            document.getElementById('editFab').addEventListener('click', () => setEditing(false));
+            document.getElementById('resetLayoutBtn').addEventListener('click', resetLayout);
+            document.getElementById('addWidgetBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleAddMenu(); });
+            document.getElementById('addMenu').addEventListener('click', (e) => {
+                const item = e.target.closest('[data-add]');
+                if (item) addWidget(item.dataset.add);
+            });
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.add-menu-wrap')) toggleAddMenu(false);
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && editMode) setEditing(false);
+            });
 
             // Hero KPIs load after widgets (non-blocking)
             renderHeroKpis(currentUser).catch(e => console.error('Hero KPIs failed:', e));
@@ -2286,5 +2551,11 @@
             </form>
         </div>
     </div>
+
+    <!-- Floating "Done editing" button (visible in edit mode) -->
+    <button class="edit-fab" id="editFab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Done editing
+    </button>
 </body>
 </html>
