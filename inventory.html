@@ -281,14 +281,7 @@
         function setAvatarInitials(user) {
             const el = document.getElementById('userAvatar');
             if (!el || !user) return;
-            const meta = user.user_metadata || {};
-            const fullName = meta.full_name || meta.name || '';
-            if (fullName) {
-                const parts = fullName.trim().split(/\s+/);
-                el.textContent = parts.map(p => p[0]).join('').toUpperCase().slice(0, 2);
-            } else if (user.email) {
-                el.textContent = user.email.slice(0, 2).toUpperCase();
-            }
+            el.textContent = getAvatarInitials(user);
         }
 
         // ============================================================

@@ -468,16 +468,7 @@ let bulkModeState = false;
 function setSeAvatar(user) {
     const el = document.getElementById('seAvatar');
     if (!el || !user) return;
-    const meta = user.user_metadata || {};
-    const fullName = meta.full_name || meta.name || '';
-    let initials = '??';
-    if (fullName) {
-        const parts = fullName.trim().split(/\s+/);
-        initials = parts.map(p => p[0]).join('').toUpperCase().slice(0, 2);
-    } else if (user.email) {
-        initials = user.email.slice(0, 2).toUpperCase();
-    }
-    el.textContent = initials;
+    el.textContent = getAvatarInitials(user);
 }
 
 // ============================================

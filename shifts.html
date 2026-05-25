@@ -325,11 +325,7 @@
         function setAvatarInitials(user) {
             const el = document.getElementById('userAvatar');
             if (!el || !user) return;
-            const meta = user.user_metadata || {};
-            const fullName = meta.full_name || meta.name || '';
-            el.textContent = fullName
-                ? fullName.trim().split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
-                : (user.email || 'U').slice(0, 2).toUpperCase();
+            el.textContent = getAvatarInitials(user);
         }
 
         function showLoading(show) {

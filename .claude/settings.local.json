@@ -10,7 +10,11 @@
       "Bash(git -C g:/Projects/stock-control diff HEAD -- styles.css)",
       "Bash(git -C g:/Projects/stock-control diff HEAD -- my-depot.html)",
       "Bash(git -C g:/Projects/stock-control status)",
-      "Bash(git -C g:/Projects/stock-control diff HEAD --stat -- my-depot.html manage-depots.html styles.css inventory.html)"
+      "Bash(git -C g:/Projects/stock-control diff HEAD --stat -- my-depot.html manage-depots.html styles.css inventory.html)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Select-Object Name, LastWriteTime)",
+      "Bash(Sort-Object Name)",
+      "Bash(findstr /m \"topbar\" *.html)"
     ]
   }
 }

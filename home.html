@@ -1778,13 +1778,7 @@
         function setAvatarInitials(user) {
             const el = document.getElementById('userAvatar');
             if (!el) return;
-            const name = user.user_metadata?.full_name || user.email || '';
-            const parts = name.split(/[\s@]+/).filter(Boolean);
-            if (parts.length >= 2) {
-                el.textContent = (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-            } else if (parts.length === 1) {
-                el.textContent = parts[0].slice(0, 2).toUpperCase();
-            }
+            el.textContent = getAvatarInitials(user);
         }
 
         function applyGreeting(user) {

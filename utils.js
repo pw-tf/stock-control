@@ -16,6 +16,29 @@ function escapeHTML(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/**
+ * Compute up-to-2-char avatar initials.
+ * Accepts a user object (uses user_metadata.full_name, else email)
+ * or a plain email/name string. The email local part is split on
+ * whitespace and . _ - separators, so:
+ *   brett@mbsa.com.au -> "BR", john.doe@x -> "JD", "Brett Robinson" -> "BR"
+ * @param {object|string} input - user object or email/name string
+ * @returns {string} uppercase initials
+ */
+function getAvatarInitials(input) {
+    if (!input) return '??';
+    if (typeof input === 'object') {
+        const meta = input.user_metadata || {};
+        const fullName = (meta.full_name || meta.name || '').trim();
+        return getAvatarInitials(fullName || input.email || '');
+    }
+    const base = (input.includes('@') ? input.split('@')[0] : input).trim();
+    if (!base) return '??';
+    const words = base.split(/[\s._-]+/).filter(Boolean);
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    return (words[0] || base).slice(0, 2).toUpperCase();
+}
+
 // ============================================
 // THEME MANAGEMENT
 // ============================================

@@ -283,8 +283,7 @@
         const placeholders = { users: 'Search by name, email, agent…', agents: 'Search agent IDs…', clients: 'Search client codes…', vendors: 'Search vendors…' };
 
         function avatarInitials(emailOrName) {
-            const parts = (emailOrName || '?').split(/[\s@.]+/).filter(Boolean);
-            return ((parts[0]?.[0] || '?') + (parts[1]?.[0] || '')).toUpperCase();
+            return getAvatarInitials(emailOrName);
         }
 
         function avatar(emailOrName) {

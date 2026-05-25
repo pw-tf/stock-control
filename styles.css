@@ -3494,6 +3494,7 @@ body:has(.topbar) .hamburger-btn { display: none !important; }
 }
 .topbar-avatar {
   width: 40px; height: 40px;
+  flex-shrink: 0;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent-secondary), var(--accent-tertiary));
   color: white;
