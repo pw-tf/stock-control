@@ -987,13 +987,15 @@ async function selectJobType(jobType) {
         p.classList.toggle('active', p.dataset.type === jobType);
     });
 
+    const serialSection = document.getElementById('serialSection');
     const individualEntry = document.getElementById('individualEntry');
     const bulkEntry = document.getElementById('bulkEntry');
 
     if (jobType === 'install') {
-        if (individualEntry) individualEntry.style.display = 'none';
-        if (bulkEntry) bulkEntry.style.display = 'none';
+        // Install jobs take no serials — hide the whole section, like the receipt box
+        if (serialSection) serialSection.style.display = 'none';
     } else {
+        if (serialSection) serialSection.style.display = '';
         if (individualEntry) individualEntry.style.display = bulkModeState ? 'none' : '';
         if (bulkEntry) bulkEntry.style.display = bulkModeState ? '' : 'none';
     }
@@ -1220,9 +1222,15 @@ async function handleClientChange() {
 
 async function prefillFromPrefilledJob(id) {
     try {
-        const { data: pj, error } = await db.from('prefilled_jobs').select('*').eq('id', id).eq('user_id', currentUserId).single();
+        const { data: pj, error } = await db.from('prefilled_jobs').select('*').eq('id', id).single();
         if (error || !pj) return;
         if (pj.is_completed) { showAlert('This planned job is already completed.', 'info'); return; }
+        // The box is created under the logged-in user's agent, so only the
+        // assigned agent may complete the job — guard against wrong-agent completion.
+        if (pj.assigned_agent_id && pj.assigned_agent_id !== currentAgent) {
+            showAlert(`This planned job is assigned to agent ${escapeHTML(pj.assigned_agent_id)} and can only be completed by that agent.`, 'warning');
+            return;
+        }
         prefilledJobId = pj.id;
         prefilledJobData = pj;
         const alertContainer = document.getElementById('alertContainer');
@@ -1431,6 +1439,7 @@ function clearJobForm() {
     chips = [];
     renderChips();
     bulkModeState = false;
+    document.getElementById('serialSection').style.display = '';
     document.getElementById('individualEntry').style.display = '';
     document.getElementById('bulkEntry').style.display = 'none';
     const bt = document.getElementById('bulkToggle');
