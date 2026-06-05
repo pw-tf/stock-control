@@ -52,9 +52,11 @@
 
         /* Two-up charts row */
         .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap, 16px); }
+        /* Let grid children shrink so wide content scrolls instead of stretching the column */
+        .charts-grid > * { min-width: 0; }
 
         /* Jobs-per-day bars: allow horizontal scroll for long ranges */
-        .chart-scroll { overflow-x: auto; }
+        .chart-scroll { overflow-x: auto; max-width: 100%; }
         .chart-scroll .bars { min-width: 100%; }
         .chart-scroll .bar-col { min-width: 26px; }
 
