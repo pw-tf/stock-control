@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics — Stock Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+    <script>(function(){var t=localStorage.getItem('theme')||'ocean';var m=localStorage.getItem('mode')||'dark';var d=localStorage.getItem('density')||'comfortable';document.documentElement.setAttribute('data-theme',t);document.documentElement.setAttribute('data-mode',m);document.documentElement.setAttribute('data-density',d);})();</script>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@0.460.0"></script>
+    <script src="icons.js"></script>
+    <script src="auth.js"></script>
+    <script src="sidebar.js"></script>
+    <script src="utils.js"></script>
+    <style>
+        /* Date presets (mirrors shifts.html) */
+        .preset-row { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; }
+        .preset {
+            background: var(--bg-tertiary); border: 1px solid var(--border-primary);
+            color: var(--text-secondary); padding: 5px 12px; border-radius: 4px;
+            font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: all .15s;
+        }
+        .preset:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .preset.active { background: var(--accent-glow); border-color: var(--accent-tertiary); color: var(--accent-tertiary); font-weight: 600; }
+
+        /* Filter grid */
+        .filter-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: flex-end; }
+        .field-mini { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .field-mini label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; }
+        .field-mini input {
+            width: 100%; box-sizing: border-box;
+            background: var(--bg-tertiary); border: 1px solid var(--border-primary);
+            border-radius: 4px; padding: 8px 12px; font-size: 0.85rem; color: var(--text-primary);
+            font-family: var(--font-mono);
+        }
+        .field-mini input:focus { outline: none; border-color: var(--accent-tertiary); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+        /* Card head / title (generic, page-local) */
+        .card { margin-bottom: var(--gap, 16px); }
+        .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+        .card-head .card-title {
+            display: inline-flex; align-items: center; gap: 10px;
+            font-size: 0.9rem; font-weight: 600; color: var(--text-primary); letter-spacing: -0.005em;
+        }
+        .card-head .card-title .ico {
+            width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+            background: var(--accent-glow); color: var(--accent-tertiary); border-radius: 5px; flex-shrink: 0;
+        }
+
+        /* Two-up charts row */
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap, 16px); }
+
+        /* Jobs-per-day bars: allow horizontal scroll for long ranges */
+        .chart-scroll { overflow-x: auto; }
+        .chart-scroll .bars { min-width: 100%; }
+        .chart-scroll .bar-col { min-width: 26px; }
+
+        /* Jobs by type (horizontal bars) */
+        .type-list { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+        .type-row { display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: 12px; }
+        .type-lbl { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); }
+        .type-bar { height: 10px; background: var(--bg-tertiary); border-radius: 5px; overflow: hidden; }
+        .type-fill { height: 100%; background: linear-gradient(90deg, var(--accent-secondary), var(--accent-tertiary)); border-radius: 5px; min-width: 2px; transition: width .8s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .type-val { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+        /* Per-tech name cell */
+        .tech-cell .name { font-weight: 600; color: var(--text-primary); }
+        .tech-cell .sub { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+
+        @media (max-width: 720px) {
+            .preset-row { display: grid; grid-template-columns: 1fr 1fr; }
+            .filter-grid { grid-template-columns: 1fr 1fr; }
+            .filter-grid > .btn { grid-column: 1 / -1; }
+            .charts-grid { grid-template-columns: 1fr; }
+            .type-row { grid-template-columns: 90px 1fr auto; gap: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loading"><div class="spinner"></div></div>
+    <div class="sync-status" id="syncStatus"></div>
+
+    <div class="app">
+
+        <!-- TOPBAR -->
+        <div class="topbar fade-in">
+            <button class="topbar-burger" onclick="toggleSidebar()" aria-label="Menu">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+            </button>
+            <div class="topbar-logo">
+                <span class="topbar-logo-mark">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg>
+                </span>
+                <span>Stock Control</span>
+            </div>
+            <div class="topbar-spacer"></div>
+            <div class="topbar-avatar" id="userAvatar">??</div>
+        </div>
+
+        <!-- PAGE HEAD -->
+        <div class="page-head fade-in d1">
+            <div class="page-title-group">
+                <span class="page-title-mark">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
+                </span>
+                <div class="page-title">
+                    <h1>Analytics</h1>
+                    <div class="page-title-sub" id="pageSubtitle">Depot performance over a date range</div>
+                </div>
+            </div>
+            <div class="page-actions">
+                <button class="btn" onclick="downloadAnalyticsCSV()" id="csvBtn" style="display:none">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    Download CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- FILTER CARD -->
+        <div class="card fade-in d2">
+            <div class="card-head">
+                <span class="card-title">
+                    <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+                    Date range
+                </span>
+            </div>
+            <div class="preset-row">
+                <button class="preset" id="preset-week" onclick="setDatePreset('week')">This week</button>
+                <button class="preset" id="preset-month" onclick="setDatePreset('month')">This month</button>
+                <button class="preset active" id="preset-30" onclick="setDatePreset('30')">Last 30 days</button>
+                <button class="preset" id="preset-90" onclick="setDatePreset('90')">Last 90 days</button>
+            </div>
+            <div class="filter-grid">
+                <div class="field-mini">
+                    <label>From</label>
+                    <input type="date" id="dateFrom">
+                </div>
+                <div class="field-mini">
+                    <label>To</label>
+                    <input type="date" id="dateTo">
+                </div>
+                <button class="btn primary" id="loadBtn">Load analytics</button>
+            </div>
+        </div>
+
+        <!-- HEADLINE STAT STRIP -->
+        <div class="stat-strip fade-in d3" id="statStrip" style="display:none">
+            <div><span class="lbl">Total jobs</span><span class="v" id="statJobs">0</span></div>
+            <div><span class="lbl">Total shifts</span><span class="v" id="statShifts">0</span></div>
+            <div><span class="lbl">Total hours</span><span class="v" id="statHours">0h</span></div>
+            <div><span class="lbl">Total km</span><span class="v" id="statKms">0 km</span></div>
+        </div>
+
+        <!-- CHARTS: by type + per day -->
+        <div class="charts-grid fade-in d3" id="chartsGrid" style="display:none">
+            <div class="card">
+                <div class="card-head">
+                    <span class="card-title">
+                        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect width="4" height="7" x="7" y="10"/><rect width="4" height="12" x="15" y="5"/></svg></span>
+                        Jobs by type
+                    </span>
+                </div>
+                <div class="type-list" id="byType"></div>
+            </div>
+            <div class="card">
+                <div class="card-head">
+                    <span class="card-title">
+                        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg></span>
+                        Jobs per day
+                    </span>
+                </div>
+                <div class="chart-scroll"><div class="bars" id="perDay"></div></div>
+            </div>
+        </div>
+
+        <!-- PER-TECHNICIAN -->
+        <div class="card fade-in d4" id="techCard" style="display:none">
+            <div class="card-head">
+                <span class="card-title">
+                    <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                    Per technician
+                </span>
+            </div>
+            <div class="t-wrap">
+                <table class="tbl">
+                    <thead><tr><th>Technician</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Adj. hrs</th><th class="num">Km</th><th class="num">Jobs</th><th class="num">Jobs/shift</th><th class="num">Jobs/hr</th></tr></thead>
+                    <tbody id="techBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PER-CLIENT + PER-VENDOR -->
+        <div class="charts-grid fade-in d4" id="breakdownGrid" style="display:none">
+            <div class="card">
+                <div class="card-head">
+                    <span class="card-title">
+                        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+                        Jobs by client
+                    </span>
+                </div>
+                <div class="t-wrap">
+                    <table class="tbl">
+                        <thead><tr><th>Client</th><th class="num">Jobs</th><th class="num">% of total</th></tr></thead>
+                        <tbody id="clientBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-head">
+                    <span class="card-title">
+                        <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span>
+                        Jobs by vendor
+                    </span>
+                </div>
+                <div class="t-wrap">
+                    <table class="tbl">
+                        <thead><tr><th>Vendor</th><th class="num">Jobs</th><th class="num">% of total</th></tr></thead>
+                        <tbody id="vendorBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- AVERAGES -->
+        <div class="card fade-in d4" id="avgCard" style="display:none">
+            <div class="card-head">
+                <span class="card-title">
+                    <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+                    Averages
+                </span>
+            </div>
+            <div class="stat-strip" style="display:grid">
+                <div><span class="lbl">Avg jobs / day</span><span class="v" id="avgPerDay">0</span></div>
+                <div><span class="lbl">Avg jobs / shift</span><span class="v" id="avgPerShift">0</span></div>
+                <div><span class="lbl">Avg shift length</span><span class="v" id="avgShiftLen">0h</span></div>
+                <div><span class="lbl">Avg km / shift</span><span class="v" id="avgKmShift">0 km</span></div>
+            </div>
+        </div>
+
+        <!-- EMPTY STATE -->
+        <div class="card fade-in d4" id="emptyCard" style="display:none">
+            <div class="empty-state" style="padding:40px 0">
+                <p id="emptyMsg">Select a date range and click "Load analytics" to view depot performance</p>
+            </div>
+        </div>
+
+    </div><!-- /.app -->
+
+    <script>
+        let currentUser = null;
+        let currentDepotId = null;
+        let activePreset = '30';
+        let techRows = [];      // cached for CSV export
+        let rangeFrom = '';
+        let rangeTo = '';
+
+        const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await initAuth(['manager', 'super_admin']);
+            if (!currentUser) return;
+            currentDepotId = currentUser.depot_id;
+
+            initSidebar(currentUser);
+            setAvatarInitials(currentUser);
+
+            setDatePreset('30');
+            document.getElementById('loadBtn').addEventListener('click', loadAnalytics);
+            await loadAnalytics();
+            showLoading(false);
+        });
+
+        function setAvatarInitials(user) {
+            const el = document.getElementById('userAvatar');
+            if (!el || !user) return;
+            el.textContent = getAvatarInitials(user);
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').classList.toggle('active', show);
+        }
+
+        function formatLocalDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // Shift time multiplier — Sun 2x, Sat 1.5x, Mon-Fri 1x (matches shifts.html)
+        function getTimeMultiplier(date) {
+            const d = new Date(date).getDay();
+            if (d === 0) return 2.0;
+            if (d === 6) return 1.5;
+            return 1.0;
+        }
+
+        function formatHours(h) {
+            if (!isFinite(h) || h <= 0) return '0h';
+            const hrs = Math.floor(h);
+            const mins = Math.round((h - hrs) * 60);
+            return `${hrs}h ${mins}m`;
+        }
+
+        function setDatePreset(preset) {
+            activePreset = preset;
+            document.querySelectorAll('.preset').forEach(b => b.classList.remove('active'));
+            const today = new Date();
+            let from = new Date();
+
+            if (preset === 'week')       { from.setDate(today.getDate() - today.getDay() + 1); }
+            else if (preset === 'month') { from = new Date(today.getFullYear(), today.getMonth(), 1); }
+            else if (preset === '30')    { from.setDate(today.getDate() - 30); }
+            else if (preset === '90')    { from.setDate(today.getDate() - 90); }
+
+            document.getElementById('dateFrom').value = formatLocalDate(from);
+            document.getElementById('dateTo').value = formatLocalDate(today);
+
+            const btn = document.getElementById(`preset-${preset}`);
+            if (btn) btn.classList.add('active');
+        }
+
+        // Mark preset inactive if the user manually edits the date inputs
+        document.addEventListener('input', (e) => {
+            if (e.target && (e.target.id === 'dateFrom' || e.target.id === 'dateTo')) {
+                document.querySelectorAll('.preset').forEach(b => b.classList.remove('active'));
+            }
+        });
+
+        async function loadAnalytics() {
+            const from = document.getElementById('dateFrom').value;
+            const to = document.getElementById('dateTo').value;
+            if (!from || !to) { showAlert('Please select both from and to dates', 'error'); return; }
+            if (from > to) { showAlert('"From" date must be before "To" date', 'error'); return; }
+
+            rangeFrom = from;
+            rangeTo = to;
+            showLoading(true);
+            try {
+                const fromISO = new Date(from + 'T00:00:00').toISOString();
+                const toISO = new Date(to + 'T23:59:59').toISOString();
+
+                const [shiftsRes, jobsRes, boxesRes, usersRes] = await Promise.all([
+                    db.from('shifts').select('*').eq('status', 'completed').eq('depot_id', currentDepotId)
+                        .gte('start_time', fromISO).lte('start_time', toISO),
+                    db.from('jobs').select('id, job_type, vendor, box_id, shift_id, created_at').eq('depot_id', currentDepotId)
+                        .gte('created_at', fromISO).lte('created_at', toISO).range(0, 9999),
+                    db.from('boxes').select('id, client, agent').eq('depot_id', currentDepotId),
+                    db.from('user_roles').select('user_id, email, agent_id').eq('depot_id', currentDepotId)
+                ]);
+
+                if (shiftsRes.error) throw shiftsRes.error;
+                if (jobsRes.error) throw jobsRes.error;
+
+                const shifts = shiftsRes.data || [];
+                const jobs = jobsRes.data || [];
+                const boxes = boxesRes.data || [];
+                const users = usersRes.data || [];
+
+                const boxClientMap = {};
+                boxes.forEach(b => { boxClientMap[b.id] = b.client; });
+                const userMap = {};
+                users.forEach(u => { userMap[u.user_id] = { email: u.email, agent_id: u.agent_id }; });
+
+                renderAll(shifts, jobs, boxClientMap, userMap, from, to);
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+                showAlert('Error loading analytics. Please try again.', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderAll(shifts, jobs, boxClientMap, userMap, from, to) {
+            const sections = ['statStrip', 'chartsGrid', 'techCard', 'breakdownGrid', 'avgCard'];
+            const hasData = jobs.length > 0 || shifts.length > 0;
+
+            document.getElementById('emptyCard').style.display = hasData ? 'none' : '';
+            document.getElementById('csvBtn').style.display = (hasData && shifts.length > 0) ? '' : 'none';
+            sections.forEach(id => {
+                document.getElementById(id).style.display = hasData ? (id === 'chartsGrid' || id === 'breakdownGrid' ? 'grid' : (id === 'statStrip' ? 'grid' : '')) : 'none';
+            });
+            if (!hasData) {
+                document.getElementById('emptyMsg').textContent = 'No jobs or shifts found for the selected range.';
+                document.getElementById('pageSubtitle').textContent = `${from} → ${to} · no activity`;
+                return;
+            }
+
+            // Totals
+            const totalJobs = jobs.length;
+            const totalShifts = shifts.length;
+            let totalHours = 0, totalKms = 0;
+            shifts.forEach(s => {
+                totalHours += (new Date(s.end_time) - new Date(s.start_time)) / 3600000;
+                totalKms += (s.end_kms - s.start_kms);
+            });
+
+            document.getElementById('statJobs').textContent = totalJobs.toLocaleString();
+            document.getElementById('statShifts').textContent = totalShifts.toLocaleString();
+            document.getElementById('statHours').textContent = formatHours(totalHours);
+            document.getElementById('statKms').textContent = `${Math.round(totalKms).toLocaleString()} km`;
+            document.getElementById('pageSubtitle').textContent = `${from} → ${to}`;
+
+            renderByType(jobs, totalJobs);
+            renderPerDay(jobs, from, to);
+            renderPerTech(shifts, jobs, userMap);
+            renderClientVendor(jobs, boxClientMap, totalJobs);
+            renderAverages(totalJobs, totalShifts, totalHours, totalKms, from, to);
+        }
+
+        function renderByType(jobs, totalJobs) {
+            const labels = { 'swap-upgrade': 'Swap / Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
+            const counts = { 'swap-upgrade': 0, 'install': 0, 'deinstall': 0 };
+            jobs.forEach(j => { if (counts[j.job_type] !== undefined) counts[j.job_type]++; });
+            const max = Math.max(...Object.values(counts), 1);
+
+            document.getElementById('byType').innerHTML = Object.keys(labels).map(type => {
+                const n = counts[type];
+                const pct = totalJobs ? Math.round((n / totalJobs) * 100) : 0;
+                const w = Math.round((n / max) * 100);
+                return `
+                    <div class="type-row">
+                        <span class="type-lbl">${escapeHTML(labels[type])}</span>
+                        <div class="type-bar"><div class="type-fill" style="width:${w}%"></div></div>
+                        <span class="type-val">${n} · ${pct}%</span>
+                    </div>`;
+            }).join('');
+        }
+
+        // Build daily (<=31 days) or weekly buckets of job counts across the range
+        function buildBuckets(jobs, from, to) {
+            const jobsByDate = {};
+            jobs.forEach(j => {
+                const key = formatLocalDate(new Date(j.created_at));
+                jobsByDate[key] = (jobsByDate[key] || 0) + 1;
+            });
+
+            const fromD = new Date(from + 'T00:00:00');
+            const toD = new Date(to + 'T00:00:00');
+            const dayMs = 86400000;
+            const numDays = Math.round((toD - fromD) / dayMs) + 1;
+            const todayKey = formatLocalDate(new Date());
+
+            const buckets = [];
+            if (numDays <= 31) {
+                for (let i = 0; i < numDays; i++) {
+                    const d = new Date(fromD.getTime() + i * dayMs);
+                    const key = formatLocalDate(d);
+                    buckets.push({ label: `${d.getDate()}/${d.getMonth() + 1}`, count: jobsByDate[key] || 0, isToday: key === todayKey });
+                }
+            } else {
+                // Weekly buckets (7-day chunks from the start of the range)
+                for (let i = 0; i < numDays; i += 7) {
+                    const start = new Date(fromD.getTime() + i * dayMs);
+                    let count = 0, isToday = false;
+                    for (let d = 0; d < 7 && (i + d) < numDays; d++) {
+                        const day = new Date(fromD.getTime() + (i + d) * dayMs);
+                        const key = formatLocalDate(day);
+                        count += jobsByDate[key] || 0;
+                        if (key === todayKey) isToday = true;
+                    }
+                    buckets.push({ label: `${start.getDate()}/${start.getMonth() + 1}`, count, isToday });
+                }
+            }
+            return buckets;
+        }
+
+        function renderPerDay(jobs, from, to) {
+            const buckets = buildBuckets(jobs, from, to);
+            const max = Math.max(...buckets.map(b => b.count), 1);
+            document.getElementById('perDay').innerHTML = buckets.map(b => {
+                const pct = Math.round((b.count / max) * 100);
+                return `
+                    <div class="bar-col ${b.isToday ? 'today' : ''}">
+                        <div class="bar-val">${b.count}</div>
+                        <div class="bar-track"><div class="bar-fill" style="height:${Math.max(pct, 4)}%"></div></div>
+                        <div class="bar-lbl">${escapeHTML(b.label)}</div>
+                    </div>`;
+            }).join('');
+        }
+
+        function renderPerTech(shifts, jobs, userMap) {
+            // Map each shift to its owner, then attribute jobs (via shift_id) to that tech.
+            const shiftOwner = {};
+            const agg = {};   // user_id -> stats
+            shifts.forEach(s => {
+                shiftOwner[s.id] = s.user_id;
+                if (!agg[s.user_id]) agg[s.user_id] = { shifts: 0, rawHours: 0, adjHours: 0, km: 0, jobs: 0 };
+                const dur = (new Date(s.end_time) - new Date(s.start_time)) / 3600000;
+                agg[s.user_id].shifts++;
+                agg[s.user_id].rawHours += dur;
+                agg[s.user_id].adjHours += dur * getTimeMultiplier(s.start_time);
+                agg[s.user_id].km += (s.end_kms - s.start_kms);
+            });
+            // Per-tech jobs = system jobs linked to the tech's shifts (excludes manual extra_jobs)
+            jobs.forEach(j => {
+                const uid = shiftOwner[j.shift_id];
+                if (uid && agg[uid]) agg[uid].jobs++;
+            });
+
+            techRows = Object.keys(agg).map(uid => {
+                const a = agg[uid];
+                const info = userMap[uid] || { email: 'Unknown', agent_id: 'N/A' };
+                return {
+                    email: info.email, agent: info.agent_id,
+                    shifts: a.shifts, rawHours: a.rawHours, adjHours: a.adjHours, km: a.km, jobs: a.jobs,
+                    perShift: a.shifts ? a.jobs / a.shifts : 0,
+                    perHour: a.rawHours ? a.jobs / a.rawHours : 0
+                };
+            }).sort((x, y) => y.jobs - x.jobs);
+
+            const body = document.getElementById('techBody');
+            if (!techRows.length) {
+                body.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:18px">No completed shifts in this range</td></tr>`;
+                return;
+            }
+            body.innerHTML = techRows.map(r => `
+                <tr>
+                    <td><div class="tech-cell"><div class="name">${escapeHTML(r.email)}</div><div class="sub">${escapeHTML(String(r.agent || ''))}</div></div></td>
+                    <td class="num">${r.shifts}</td>
+                    <td class="num">${r.rawHours.toFixed(1)}</td>
+                    <td class="num">${r.adjHours.toFixed(1)}</td>
+                    <td class="num">${Math.round(r.km).toLocaleString()}</td>
+                    <td class="num">${r.jobs}</td>
+                    <td class="num">${r.perShift.toFixed(1)}</td>
+                    <td class="num">${r.perHour.toFixed(1)}</td>
+                </tr>`).join('');
+        }
+
+        function renderClientVendor(jobs, boxClientMap, totalJobs) {
+            const byClient = {}, byVendor = {};
+            jobs.forEach(j => {
+                const client = boxClientMap[j.box_id] || 'Unknown';
+                byClient[client] = (byClient[client] || 0) + 1;
+                const vendor = j.vendor || 'Unknown';
+                byVendor[vendor] = (byVendor[vendor] || 0) + 1;
+            });
+
+            const rowsHtml = (obj) => Object.entries(obj)
+                .sort((a, b) => b[1] - a[1])
+                .map(([name, n]) => {
+                    const pct = totalJobs ? Math.round((n / totalJobs) * 100) : 0;
+                    return `<tr><td>${escapeHTML(name)}</td><td class="num">${n}</td><td class="num">${pct}%</td></tr>`;
+                }).join('');
+
+            document.getElementById('clientBody').innerHTML = Object.keys(byClient).length
+                ? rowsHtml(byClient)
+                : `<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:18px">No jobs</td></tr>`;
+            document.getElementById('vendorBody').innerHTML = Object.keys(byVendor).length
+                ? rowsHtml(byVendor)
+                : `<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:18px">No jobs</td></tr>`;
+        }
+
+        function renderAverages(totalJobs, totalShifts, totalHours, totalKms, from, to) {
+            const numDays = Math.round((new Date(to + 'T00:00:00') - new Date(from + 'T00:00:00')) / 86400000) + 1;
+            const perDay = numDays ? totalJobs / numDays : 0;
+            const perShift = totalShifts ? totalJobs / totalShifts : 0;
+            const shiftLen = totalShifts ? totalHours / totalShifts : 0;
+            const kmShift = totalShifts ? totalKms / totalShifts : 0;
+
+            document.getElementById('avgPerDay').textContent = perDay.toFixed(1);
+            document.getElementById('avgPerShift').textContent = perShift.toFixed(1);
+            document.getElementById('avgShiftLen').textContent = formatHours(shiftLen);
+            document.getElementById('avgKmShift').textContent = `${Math.round(kmShift).toLocaleString()} km`;
+        }
+
+        function downloadAnalyticsCSV() {
+            if (!techRows.length) { showAlert('No technician data to export', 'warning'); return; }
+            const headers = ['Technician', 'Agent', 'Shifts', 'Raw Hours', 'Adjusted Hours', 'Km', 'Jobs', 'Avg Jobs/Shift', 'Avg Jobs/Hour'];
+            let csv = headers.join(',') + '\n';
+            techRows.forEach(r => {
+                const row = [r.email, r.agent, r.shifts, r.rawHours.toFixed(2), r.adjHours.toFixed(2), Math.round(r.km), r.jobs, r.perShift.toFixed(2), r.perHour.toFixed(2)];
+                csv += row.map(v => escapeCSV(v)).join(',') + '\n';
+            });
+            downloadCSV(csv, `analytics-technicians-${rangeFrom}_${rangeTo}.csv`);
+        }
+    </script>
+</body>
+</html>
