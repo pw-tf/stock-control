@@ -51,7 +51,7 @@ Post-login landing page for all non-merchant roles. Displays a customisable widg
 
 | Widget | ID | Roles | Data |
 |--------|-----|-------|------|
-| Quick Navigation | `quick-nav` | all | Static links to pages, role-aware |
+| Quick Navigation | `quick-nav` | all | Static links to pages, role-aware. Plus user-defined custom links to external sites (http/https only, opened in a new tab) with a letter icon from the title's first character. Stored in localStorage (`home_quick_links`) and synced to `user_widget_config.quick_links` (JSONB); works device-locally if that column is missing |
 | Jobs Today | `today-jobs` | all | Own agent's jobs today — count, type breakdown, scrollable list (newest first), click to open in inventory |
 | Daily Job List | `daily-job-list` | all | Pre-planned jobs from `prefilled_jobs` table. Add/edit/delete jobs (client, vendor, job type, job number, notes). Up/down reordering. Incomplete jobs persist indefinitely until deleted or completed — jobs ≥24h old show an age label ("1 day old", "2 days old", etc.) near the action buttons. Click incomplete job → stock-entry.html?prefilled_job=UUID pre-fills the form. Completed jobs grey out at the bottom and only show for the day they were completed |
 | Open Boxes | `open-boxes` | all | Own open boxes count + jobs total. Dropdown filters by client (all) and agent (manager+). Each box clickable → inventory.html?box=ID |

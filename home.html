@@ -289,6 +289,100 @@
             });
         }
 
+        // ============================================
+        // QUICK NAV CUSTOM LINKS
+        // ============================================
+        // Stored in localStorage (home_quick_links) and synced to the
+        // user_widget_config.quick_links JSONB column. Kept separate from
+        // saveWidgetConfig/loadWidgetConfig so environments without that
+        // column still get working (device-local) links.
+
+        function getQuickLinks() {
+            try {
+                const links = JSON.parse(localStorage.getItem('home_quick_links'));
+                return Array.isArray(links)
+                    ? links.filter(l => l && typeof l.title === 'string' && typeof l.url === 'string')
+                    : [];
+            } catch {
+                return [];
+            }
+        }
+
+        async function loadQuickLinks() {
+            try {
+                const { data, error } = await db.from('user_widget_config')
+                    .select('quick_links')
+                    .eq('user_id', currentUser.id)
+                    .maybeSingle();
+                if (error) throw error;
+                if (data && Array.isArray(data.quick_links)) {
+                    localStorage.setItem('home_quick_links', JSON.stringify(data.quick_links));
+                }
+            } catch (err) {
+                console.warn('Quick links cloud sync unavailable — using device-local links. ' +
+                    'Add a quick_links jsonb column to user_widget_config to enable sync.', err?.message || err);
+            }
+        }
+
+        function saveQuickLinks(links) {
+            localStorage.setItem('home_quick_links', JSON.stringify(links));
+            db.from('user_widget_config').upsert({
+                user_id:     currentUser.id,
+                quick_links: links,
+                updated_at:  new Date().toISOString()
+            }, { onConflict: 'user_id' }).then(({ error }) => {
+                if (error) console.warn('Quick links saved on this device only:', error.message);
+            });
+        }
+
+        function _rerenderQuickNav() {
+            const card = document.querySelector('[data-widget-id="quick-nav"]');
+            if (!card) return;
+            const body = card.querySelector('.widget-body');
+            if (body) renderQuickNav(body, currentUser);
+        }
+
+        function openQuickLinkModal() {
+            document.getElementById('quickLinkForm').reset();
+            document.getElementById('quickLinkModal').classList.add('active');
+            document.getElementById('qlTitle').focus();
+        }
+
+        function closeQuickLinkModal() {
+            document.getElementById('quickLinkModal').classList.remove('active');
+        }
+
+        function handleQuickLinkSave(e) {
+            e.preventDefault();
+            const title = document.getElementById('qlTitle').value.trim();
+            let url = document.getElementById('qlUrl').value.trim();
+            if (!title || !url) { showAlert('Please enter a title and URL', 'error'); return; }
+            if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+            let parsed;
+            try { parsed = new URL(url); } catch { showAlert("That URL doesn't look valid", 'error'); return; }
+            // http(s) only — blocks javascript: and other script-running schemes
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                showAlert('Only http(s) links are allowed', 'error');
+                return;
+            }
+            const links = getQuickLinks();
+            links.push({ title, url: parsed.href });
+            saveQuickLinks(links);
+            closeQuickLinkModal();
+            _rerenderQuickNav();
+            showAlert('Link added to Quick Navigation', 'success');
+        }
+
+        function removeQuickLink(index) {
+            const links = getQuickLinks();
+            const link = links[index];
+            if (!link) return;
+            if (!confirm(`Remove "${link.title}" from Quick Navigation?`)) return;
+            links.splice(index, 1);
+            saveQuickLinks(links);
+            _rerenderQuickNav();
+        }
+
         function getAvailableWidgets() {
             return WIDGET_REGISTRY.filter(w => {
                 if (!w.roles.includes(currentUser.role)) return false;
@@ -797,6 +891,23 @@
                 links.push({ href: 'manage-depots.html', icon: 'building-2', label: 'Manage Depots' });
             }
 
+            // User-defined external links (letter icon = first character of title).
+            // Protocol re-checked at render time so a tampered stored value
+            // can't smuggle a javascript: URL into the href.
+            const customHTML = getQuickLinks().map((l, i) => {
+                if (!/^https?:\/\//i.test(l.url)) return '';
+                const letter = (Array.from(l.title.trim())[0] || '?').toUpperCase();
+                return `
+                    <div class="quick-nav-custom-wrap">
+                        <a href="${escapeHTML(l.url)}" target="_blank" rel="noopener noreferrer" class="quick-nav-item" title="${escapeHTML(l.url)}">
+                            <span class="quick-nav-letter">${escapeHTML(letter)}</span>
+                            <span>${escapeHTML(l.title)}</span>
+                        </a>
+                        <button class="quick-nav-remove" title="Remove link" onclick="removeQuickLink(${i})">&times;</button>
+                    </div>
+                `;
+            }).join('');
+
             container.innerHTML = `
                 <div class="quick-nav-grid">
                     ${links.map(l => `
@@ -805,6 +916,11 @@
                             <span>${l.label}</span>
                         </a>
                     `).join('')}
+                    ${customHTML}
+                    <button class="quick-nav-item quick-nav-add" onclick="openQuickLinkModal()" type="button">
+                        <i data-lucide="plus" width="24" height="24"></i>
+                        <span>Add Link</span>
+                    </button>
                 </div>
             `;
             lucide.createIcons();
@@ -2473,8 +2589,9 @@
             document.getElementById('homeEndShiftForm').addEventListener('submit', handleHomeEndShift);
             document.getElementById('homeStaleShiftForm').addEventListener('submit', handleHomeStaleShift);
             document.getElementById('dailyJobForm').addEventListener('submit', handleDailyJobSave);
+            document.getElementById('quickLinkForm').addEventListener('submit', handleQuickLinkSave);
 
-            await loadWidgetConfig();
+            await Promise.all([loadWidgetConfig(), loadQuickLinks()]);
             await renderWidgets();
             wireBentoEvents();
 
@@ -2659,6 +2776,34 @@
                 <div class="modal-actions">
                     <button type="button" class="btn btn-ghost" onclick="closeDailyJobModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Quick Navigation custom link modal -->
+    <div class="modal" id="quickLinkModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="section-title">
+                    <span class="ico">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    </span>
+                    <span>Add Custom Link</span>
+                </div>
+            </div>
+            <form id="quickLinkForm">
+                <div class="field">
+                    <label for="qlTitle">Title <span class="req">*</span> <span class="hint">first letter becomes the icon</span></label>
+                    <input type="text" id="qlTitle" class="input" maxlength="40" placeholder="e.g. Vendor Portal" autocomplete="off" required>
+                </div>
+                <div class="field">
+                    <label for="qlUrl">URL <span class="req">*</span> <span class="hint">https:// is added if missing</span></label>
+                    <input type="text" id="qlUrl" class="input mono" placeholder="e.g. portal.vendor.com" autocomplete="off" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeQuickLinkModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Link</button>
                 </div>
             </form>
         </div>
