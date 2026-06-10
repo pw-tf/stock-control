@@ -1276,7 +1276,13 @@ async function handleAddJob() {
             serials = [...chips];
         }
         if (serials.length === 0) { showAlert('Please enter at least one serial number', 'error'); return; }
-        const duplicates = await checkDuplicates(serials);
+        let duplicates;
+        try {
+            duplicates = await checkDuplicates(serials);
+        } catch (err) {
+            showAlert('Could not verify serials are unique. Please check your connection and try again.', 'error');
+            return;
+        }
         if (duplicates.length > 0) { showAlert(`Duplicate serials found: ${duplicates.join(', ')}`, 'warning'); return; }
     }
     showLoading(true);
@@ -1296,7 +1302,11 @@ async function handleAddJob() {
         if (currentJobType !== 'install' && serials.length > 0) {
             const serialRecords = serials.map(serial => ({ job_id: job.id, box_id: currentBox.id, serial_number: serial, created_at: jobTimestamp, depot_id: currentDepotId }));
             const { error: serialError } = await db.from('serials').insert(serialRecords);
-            if (serialError) throw serialError;
+            if (serialError) {
+                // Roll back the job so a retry doesn't create a duplicate job row
+                await db.from('jobs').delete().eq('id', job.id);
+                throw serialError;
+            }
         }
         const jobTypeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
         const jobTypeLabel = jobTypeLabels[currentJobType] || currentJobType;
@@ -1415,11 +1425,15 @@ function updateCurrentBoxDisplay() {
     }
 }
 
+// Throws on query failure so a failed check blocks submission (fail closed)
+// instead of silently allowing potential duplicate serials through.
 async function checkDuplicates(serials) {
-    try {
-        const { data } = await db.from('serials').select('serial_number').in('serial_number', serials).eq('depot_id', currentDepotId);
-        return data ? data.map(s => s.serial_number) : [];
-    } catch (error) { return []; }
+    const { data, error } = await db.from('serials').select('serial_number').in('serial_number', serials).eq('depot_id', currentDepotId);
+    if (error) {
+        console.error('Duplicate serial check failed:', error);
+        throw error;
+    }
+    return data ? data.map(s => s.serial_number) : [];
 }
 
 async function loadBoxesForAgent() {

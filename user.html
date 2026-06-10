@@ -1044,13 +1044,16 @@
                         return;
                     }
 
+                    // Attribute jobs by shift_id (the authoritative link) rather
+                    // than by created_at falling inside the shift window — the
+                    // time-range version undercounted jobs entered with a custom
+                    // timestamp and disagreed with the manager view (shifts.html)
                     const clientEntries = Object.entries(boxesByClient);
                     const counts = await Promise.all(clientEntries.map(([client, ids]) =>
                         db.from('jobs')
                             .select('*', { count: 'exact', head: true })
                             .in('box_id', ids)
-                            .gte('created_at', shift.start_time)
-                            .lte('created_at', shift.end_time)
+                            .eq('shift_id', shift.id)
                             .then(({ count }) => ({ client, count: count || 0 }))
                     ));
 
@@ -1298,14 +1301,7 @@ Total: ${shift.totalJobs}`;
             return `${h}:${String(m).padStart(2, '0')}`;
         }
 
-        function escapeCSV(value) {
-            if (value === null || value === undefined) return '';
-            const str = String(value);
-            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                return `"${str.replace(/"/g, '""')}"`;
-            }
-            return str;
-        }
+        // escapeCSV comes from utils.js (includes formula-injection guard)
 
         function downloadShiftsCSV() {
             if (!allShifts || allShifts.length === 0) {

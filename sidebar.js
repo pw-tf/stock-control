@@ -170,7 +170,7 @@ function injectSidebarHTML(user) {
 
         <div class="sb-foot">
             <div class="sb-user" id="sbUserCard" onclick="location.href='user.html'" title="My Profile">
-                <span class="sb-av" id="sbAvatar">${initials}</span>
+                <span class="sb-av" id="sbAvatar">${typeof escapeHTML === 'function' ? escapeHTML(initials) : initials}</span>
                 <div class="sb-meta">
                     <span class="sb-uname" id="sbDisplayName">${typeof escapeHTML === 'function' ? escapeHTML(displayName) : displayName}</span>
                     <span class="sb-urole" id="sbRoleLabel">${typeof escapeHTML === 'function' ? escapeHTML(roleLabel) : roleLabel}</span>
