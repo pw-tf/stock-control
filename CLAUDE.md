@@ -121,6 +121,13 @@ Four tabs:
 - Edit any shift (end_time, end_kms, extra_jobs, notes)
 - Copy report text or download CSV
 
+#### analytics.html — Depot Analytics (manager+)
+- Date-range presets (this week, this month, last 30/90 days) + custom from/to
+- Headline totals (jobs, shifts, hours, km), jobs by type, jobs per day (daily ≤31 days, weekly buckets beyond), jobs by weekday (total + avg per weekday occurrence)
+- Per-technician table (shifts, raw/adjusted hours, km, jobs, jobs/shift, jobs/hr) with CSV export
+- Jobs by client and by vendor breakdowns, averages strip
+- Queries use `fetchAllRows()` so long ranges aren't silently truncated at Supabase's 1000-row cap
+
 #### manage-depots.html — Multi-Depot Management (super_admin only)
 - Create/delete depots
 - Create users (sets must_change_password=true)
@@ -158,7 +165,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 | File | Purpose | Key Exports |
 |------|---------|-------------|
 | **auth.js** | Supabase client init (`db` global), auth functions | `checkAuth()`, `getCurrentUser()`, `initAuth(requiredRoles)`, `logout()`, `hasRole()`, `restrictByRole()` |
-| **utils.js** | Shared utilities | `escapeHTML()`, `showAlert()`, `showLoading()`, `formatDateTime()`, `checkDuplicateSerials()`, `formatBoxId()`, `downloadCSV()`, `escapeCSV()`, `getTheme()`, `setTheme()`, `applyTheme()` |
+| **utils.js** | Shared utilities | `escapeHTML()`, `showAlert()`, `showLoading()`, `formatDateTime()`, `checkDuplicateSerials()` (throws on query failure — fail closed), `fetchAllRows()` (pages past Supabase's 1000-row cap), `formatBoxId()`, `downloadCSV()`, `escapeCSV()` (quotes + guards spreadsheet formula injection), `getTheme()`, `setTheme()`, `applyTheme()` |
 | **sidebar.js** | Navigation sidebar component | `initSidebar(user)`, `setActivePage()` — role-based menu items, mobile hamburger |
 | **icons.js** | Lucide icon initialization | Called after DOM updates to render `<i data-lucide="...">` elements |
 

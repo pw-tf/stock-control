@@ -189,7 +189,11 @@ function isSameDay(date1, date2) {
  */
 function escapeCSV(value) {
     if (value === null || value === undefined) return '';
-    const str = String(value);
+    let str = String(value);
+    // Guard against spreadsheet formula injection (=, +, -, @ at cell start)
+    if (/^[=+\-@]/.test(str)) {
+        str = "'" + str;
+    }
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
         return `"${str.replace(/"/g, '""')}"`;
     }
@@ -215,6 +219,30 @@ function downloadCSV(content, filename) {
 }
 
 // ============================================
+// QUERY HELPERS
+// ============================================
+
+/**
+ * Fetch every row matching a query, paging past Supabase's silent
+ * per-request row cap (default 1000). Without this, large result sets
+ * are truncated with no error and aggregates come out wrong.
+ * @param {function(): object} buildQuery - Returns a fresh Supabase query
+ *        (a query builder can't be re-executed, so we rebuild per page)
+ * @param {number} pageSize - Rows per request
+ * @returns {Promise<object[]>} All matching rows
+ */
+async function fetchAllRows(buildQuery, pageSize = 1000) {
+    const all = [];
+    for (let from = 0; ; from += pageSize) {
+        const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (data && data.length) all.push(...data);
+        if (!data || data.length < pageSize) break;
+    }
+    return all;
+}
+
+// ============================================
 // VALIDATION HELPERS
 // ============================================
 
@@ -224,30 +252,30 @@ function downloadCSV(content, filename) {
  * @param {number|null} excludeJobId - Optional job ID to exclude from check
  * @param {string|null} depotId - Depot ID to scope the check to
  * @returns {Promise<string[]>} Array of duplicate serials found
+ * @throws if the query fails — callers must treat a failed check as a
+ *         blocked submission rather than "no duplicates" (fail closed)
  */
 async function checkDuplicateSerials(serials, excludeJobId = null, depotId = null) {
-    try {
-        let query = db
-            .from('serials')
-            .select('serial_number')
-            .in('serial_number', serials);
+    let query = db
+        .from('serials')
+        .select('serial_number')
+        .in('serial_number', serials);
 
-        if (excludeJobId) {
-            query = query.neq('job_id', excludeJobId);
-        }
-
-        if (depotId) {
-            query = query.eq('depot_id', depotId);
-        }
-
-        const { data, error } = await query;
-
-        if (error) throw error;
-        return data ? data.map(s => s.serial_number) : [];
-    } catch (error) {
-        console.error('Error checking duplicates:', error);
-        return [];
+    if (excludeJobId) {
+        query = query.neq('job_id', excludeJobId);
     }
+
+    if (depotId) {
+        query = query.eq('depot_id', depotId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error('Error checking duplicates:', error);
+        throw error;
+    }
+    return data ? data.map(s => s.serial_number) : [];
 }
 
 // ============================================

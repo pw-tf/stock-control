@@ -411,7 +411,10 @@
         // SEARCH
         // ============================================================
         function convertToSqlPattern(input) {
-            return input.includes('*') ? input.replace(/\*/g, '%') : `%${input}%`;
+            // Escape LIKE metacharacters so user input matches literally;
+            // only our * wildcard maps to SQL %
+            const escaped = input.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+            return escaped.includes('*') ? escaped.replace(/\*/g, '%') : `%${escaped}%`;
         }
 
         async function searchJob() {

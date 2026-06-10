@@ -718,7 +718,8 @@
         async function deleteClient(clientId) {
             if (!confirm(`Remove client ${clientId} from this depot?`)) return;
             try {
-                await db.from('clients_vendors').delete().eq('depot_id', currentDepotId).eq('client_id', clientId);
+                const { error: cvError } = await db.from('clients_vendors').delete().eq('depot_id', currentDepotId).eq('client_id', clientId);
+                if (cvError) throw cvError;
                 const { error } = await db.from('depot_clients').delete().eq('depot_id', currentDepotId).eq('client_id', clientId);
                 if (error) throw error;
                 showAlert('Client removed from depot.', 'success');
@@ -732,6 +733,10 @@
         async function deleteVendor(vendorId) {
             if (!confirm(`Delete vendor ${vendorId}?`)) return;
             try {
+                // Vendors are global — remove client links first so no orphaned
+                // clients_vendors rows are left behind
+                const { error: cvError } = await db.from('clients_vendors').delete().eq('vendor_id', vendorId);
+                if (cvError) throw cvError;
                 const { error } = await db.from('vendors').delete().eq('vendor_id', vendorId);
                 if (error) throw error;
                 showAlert('Vendor deleted successfully!', 'success');

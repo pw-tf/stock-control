@@ -726,6 +726,16 @@
             return d;
         }
 
+        // Local-timezone YYYY-MM-DD. Never use toISOString().split('T')[0] for
+        // "today" — that returns the UTC date, which is off by a day for part
+        // of the day in any non-UTC timezone.
+        function localDateString(date = new Date()) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
         function getMondayOfWeek() {
             const d = new Date();
             const day = d.getDay();
@@ -978,16 +988,15 @@
                 return;
             }
 
-            // Get job counts per box in parallel
-            const counts = await Promise.all(boxes.map(box =>
-                db.from('jobs')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('box_id', box.id)
-                    .then(({ count }) => ({ id: box.id, count: count || 0 }))
-            ));
-
+            // Count jobs per box with a single batched query instead of one
+            // head-count request per box (N+1)
+            const boxIds = boxes.map(b => b.id);
+            const jobRows = await fetchAllRows(() =>
+                db.from('jobs').select('box_id').in('box_id', boxIds)
+            );
             openBoxesJobCounts = {};
-            counts.forEach(c => openBoxesJobCounts[c.id] = c.count);
+            boxIds.forEach(id => openBoxesJobCounts[id] = 0);
+            jobRows.forEach(r => { openBoxesJobCounts[r.box_id] = (openBoxesJobCounts[r.box_id] || 0) + 1; });
             openBoxesData = boxes;
 
             // Get unique clients and agents for dropdowns
@@ -1719,7 +1728,7 @@
         // ============================================
 
         async function renderDailyJobList(container, user) {
-            const today = new Date().toISOString().split('T')[0];
+            const today = localDateString();
             const isManager = hasRole(user.role, ['manager', 'super_admin']);
 
             // Technicians only ever see their own list. Managers can toggle;
@@ -2208,6 +2217,29 @@
             </svg>`;
         }
 
+        // Bucket job rows into counts for the last 7 local days (oldest first)
+        function buildDailySpark(rows) {
+            const counts = {};
+            (rows || []).forEach(r => {
+                const k = localDateString(new Date(r.created_at));
+                counts[k] = (counts[k] || 0) + 1;
+            });
+            const out = [];
+            const d = getTodayMidnight();
+            d.setDate(d.getDate() - 6);
+            for (let i = 0; i < 7; i++) {
+                out.push(counts[localDateString(d)] || 0);
+                d.setDate(d.getDate() + 1);
+            }
+            return out;
+        }
+
+        // Flat series for KPIs with no historical data — renders as a level
+        // line rather than a fabricated trend
+        function flatSpark(value) {
+            return new Array(7).fill(value || 0);
+        }
+
         async function renderHeroKpis(user) {
             const container = document.getElementById('heroKpis');
             if (!container) return;
@@ -2225,56 +2257,92 @@
                 const yMidISO = yMid.toISOString(), yEndISO = yEnd.toISOString();
                 const lastMonISO = lastMon.toISOString(), lastWeekEndISO = lastWeekEnd.toISOString();
 
+                // Last 7 local days for the sparkline series
+                const sparkStart = getTodayMidnight();
+                sparkStart.setDate(sparkStart.getDate() - 6);
+                const sparkStartISO = sparkStart.toISOString();
+
+                // A failed count query returns { error, count: null } without
+                // throwing — surface it rather than rendering a silent 0
+                const ensureCount = res => { if (res.error) throw res.error; return res.count || 0; };
+
                 if (user.role === 'technician') {
-                    const [todayJobs, openBoxes, weekJobs, todayJobsPrior, weekJobsPrior] = await Promise.all([
-                        db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', today),
+                    // Scope job KPIs to the technician's own agent (via their
+                    // boxes) — depot-wide numbers were misleading next to the
+                    // "Jobs Today" widget, which shows own-agent jobs only.
+                    const { data: agentBoxes, error: boxErr } = await db.from('boxes')
+                        .select('id').eq('depot_id', user.depot_id).eq('agent', user.agent_id);
+                    if (boxErr) throw boxErr;
+                    const boxIds = (agentBoxes || []).map(b => b.id);
+
+                    const countOwnJobs = (fromISO, toISO) => {
+                        if (!boxIds.length) return Promise.resolve({ count: 0, error: null });
+                        let q = db.from('jobs').select('id', { count: 'exact', head: true })
+                            .in('box_id', boxIds).gte('created_at', fromISO);
+                        if (toISO) q = q.lt('created_at', toISO);
+                        return q;
+                    };
+
+                    const [todayJobs, openBoxes, weekJobs, todayJobsPrior, weekJobsPrior, sparkRows] = await Promise.all([
+                        countOwnJobs(today),
                         db.from('boxes').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).eq('agent', user.agent_id).eq('status', 'open'),
-                        db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', monday),
-                        db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', yMidISO).lt('created_at', yEndISO),
-                        db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', lastMonISO).lt('created_at', lastWeekEndISO)
+                        countOwnJobs(monday),
+                        countOwnJobs(yMidISO, yEndISO),
+                        countOwnJobs(lastMonISO, lastWeekEndISO),
+                        boxIds.length
+                            ? fetchAllRows(() => db.from('jobs').select('created_at').in('box_id', boxIds).gte('created_at', sparkStartISO))
+                            : Promise.resolve([])
                     ]);
+                    const jobSpark = buildDailySpark(sparkRows);
+                    const nToday = ensureCount(todayJobs), nBoxes = ensureCount(openBoxes), nWeek = ensureCount(weekJobs);
                     const shiftHours = homeActiveShift
                         ? Math.round((Date.now() - new Date(homeActiveShift.start_time).getTime()) / 3600000 * 10) / 10
                         : 0;
-                    const dToday = pctDelta(todayJobs.count || 0, todayJobsPrior.count || 0, 'yesterday');
-                    const dWeek = pctDelta(weekJobs.count || 0, weekJobsPrior.count || 0, 'last week');
+                    const dToday = pctDelta(nToday, ensureCount(todayJobsPrior), 'yesterday');
+                    const dWeek = pctDelta(nWeek, ensureCount(weekJobsPrior), 'last week');
                     kpis = [
-                        { label: 'Jobs Today', value: todayJobs.count || 0, trend: dToday.text, cls: dToday.cls, spark: [1,2,1,3,2,2,todayJobs.count||0] },
-                        { label: 'Open Boxes', value: openBoxes.count || 0, trend: 'Active', spark: [2,2,3,2,1,2,openBoxes.count||0] },
-                        { label: 'This Week', value: weekJobs.count || 0, trend: dWeek.text, cls: dWeek.cls, spark: [3,5,4,6,5,7,weekJobs.count||0] },
-                        { label: 'Hours On', value: shiftHours, trend: homeActiveShift ? 'Shift active' : 'No shift', spark: [0,1,2,3,3,4,shiftHours] }
+                        { label: 'Jobs Today', value: nToday, trend: dToday.text, cls: dToday.cls, spark: jobSpark },
+                        { label: 'Open Boxes', value: nBoxes, trend: 'Active', spark: flatSpark(nBoxes) },
+                        { label: 'This Week', value: nWeek, trend: dWeek.text, cls: dWeek.cls, spark: jobSpark },
+                        { label: 'Hours On', value: shiftHours, trend: homeActiveShift ? 'Shift active' : 'No shift', spark: flatSpark(shiftHours) }
                     ];
                 } else if (hasRole(user.role, ['manager'])) {
-                    const [depotJobs, activeShifts, openBoxes, weekJobs, depotJobsPrior, weekJobsPrior] = await Promise.all([
+                    const [depotJobs, activeShifts, openBoxes, weekJobs, depotJobsPrior, weekJobsPrior, sparkRows] = await Promise.all([
                         db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', today),
                         db.from('shifts').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).eq('status', 'active'),
                         db.from('boxes').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).eq('status', 'open'),
                         db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', monday),
                         db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', yMidISO).lt('created_at', yEndISO),
-                        db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', lastMonISO).lt('created_at', lastWeekEndISO)
+                        db.from('jobs').select('id', { count: 'exact', head: true }).eq('depot_id', user.depot_id).gte('created_at', lastMonISO).lt('created_at', lastWeekEndISO),
+                        fetchAllRows(() => db.from('jobs').select('created_at').eq('depot_id', user.depot_id).gte('created_at', sparkStartISO))
                     ]);
-                    const dToday = pctDelta(depotJobs.count || 0, depotJobsPrior.count || 0, 'yesterday');
-                    const dWeek = pctDelta(weekJobs.count || 0, weekJobsPrior.count || 0, 'last week');
+                    const jobSpark = buildDailySpark(sparkRows);
+                    const nToday = ensureCount(depotJobs), nShifts = ensureCount(activeShifts), nBoxes = ensureCount(openBoxes), nWeek = ensureCount(weekJobs);
+                    const dToday = pctDelta(nToday, ensureCount(depotJobsPrior), 'yesterday');
+                    const dWeek = pctDelta(nWeek, ensureCount(weekJobsPrior), 'last week');
                     kpis = [
-                        { label: 'Depot Jobs Today', value: depotJobs.count || 0, trend: dToday.text, cls: dToday.cls, spark: [10,14,12,18,20,16,depotJobs.count||0] },
-                        { label: 'On Shift Now', value: activeShifts.count || 0, trend: 'Active techs', spark: [2,3,2,4,3,3,activeShifts.count||0] },
-                        { label: 'Open Boxes', value: openBoxes.count || 0, trend: 'Across depot', spark: [8,7,9,8,7,6,openBoxes.count||0] },
-                        { label: 'Week Total', value: weekJobs.count || 0, trend: dWeek.text, cls: dWeek.cls, spark: [30,45,40,55,50,60,weekJobs.count||0] }
+                        { label: 'Depot Jobs Today', value: nToday, trend: dToday.text, cls: dToday.cls, spark: jobSpark },
+                        { label: 'On Shift Now', value: nShifts, trend: 'Active techs', spark: flatSpark(nShifts) },
+                        { label: 'Open Boxes', value: nBoxes, trend: 'Across depot', spark: flatSpark(nBoxes) },
+                        { label: 'Week Total', value: nWeek, trend: dWeek.text, cls: dWeek.cls, spark: jobSpark }
                     ];
                 } else {
-                    const [sysJobs, depots, openBoxes, activeUsers, sysJobsPrior] = await Promise.all([
+                    const [sysJobs, depots, openBoxes, activeUsers, sysJobsPrior, sparkRows] = await Promise.all([
                         db.from('jobs').select('id', { count: 'exact', head: true }).gte('created_at', today),
                         db.from('depots').select('depot_id', { count: 'exact', head: true }),
                         db.from('boxes').select('id', { count: 'exact', head: true }).eq('status', 'open'),
                         db.from('user_roles').select('user_id', { count: 'exact', head: true }),
-                        db.from('jobs').select('id', { count: 'exact', head: true }).gte('created_at', yMidISO).lt('created_at', yEndISO)
+                        db.from('jobs').select('id', { count: 'exact', head: true }).gte('created_at', yMidISO).lt('created_at', yEndISO),
+                        fetchAllRows(() => db.from('jobs').select('created_at').gte('created_at', sparkStartISO))
                     ]);
-                    const dToday = pctDelta(sysJobs.count || 0, sysJobsPrior.count || 0, 'yesterday');
+                    const jobSpark = buildDailySpark(sparkRows);
+                    const nToday = ensureCount(sysJobs), nDepots = ensureCount(depots), nBoxes = ensureCount(openBoxes), nUsers = ensureCount(activeUsers);
+                    const dToday = pctDelta(nToday, ensureCount(sysJobsPrior), 'yesterday');
                     kpis = [
-                        { label: 'System Jobs Today', value: sysJobs.count || 0, trend: dToday.text, cls: dToday.cls, spark: [100,120,110,150,140,160,sysJobs.count||0] },
-                        { label: 'Depots', value: depots.count || 0, trend: 'Online', spark: [depots.count||0,depots.count||0,depots.count||0,depots.count||0,depots.count||0,depots.count||0,depots.count||0] },
-                        { label: 'Open Boxes', value: openBoxes.count || 0, trend: 'System-wide', spark: [60,55,58,52,50,48,openBoxes.count||0] },
-                        { label: 'Total Users', value: activeUsers.count || 0, trend: 'Registered', spark: [activeUsers.count||0,activeUsers.count||0,activeUsers.count||0,activeUsers.count||0,activeUsers.count||0,activeUsers.count||0,activeUsers.count||0] }
+                        { label: 'System Jobs Today', value: nToday, trend: dToday.text, cls: dToday.cls, spark: jobSpark },
+                        { label: 'Depots', value: nDepots, trend: 'Online', spark: flatSpark(nDepots) },
+                        { label: 'Open Boxes', value: nBoxes, trend: 'System-wide', spark: flatSpark(nBoxes) },
+                        { label: 'Total Users', value: nUsers, trend: 'Registered', spark: flatSpark(nUsers) }
                     ];
                 }
             } catch (e) {

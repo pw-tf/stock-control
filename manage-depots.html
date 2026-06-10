@@ -462,11 +462,16 @@
                 if (error) throw error;
                 allDepots = depots || [];
 
-                const [{ data: allAgents }, { data: allUsers }, { data: openBoxes }] = await Promise.all([
+                const [agentsRes, usersRes, boxesRes] = await Promise.all([
                     db.from('agents').select('depot_id'),
                     db.from('user_roles').select('depot_id'),
                     db.from('boxes').select('depot_id').eq('status', 'open')
                 ]);
+                // Surface failures instead of silently rendering zero counts
+                if (agentsRes.error) throw agentsRes.error;
+                if (usersRes.error) throw usersRes.error;
+                if (boxesRes.error) throw boxesRes.error;
+                const allAgents = agentsRes.data, allUsers = usersRes.data, openBoxes = boxesRes.data;
 
                 const agentCounts = {}, userCounts = {}, openBoxCounts = {};
                 allAgents?.forEach(a => { agentCounts[a.depot_id] = (agentCounts[a.depot_id] || 0) + 1; });

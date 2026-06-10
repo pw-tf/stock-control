@@ -742,12 +742,7 @@ Total: ${shift.totalJobs}`;
             return `${h}:${String(m).padStart(2,'0')}`;
         }
 
-        function escapeCSV(value) {
-            if (value === null || value === undefined) return '';
-            const str = String(value);
-            if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g,'""')}"`;
-            return str;
-        }
+        // escapeCSV comes from utils.js (includes formula-injection guard)
 
         function downloadShiftsCSV() {
             if (!allShifts || !allShifts.length) { showAlert('No shifts to export', 'warning'); return; }
