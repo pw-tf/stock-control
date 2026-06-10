@@ -2561,6 +2561,17 @@ tr:hover td {
     }
 }
 
+/* The global mobile touch-target rule (button { min-height: 44px }) would
+   stretch this 18px-wide button into a vertical oval — exempt it and use a
+   slightly larger circle as the touch target instead */
+@media (max-width: 768px) {
+    .quick-nav-remove {
+        min-height: 0;
+        width: 22px;
+        height: 22px;
+    }
+}
+
 .quick-nav-add {
     border-style: dashed;
     background: transparent;
