@@ -909,6 +909,11 @@
             }).join('');
 
             container.innerHTML = `
+                <div style="display:flex; justify-content:flex-end; margin-bottom:var(--spacing-sm);">
+                    <button class="btn btn-ghost btn-sm" onclick="openQuickLinkModal()" title="Add custom link">
+                        <i data-lucide="pencil" width="14" height="14"></i>
+                    </button>
+                </div>
                 <div class="quick-nav-grid">
                     ${links.map(l => `
                         <a href="${l.href}" class="quick-nav-item">
@@ -917,10 +922,6 @@
                         </a>
                     `).join('')}
                     ${customHTML}
-                    <button class="quick-nav-item quick-nav-add" onclick="openQuickLinkModal()" type="button">
-                        <i data-lucide="plus" width="24" height="24"></i>
-                        <span>Add Link</span>
-                    </button>
                 </div>
             `;
             lucide.createIcons();

@@ -2544,21 +2544,17 @@ tr:hover td {
     padding: 0;
 }
 
-.quick-nav-custom-wrap:hover .quick-nav-remove,
-.quick-nav-remove:focus-visible {
+/* Remove buttons only show while the layout editor ("Edit Layout") is
+   active. pointer-events must be restored explicitly because edit mode
+   makes widget bodies inert (.bento.editing .widget-body) */
+.bento.editing .quick-nav-remove {
     display: inline-flex;
+    pointer-events: auto;
 }
 
 .quick-nav-remove:hover {
     background: var(--error);
     color: #fff;
-}
-
-/* No hover on touch devices — keep the remove button visible */
-@media (hover: none) {
-    .quick-nav-remove {
-        display: inline-flex;
-    }
 }
 
 /* The global mobile touch-target rule (button { min-height: 44px }) would
@@ -2570,13 +2566,6 @@ tr:hover td {
         width: 22px;
         height: 22px;
     }
-}
-
-.quick-nav-add {
-    border-style: dashed;
-    background: transparent;
-    cursor: pointer;
-    font-family: inherit;
 }
 
 /* Bar chart */
