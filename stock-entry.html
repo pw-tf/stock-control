@@ -629,31 +629,8 @@ async function compressImage(file, targetSizeKB = 100) {
 // ============================================
 // SHIFT MANAGEMENT
 // ============================================
-
-function formatDateTime(date) {
-    return new Date(date).toLocaleString('en-AU', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', hour12: true
-    });
-}
-
-function formatDateTimeLocal(date) {
-    const d = new Date(date);
-    const offset = d.getTimezoneOffset();
-    const localDate = new Date(d.getTime() - offset * 60 * 1000);
-    return localDate.toISOString().slice(0, 16);
-}
-
-function getTodayMidnight() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return today;
-}
-
-function isSameDay(date1, date2) {
-    const d1 = new Date(date1); const d2 = new Date(date2);
-    return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
-}
+// Date helpers (formatDateTime, formatDateTimeLocal, getTodayMidnight,
+// isSameDay) come from utils.js
 
 async function getLastJobEntryTime() {
     if (!activeShift) return null;
@@ -1101,20 +1078,15 @@ function copyShiftReport() {
 
 function downloadShiftReportCSV() {
     const report = lastShiftReport;
-    function esc(value) {
-        if (value === null || value === undefined) return '';
-        const str = String(value);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
-        return str;
-    }
+    // escapeCSV (utils.js) quotes values and guards spreadsheet formula injection
     let headers = ['Date','Start Time','End Time','Agent','Email','Total Time (h:mm)','Total Time (decimal)','Time Multiplier','Adjusted Time (decimal)','Start Km','End Km','Km Travelled'];
     report.allClients.forEach(client => headers.push(`Jobs - ${client}`));
     headers.push('Extra Jobs', 'Total Jobs', 'Shift Notes');
-    let csvContent = headers.join(',') + '\n';
+    let csvContent = headers.map(escapeCSV).join(',') + '\n';
     let row = [report.dateShort, report.startTime, report.endTime, report.agentId, report.email, report.hoursWorked, report.hoursDecimal, report.timeMultiplierLabel, report.adjustedTime, report.startKms, report.endKms, report.kmsTravelled];
     report.allClients.forEach(client => row.push(report.jobsByClient?.[client] || 0));
-    row.push(report.extraJobs, report.totalJobs, esc(report.shiftNotes));
-    csvContent += row.map(val => esc(val)).join(',') + '\n';
+    row.push(report.extraJobs, report.totalJobs, report.shiftNotes);
+    csvContent += row.map(escapeCSV).join(',') + '\n';
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.setAttribute('href', URL.createObjectURL(blob));
@@ -1278,7 +1250,9 @@ async function handleAddJob() {
         if (serials.length === 0) { showAlert('Please enter at least one serial number', 'error'); return; }
         let duplicates;
         try {
-            duplicates = await checkDuplicates(serials);
+            // Shared fail-closed check (utils.js) — throws on query failure so a
+            // failed lookup blocks submission instead of letting duplicates through
+            duplicates = await checkDuplicateSerials(serials, null, currentDepotId);
         } catch (err) {
             showAlert('Could not verify serials are unique. Please check your connection and try again.', 'error');
             return;
@@ -1293,20 +1267,30 @@ async function handleAddJob() {
         const jobData = { box_id: currentBox.id, job_number: jobNumber, vendor, job_type: currentJobType, shift_id: activeShift?.id || null, created_at: jobTimestamp, depot_id: currentDepotId };
         const { data: job, error: jobError } = await db.from('jobs').insert([jobData]).select().single();
         if (jobError) throw jobError;
-        if (isReceiptRequired && currentReceiptFile) {
-            showSyncStatus('Uploading receipt...', 'syncing');
-            const receiptUrl = await uploadReceiptToStorage(job.id);
-            const { error: updateError } = await db.from('jobs').update({ receipt_url: receiptUrl }).eq('id', job.id);
-            if (updateError) throw updateError;
-        }
-        if (currentJobType !== 'install' && serials.length > 0) {
-            const serialRecords = serials.map(serial => ({ job_id: job.id, box_id: currentBox.id, serial_number: serial, created_at: jobTimestamp, depot_id: currentDepotId }));
-            const { error: serialError } = await db.from('serials').insert(serialRecords);
-            if (serialError) {
-                // Roll back the job so a retry doesn't create a duplicate job row
-                await db.from('jobs').delete().eq('id', job.id);
-                throw serialError;
+        // Any failure after the job row exists rolls the job back, so a retry
+        // never creates a duplicate half-populated job
+        let uploadedReceipt = null;
+        try {
+            if (isReceiptRequired && currentReceiptFile) {
+                showSyncStatus('Uploading receipt...', 'syncing');
+                uploadedReceipt = await uploadReceiptToStorage(job.id);
+                const { error: updateError } = await db.from('jobs').update({ receipt_url: uploadedReceipt }).eq('id', job.id);
+                if (updateError) throw updateError;
             }
+            if (currentJobType !== 'install' && serials.length > 0) {
+                const serialRecords = serials.map(serial => ({ job_id: job.id, box_id: currentBox.id, serial_number: serial, created_at: jobTimestamp, depot_id: currentDepotId }));
+                const { error: serialError } = await db.from('serials').insert(serialRecords);
+                if (serialError) throw serialError;
+            }
+        } catch (stepError) {
+            await db.from('serials').delete().eq('job_id', job.id);
+            await db.from('jobs').delete().eq('id', job.id);
+            if (uploadedReceipt) {
+                db.storage.from('job-receipts').remove([uploadedReceipt])
+                    .then(({ error }) => { if (error) console.error('Receipt cleanup failed:', error); })
+                    .catch(err => console.error('Receipt cleanup failed:', err));
+            }
+            throw stepError;
         }
         const jobTypeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
         const jobTypeLabel = jobTypeLabels[currentJobType] || currentJobType;
@@ -1380,12 +1364,13 @@ async function loadJobsForBox(boxId) {
     renderRecentJobs();
 }
 
+// Throws on query failure (fail closed) — guessing '001' here would mint a
+// duplicate box_id whenever the lookup hits a transient network error
 async function getNextBoxNumber(client) {
-    try {
-        const { data } = await db.from('boxes').select('box_number').eq('agent', currentAgent).eq('client', client).eq('depot_id', currentDepotId).order('box_number', { ascending: false }).limit(1);
-        if (data && data.length > 0) return String(parseInt(data[0].box_number) + 1).padStart(3, '0');
-        return '001';
-    } catch (error) { return '001'; }
+    const { data, error } = await db.from('boxes').select('box_number').eq('agent', currentAgent).eq('client', client).eq('depot_id', currentDepotId).order('box_number', { ascending: false }).limit(1);
+    if (error) throw error;
+    if (data && data.length > 0) return String(parseInt(data[0].box_number) + 1).padStart(3, '0');
+    return '001';
 }
 
 function toggleBoxStrip() {
@@ -1425,17 +1410,6 @@ function updateCurrentBoxDisplay() {
     }
 }
 
-// Throws on query failure so a failed check blocks submission (fail closed)
-// instead of silently allowing potential duplicate serials through.
-async function checkDuplicates(serials) {
-    const { data, error } = await db.from('serials').select('serial_number').in('serial_number', serials).eq('depot_id', currentDepotId);
-    if (error) {
-        console.error('Duplicate serial check failed:', error);
-        throw error;
-    }
-    return data ? data.map(s => s.serial_number) : [];
-}
-
 async function loadBoxesForAgent() {
     try {
         const { data } = await db.from('boxes').select('*').eq('agent', currentAgent).eq('depot_id', currentDepotId).order('created_at', { ascending: false });
@@ -1473,16 +1447,7 @@ function clearJobForm() {
     updateSubmitSummary();
 }
 
-function showLoading(show) {
-    document.getElementById('loading').classList.toggle('active', show);
-}
-
-function showSyncStatus(message, type) {
-    const status = document.getElementById('syncStatus');
-    status.textContent = message;
-    status.className = `sync-status active ${type}`;
-    setTimeout(() => status.classList.remove('active'), 3000);
-}
+// showLoading / showSyncStatus come from utils.js
 
 document.addEventListener('DOMContentLoaded', async () => {
     const user = await initAuth(['super_admin', 'manager', 'technician']);
