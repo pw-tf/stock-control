@@ -199,7 +199,13 @@
                             </span>
                             Equipment Serials
                         </div>
-                        <span class="section-step">02 / 03</span>
+                        <div class="section-head-right">
+                            <button type="button" class="scan-btn" id="scanBtn" onclick="openScanner()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></svg>
+                                Scan
+                            </button>
+                            <span class="section-step">02 / 03</span>
+                        </div>
                     </div>
 
                     <!-- Individual (chip) mode -->
@@ -442,6 +448,28 @@
         </div>
     </div>
 
+    <!-- Barcode Scanner Modal -->
+    <div class="modal" id="scannerModal">
+        <div class="modal-content scanner-content">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3><i data-lucide="scan-line" width="20" height="20" style="vertical-align: middle; margin-right: 8px;"></i>Scan Serials</h3>
+                <button type="button" class="modal-close-btn" onclick="closeScanner()" aria-label="Close">×</button>
+            </div>
+            <div class="scanner-video-wrap">
+                <video id="scannerVideo" playsinline muted></video>
+                <div class="scanner-frame"></div>
+                <div class="scanner-flash" id="scannerFlash"></div>
+            </div>
+            <div class="scanner-status">
+                <span><span class="count" id="scannerCount">0</span> serials in this job</span>
+                <span class="scanner-last" id="scannerLast">Point the camera at a barcode</span>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-primary" onclick="closeScanner()" style="width: 100%;">Done</button>
+            </div>
+        </div>
+    </div>
+
 <script>
 let currentAgent, boxes = [], currentBox;
 let currentUserRole = null;
@@ -511,6 +539,143 @@ function setupChipInput() {
             renderChips();
         }
     });
+}
+
+// ============================================
+// CAMERA BARCODE SCANNER
+// ============================================
+// Two-tier detection: native BarcodeDetector where available (Chrome/Android),
+// otherwise ZXing-JS loaded on demand from CDN (iOS Safari, Firefox).
+
+const SCANNER_FORMATS = ['code_128', 'code_39', 'ean_13', 'qr_code'];
+const SCAN_REPEAT_MS = 2000; // ignore re-reads of a barcode held in frame
+
+let scannerStream = null;
+let scannerDetector = null;
+let scannerZXing = null;
+let scannerLoopId = null;
+let scannerRecent = {};
+
+async function openScanner() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showAlert('Camera not available on this device — type serials instead.', 'warning');
+        return;
+    }
+    if (bulkModeState) toggleBulkMode(); // scans land in the chip list
+    scannerRecent = {};
+    document.getElementById('scannerModal').classList.add('active');
+    setScannerLast('Point the camera at a barcode');
+    updateScannerCount();
+    const video = document.getElementById('scannerVideo');
+    try {
+        scannerDetector = await createBarcodeDetector();
+        if (scannerDetector) {
+            scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+            video.srcObject = scannerStream;
+            await video.play();
+            scannerLoopId = setInterval(detectScannerFrame, 200);
+        } else {
+            await startZXingScanner(video);
+        }
+    } catch (err) {
+        console.error('Scanner failed to start:', err);
+        closeScanner();
+        const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+        showAlert(denied
+            ? 'Camera permission denied — allow camera access or type serials instead.'
+            : 'Could not start the camera — type serials instead.', 'warning');
+    }
+}
+
+async function createBarcodeDetector() {
+    if (!('BarcodeDetector' in window)) return null;
+    try {
+        const supported = await window.BarcodeDetector.getSupportedFormats();
+        const formats = SCANNER_FORMATS.filter(f => supported.includes(f));
+        return formats.length ? new window.BarcodeDetector({ formats }) : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function startZXingScanner(video) {
+    if (!window.ZXing) {
+        await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+            s.onload = resolve;
+            s.onerror = () => reject(new Error('Failed to load scanner library'));
+            document.head.appendChild(s);
+        });
+    }
+    scannerZXing = new ZXing.BrowserMultiFormatReader();
+    await scannerZXing.decodeFromConstraints(
+        { video: { facingMode: 'environment' }, audio: false },
+        video,
+        (result) => { if (result) handleScannedValue(result.getText()); }
+    );
+}
+
+async function detectScannerFrame() {
+    const video = document.getElementById('scannerVideo');
+    if (!scannerDetector || !video || video.readyState < 2) return;
+    try {
+        const codes = await scannerDetector.detect(video);
+        for (const code of codes) {
+            if (code.rawValue) handleScannedValue(code.rawValue);
+        }
+    } catch (e) {
+        // detection can fail transiently on individual frames — keep scanning
+    }
+}
+
+function handleScannedValue(raw) {
+    const value = String(raw).trim();
+    if (!value) return;
+    const now = Date.now();
+    const lastSeen = scannerRecent[value];
+    scannerRecent[value] = now;
+    if (lastSeen && now - lastSeen < SCAN_REPEAT_MS) return;
+    if (chips.includes(value)) {
+        setScannerLast(`Already added: ${value}`, true);
+        return;
+    }
+    chips.push(value);
+    renderChips();
+    if (navigator.vibrate) navigator.vibrate(100);
+    flashScanner();
+    setScannerLast(`✓ ${value}`);
+    updateScannerCount();
+}
+
+function setScannerLast(text, warn = false) {
+    const el = document.getElementById('scannerLast');
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle('warn', warn);
+}
+
+function updateScannerCount() {
+    const el = document.getElementById('scannerCount');
+    if (el) el.textContent = chips.length;
+}
+
+function flashScanner() {
+    const el = document.getElementById('scannerFlash');
+    if (!el) return;
+    el.classList.remove('on');
+    void el.offsetWidth; // restart the animation
+    el.classList.add('on');
+}
+
+function closeScanner() {
+    document.getElementById('scannerModal').classList.remove('active');
+    if (scannerLoopId) { clearInterval(scannerLoopId); scannerLoopId = null; }
+    if (scannerZXing) { try { scannerZXing.reset(); } catch (e) {} scannerZXing = null; }
+    if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
+    scannerDetector = null;
+    const video = document.getElementById('scannerVideo');
+    if (video) { video.pause(); video.srcObject = null; }
 }
 
 // ============================================
