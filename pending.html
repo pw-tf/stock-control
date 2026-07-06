@@ -70,12 +70,15 @@
                 return;
             }
             
-            // Check if user actually has agent assigned
-            const user = await getCurrentUser();
-            if (user && user.agent_id) {
-                // User has been assigned, redirect to dashboard
-                window.location.href = 'home.html';
-            }
+            // Check if user actually has agent assigned. getCurrentUser throws
+            // on transient failures — stay on this page in that case.
+            try {
+                const user = await getCurrentUser();
+                if (user && user.agent_id) {
+                    // User has been assigned, redirect to dashboard
+                    window.location.href = 'home.html';
+                }
+            } catch (_) {}
         });
         
         async function checkStatus() {

@@ -20,40 +20,41 @@ async function checkAuth() {
     return session;
 }
 
-// Get current user's role and agent
+// Get current user's role and agent.
+// Returns null when there is no session or no user_roles row (partial signup —
+// signed out to prevent a redirect loop). Throws on transient query failures
+// (e.g. network drop) so callers don't destroy a valid session over a blip.
 async function getCurrentUser() {
     const session = await checkAuth();
     if (!session) return null;
-    
-    try {
-        const { data, error } = await db
-            .from('user_roles')
-            .select('role, agent_id, email, depot_id, shifts_enabled')
-            .eq('user_id', session.user.id)
-            .single();
-        
-        if (error) {
-            // User exists in auth but not in user_roles (partial signup)
-            console.error('User role not found:', error);
-            // Sign them out to prevent loop
-            await db.auth.signOut();
-            return null;
-        }
-        
-        return {
-            id: session.user.id,
-            email: session.user.email,
-            role: data.role,
-            agent_id: data.agent_id,
-            depot_id: data.depot_id,
-            shifts_enabled: data.shifts_enabled
-        };
-    } catch (error) {
-        console.error('Error getting user:', error);
+
+    const { data, error } = await db
+        .from('user_roles')
+        .select('role, agent_id, email, depot_id, shifts_enabled')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+    if (error) {
+        console.error('Error getting user role:', error);
+        throw error;
+    }
+
+    if (!data) {
+        // User exists in auth but not in user_roles (partial signup)
+        console.error('User role not found');
         // Sign them out to prevent loop
         await db.auth.signOut();
         return null;
     }
+
+    return {
+        id: session.user.id,
+        email: session.user.email,
+        role: data.role,
+        agent_id: data.agent_id,
+        depot_id: data.depot_id,
+        shifts_enabled: data.shifts_enabled
+    };
 }
 
 // Check if user has required role
@@ -107,8 +108,17 @@ function restrictByRole(userRole) {
 
 // Initialize auth on page load
 async function initAuth(requiredRoles = null) {
-    const user = await getCurrentUser();
-    
+    let user;
+    try {
+        user = await getCurrentUser();
+    } catch (error) {
+        // Transient failure — keep the session and surface it instead of
+        // bouncing the user to the login page (which would loop while offline)
+        if (typeof showLoading === 'function') showLoading(false);
+        if (typeof showAlert === 'function') showAlert('Connection problem. Please refresh the page.', 'error');
+        return null;
+    }
+
     if (!user) {
         window.location.href = 'index.html';
         return null;
