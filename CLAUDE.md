@@ -178,6 +178,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 
 - **Duplicate serials**: checked per-depot scope. Same serial allowed in different depots
 - **Install jobs**: no serials required or accepted
+- **Nil swap**: entering the serial `nilswap` (exact string) on a swap-upgrade job submits the job with no serials — the sentinel is never saved as a serial and skips the duplicate check. Rejected on other job types
 - **Receipt requirements**: configurable per client per job type (swap-upgrade, install, deinstall) via `depot_clients` toggles
 - **Box auto-creation**: selecting a client checks for an open box for that agent+client; creates one if none exists
 - **Shift time multipliers**: Mon-Fri 1x, Sat 1.5x, Sun 2x — used in shift reports and CSV exports

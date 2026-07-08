@@ -1404,6 +1404,7 @@ async function handleAddJob() {
     const jobNumber = document.getElementById('jobNumber').value.trim();
     if (!vendor || !jobNumber) { showAlert('Please fill in all required fields', 'error'); return; }
     let serials = [];
+    let isNilSwap = false;
     if (currentJobType !== 'install') {
         if (bulkModeState) {
             const bulkText = document.getElementById('bulkSerials').value.trim();
@@ -1412,17 +1413,29 @@ async function handleAddJob() {
         } else {
             serials = [...chips];
         }
-        if (serials.length === 0) { showAlert('Please enter at least one serial number', 'error'); return; }
-        let duplicates;
-        try {
-            // Shared fail-closed check (utils.js) — throws on query failure so a
-            // failed lookup blocks submission instead of letting duplicates through
-            duplicates = await checkDuplicateSerials(serials, null, currentDepotId);
-        } catch (err) {
-            showAlert('Could not verify serials are unique. Please check your connection and try again.', 'error');
-            return;
+        // "nilswap" sentinel: allows a swap job with no equipment serials to log.
+        // Never saved as a serial and never checked for duplicates.
+        if (serials.includes('nilswap')) {
+            if (currentJobType !== 'swap-upgrade') {
+                showAlert("'nilswap' can only be used on swap/upgrade jobs", 'error');
+                return;
+            }
+            isNilSwap = true;
+            serials = serials.filter(s => s !== 'nilswap');
         }
-        if (duplicates.length > 0) { showAlert(`Duplicate serials found: ${duplicates.join(', ')}`, 'warning'); return; }
+        if (serials.length === 0 && !isNilSwap) { showAlert('Please enter at least one serial number', 'error'); return; }
+        if (serials.length > 0) {
+            let duplicates;
+            try {
+                // Shared fail-closed check (utils.js) — throws on query failure so a
+                // failed lookup blocks submission instead of letting duplicates through
+                duplicates = await checkDuplicateSerials(serials, null, currentDepotId);
+            } catch (err) {
+                showAlert('Could not verify serials are unique. Please check your connection and try again.', 'error');
+                return;
+            }
+            if (duplicates.length > 0) { showAlert(`Duplicate serials found: ${duplicates.join(', ')}`, 'warning'); return; }
+        }
     }
     showLoading(true);
     showSyncStatus('Syncing...', 'syncing');
@@ -1461,7 +1474,9 @@ async function handleAddJob() {
         const jobTypeLabel = jobTypeLabels[currentJobType] || currentJobType;
         const message = currentJobType === 'install'
             ? `✓ ${jobTypeLabel} job ${jobNumber} added`
-            : `✓ ${jobTypeLabel} job ${jobNumber} added with ${serials.length} serial(s)`;
+            : isNilSwap && serials.length === 0
+                ? `✓ ${jobTypeLabel} job ${jobNumber} added (nil swap — no serials)`
+                : `✓ ${jobTypeLabel} job ${jobNumber} added with ${serials.length} serial(s)`;
         showAlert(message, 'success');
         showSyncStatus('✓ Synced', 'synced');
         if (prefilledJobId) {
