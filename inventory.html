@@ -1455,7 +1455,7 @@
                 });
 
                 const typeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
-                const headers = ['Job Number', 'Job Type', 'Bank', 'Serial', 'Serial # in Job', 'Serials in Job', 'Box ID', 'Agent', 'Client', 'Job Date'];
+                const headers = ['Job Number', 'Job Type', 'Bank', 'Serial', 'Box ID', 'Agent', 'Client', 'Job Date'];
                 const rows = [];
                 (jobs || []).forEach(j => {
                     const jobSerials = serialsByJob[j.id] || [];
@@ -1463,14 +1463,12 @@
                     const pad = n => String(n).padStart(2, '0');
                     // ISO-style so the column sorts chronologically as text
                     const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                    jobSerials.forEach((serial, i) => {
+                    jobSerials.forEach(serial => {
                         rows.push([
                             j.job_number,
                             typeLabels[j.job_type] || j.job_type,
                             j.vendor,
                             serial,
-                            i + 1,
-                            jobSerials.length,
                             box?.box_id || '',
                             box?.agent || '',
                             box?.client || '',
