@@ -187,7 +187,7 @@
                         <option value="">— Select Vendor —</option>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="editSerialsGroup">
                     <label class="form-label">Serials</label>
                     <div id="editSerialsContainer" class="serial-inputs"></div>
                     <button type="button" class="btn btn-secondary btn-sm" id="addSerialBtn" style="margin-top:var(--spacing-sm)">+ Add Serial</button>
@@ -220,8 +220,9 @@
         // ============================================================
         let currentUser = null;
         let currentDepotId = null;
-        let allVendors = [];
         let deleteJobId = null;
+        let editJobType = null;
+        let editOriginalSerials = [];
         let activeDateRange = null;
         let activeQuickRange = null;
         let lastSearchResults = null;
@@ -250,6 +251,18 @@
             document.getElementById('jobSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchJob(); });
             document.getElementById('dateFrom').addEventListener('change', handleCustomDateChange);
             document.getElementById('dateTo').addEventListener('change', handleCustomDateChange);
+            document.getElementById('searchAgent').addEventListener('change', updateFiltersRow);
+            document.getElementById('searchClient').addEventListener('change', updateFiltersRow);
+
+            // "/" and Cmd/Ctrl+K focus the search input (both are advertised in the UI)
+            document.addEventListener('keydown', e => {
+                const t = e.target;
+                const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+                if ((e.key === '/' && !typing) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k')) {
+                    e.preventDefault();
+                    document.getElementById('jobSearchInput').focus();
+                }
+            });
 
             window.addEventListener('popstate', () => {
                 const drawerOpen = document.getElementById('detailDrawer').classList.contains('open');
@@ -306,12 +319,6 @@
             let fromDate = new Date();
             fromDate.setHours(0, 0, 0, 0);
 
-            if (range === 'custom') {
-                toggleAdvancedFilters();
-                if (!advancedOpen) toggleAdvancedFilters();
-                return;
-            }
-
             switch (range) {
                 case 'today': break;
                 case '7days': fromDate.setDate(fromDate.getDate() - 7); break;
@@ -321,6 +328,8 @@
             activeDateRange = { from: fromDate, to: today, label: { today: 'Today', '7days': 'Last 7 days', '30days': 'Last 30 days' }[range] };
             activeQuickRange = range;
             updateFiltersRow();
+            // Results are already on screen — re-run so they reflect the new range
+            if (lastSearchResults) searchJob();
         }
 
         function handleCustomDateChange() {
@@ -347,12 +356,6 @@
             const row = document.getElementById('filtersRow');
             const agent = document.getElementById('searchAgent').value;
             const client = document.getElementById('searchClient').value;
-
-            const dqMap = { today: 'dqToday', '7days': 'dq7', '30days': 'dq30' };
-            ['dqToday', 'dq7', 'dq30'].forEach(id => {
-                const btn = document.getElementById(id);
-                if (btn) btn.classList.toggle('active', Object.keys(dqMap).find(k => dqMap[k] === id) === activeQuickRange);
-            });
 
             // Rebuild chip section before date-quick
             let chips = '';
@@ -442,6 +445,10 @@
             showLoading(true);
 
             try {
+                // Explicit cap on every result set — Supabase otherwise truncates at
+                // 1000 rows silently; we cap lower and tell the user when we hit it.
+                const SEARCH_LIMIT = 500;
+                let truncated = false;
                 const pattern = hasTextSearch ? convertToSqlPattern(searchInput) : null;
                 const matchingBoxes = new Map();
                 const matchingJobs = new Map();
@@ -465,20 +472,22 @@
                 }
 
                 if (hasTextSearch) {
-                    let q = db.from('boxes').select('*').ilike('box_id', pattern).eq('depot_id', currentDepotId);
+                    let q = db.from('boxes').select('*').ilike('box_id', pattern).eq('depot_id', currentDepotId).limit(SEARCH_LIMIT);
                     if (hasAgentFilter) q = q.eq('agent', selectedAgent);
                     if (hasClientFilter) q = q.eq('client', selectedClient);
                     const { data: boxes, error } = await q;
                     if (error) throw error;
+                    if ((boxes || []).length === SEARCH_LIMIT) truncated = true;
                     (boxes || []).forEach(box => { matchingBoxes.set(box.id, box); boxCache.set(box.id, box); });
                 }
 
                 if (hasTextSearch) {
-                    let q = db.from('jobs').select('*').ilike('job_number', pattern).eq('depot_id', currentDepotId);
+                    let q = db.from('jobs').select('*').ilike('job_number', pattern).eq('depot_id', currentDepotId).limit(SEARCH_LIMIT);
                     if (validBoxIds) q = q.in('box_id', validBoxIds);
                     if (hasDateFilter) q = q.gte('created_at', activeDateRange.from.toISOString()).lte('created_at', activeDateRange.to.toISOString());
                     const { data: jobs, error } = await q;
                     if (error) throw error;
+                    if ((jobs || []).length === SEARCH_LIMIT) truncated = true;
                     if (jobs && jobs.length > 0) {
                         const uncached = [...new Set(jobs.map(j => j.box_id))].filter(id => !boxCache.has(id));
                         if (uncached.length > 0) {
@@ -490,15 +499,17 @@
                 }
 
                 if (hasTextSearch) {
-                    let q = db.from('serials').select('*, jobs(*, boxes(*))').ilike('serial_number', pattern).eq('depot_id', currentDepotId);
+                    // With a date filter, use an inner join so the range applies
+                    // server-side instead of fetching everything and filtering here
+                    let q = db.from('serials')
+                        .select(hasDateFilter ? '*, jobs!inner(*, boxes(*))' : '*, jobs(*, boxes(*))')
+                        .ilike('serial_number', pattern).eq('depot_id', currentDepotId).limit(SEARCH_LIMIT);
                     if (validBoxIds) q = q.in('box_id', validBoxIds);
+                    if (hasDateFilter) q = q.gte('jobs.created_at', activeDateRange.from.toISOString()).lte('jobs.created_at', activeDateRange.to.toISOString());
                     const { data: serials, error } = await q;
                     if (error) throw error;
+                    if ((serials || []).length === SEARCH_LIMIT) truncated = true;
                     (serials || []).forEach(serial => {
-                        if (hasDateFilter && serial.jobs) {
-                            const d = new Date(serial.jobs.created_at);
-                            if (d < activeDateRange.from || d > activeDateRange.to) return;
-                        }
                         matchingSerials.push({ ...serial, job: serial.jobs, box: serial.jobs?.boxes });
                     });
                 }
@@ -525,8 +536,9 @@
                     let jq = db.from('jobs').select('*').eq('depot_id', currentDepotId);
                     if (validBoxIds) jq = jq.in('box_id', validBoxIds);
                     if (hasDateFilter) jq = jq.gte('created_at', activeDateRange.from.toISOString()).lte('created_at', activeDateRange.to.toISOString());
-                    jq = jq.order('created_at', { ascending: false }).limit(200);
+                    jq = jq.order('created_at', { ascending: false }).limit(SEARCH_LIMIT);
                     const { data: jobs } = await jq;
+                    if ((jobs || []).length === SEARCH_LIMIT) truncated = true;
                     if (jobs && jobs.length > 0) {
                         const uncached = [...new Set(jobs.map(j => j.box_id))].filter(id => !boxCache.has(id));
                         if (uncached.length > 0) {
@@ -546,7 +558,8 @@
                 lastSearchResults = {
                     boxes: Array.from(matchingBoxes.values()),
                     jobs: Array.from(matchingJobs.values()),
-                    serials: matchingSerials
+                    serials: matchingSerials,
+                    truncated
                 };
                 renderSearchResults(lastSearchResults);
 
@@ -591,7 +604,8 @@
             if (jobs.length) summaryParts.push(`${jobs.length} job${jobs.length !== 1 ? 's' : ''}`);
             if (serials.length) summaryParts.push(`${serials.length} serial${serials.length !== 1 ? 's' : ''}`);
             document.getElementById('totalCount').textContent = total;
-            document.getElementById('resultsSummary').textContent = '· ' + summaryParts.join(', ');
+            document.getElementById('resultsSummary').textContent = '· ' + summaryParts.join(', ')
+                + (results.truncated ? ' · showing first matches only — narrow your search' : '');
             document.getElementById('resultCountPill').style.display = 'inline-flex';
 
             // Update tab counts
@@ -936,6 +950,16 @@
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
                     Print all
                 </button>`;
+                // Managers can close a technician's box on their behalf; a new box
+                // for the same agent+client opens automatically (same as the
+                // technician's own "New Box" flow in stock-entry)
+                const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
+                if (isOpen && isManager) {
+                    actions += `<button onclick="closeBoxFromDrawer()">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Close box
+                    </button>`;
+                }
                 document.getElementById('drawerActions').innerHTML = actions;
 
                 const typeMap = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
@@ -977,6 +1001,64 @@
             } catch (error) {
                 console.error('Error loading box drawer:', error);
                 document.getElementById('drawerBody').innerHTML = '<p style="padding:20px;color:var(--error)">Error loading box. Please try again.</p>';
+            }
+        }
+
+        // Close a box on behalf of its technician (manager/super_admin only) and
+        // automatically open the next box for the same agent+client — mirrors the
+        // "New Box" flow in stock-entry.html, including the jobs-required guard.
+        async function closeBoxFromDrawer() {
+            if (!currentDrawerBoxId) return;
+            if (currentUser.role !== 'manager' && currentUser.role !== 'super_admin') return;
+            showLoading(true);
+            try {
+                const [{ data: box, error: boxError }, { count: jobCount, error: countError }] = await Promise.all([
+                    db.from('boxes').select('*').eq('id', currentDrawerBoxId).single(),
+                    db.from('jobs').select('id', { count: 'exact', head: true }).eq('box_id', currentDrawerBoxId)
+                ]);
+                if (boxError) throw boxError;
+                if (countError) throw countError;
+                if (box.status !== 'open') { showAlert('This box is already closed.', 'info'); return; }
+                if (!jobCount) { showAlert('Cannot close a box with no jobs — same rule as the technician\'s New Box flow.', 'warning'); return; }
+
+                showLoading(false);
+                if (!confirm(`Close box ${box.box_id} and open a new box for Agent ${box.agent} / ${box.client}?`)) return;
+                showLoading(true);
+                showSyncStatus('Closing box...', 'syncing');
+
+                const { error: closeError } = await db.from('boxes')
+                    .update({ status: 'closed', closed_at: new Date().toISOString() })
+                    .eq('id', box.id).eq('status', 'open');
+                if (closeError) throw closeError;
+
+                // Next number for this agent+client — fail closed on query error
+                // rather than guessing and minting a duplicate box_id
+                const { data: maxRows, error: numError } = await db.from('boxes')
+                    .select('box_number').eq('agent', box.agent).eq('client', box.client)
+                    .eq('depot_id', currentDepotId)
+                    .order('box_number', { ascending: false }).limit(1);
+                if (numError) throw numError;
+                const boxNumber = (maxRows && maxRows.length > 0)
+                    ? String(parseInt(maxRows[0].box_number) + 1).padStart(3, '0')
+                    : '001';
+
+                const { data: newBox, error: insertError } = await db.from('boxes').insert([{
+                    box_id: formatBoxId(box.agent, box.client, boxNumber),
+                    agent: box.agent, client: box.client, box_number: boxNumber,
+                    status: 'open', created_at: new Date().toISOString(), depot_id: currentDepotId
+                }]).select().single();
+                if (insertError) throw insertError;
+
+                showAlert(`✓ Box ${box.box_id} closed — new box ${newBox.box_id} opened`, 'success');
+                showSyncStatus('✓ Synced', 'synced');
+                openBoxDrawer(newBox.id);
+                if (lastSearchResults) searchJob();
+            } catch (error) {
+                console.error('Error closing box:', error);
+                showAlert('Error closing box. Please try again.', 'error');
+                showSyncStatus('✕ Sync failed', 'error');
+            } finally {
+                showLoading(false);
             }
         }
 
@@ -1062,6 +1144,7 @@
 
         async function renderPrintContent(groups) {
             const pc = document.getElementById('printContent');
+            let printedGroups = 0;
             let html = '<div class="print-all-boxes">';
             groups.forEach(({ box, jobs }, gi) => {
                 // Filter to jobs with serials, then sort alphabetically by vendor
@@ -1070,6 +1153,7 @@
                     .sort((a, b) => (a.vendor || '').localeCompare(b.vendor || ''));
 
                 if (printJobs.length === 0) return;
+                printedGroups++;
 
                 html += `
                     <div class="export-box-list-item" ${gi < groups.length - 1 ? 'style="page-break-after:always"' : ''}>
@@ -1101,6 +1185,14 @@
                 html += '</div>';
             });
             html += '</div>';
+
+            // Install jobs have no serials — a selection of only those would
+            // print a blank page, so bail out with an explanation instead
+            if (printedGroups === 0) {
+                showAlert('Nothing to print — no serials in the selected jobs.', 'warning');
+                return;
+            }
+
             pc.innerHTML = html;
             pc.style.display = 'block';
 
@@ -1126,8 +1218,9 @@
 
             // Small delay to ensure barcodes are rendered before print dialog
             await new Promise(resolve => setTimeout(resolve, 150));
+            // Clean up when the print dialog closes rather than guessing a delay
+            window.addEventListener('afterprint', () => { pc.style.display = 'none'; pc.innerHTML = ''; }, { once: true });
             window.print();
-            setTimeout(() => { pc.style.display = 'none'; pc.innerHTML = ''; }, 1500);
         }
 
         // ============================================================
@@ -1220,7 +1313,6 @@
             try {
                 const { data, error } = await db.from('vendors').select('vendor_id').order('vendor_id', { ascending: true });
                 if (error) throw error;
-                allVendors = data || [];
                 const select = document.getElementById('editJobVendor');
                 select.innerHTML = '<option value="">— Select Vendor —</option>';
                 (data || []).forEach(v => {
@@ -1245,13 +1337,20 @@
                 ]);
                 if (jobError) throw jobError;
                 if (serialsError) throw serialsError;
+                editJobType = job.job_type;
+                editOriginalSerials = (serials || []).map(s => s.serial_number);
                 document.getElementById('editJobId').value = job.id;
                 document.getElementById('editBoxId').value = job.box_id;
                 document.getElementById('editJobNumber').value = job.job_number;
                 document.getElementById('editJobVendor').value = job.vendor;
+                // Install jobs carry no serials by design — hide the serial editor
+                const isInstall = editJobType === 'install';
+                document.getElementById('editSerialsGroup').style.display = isInstall ? 'none' : '';
                 const container = document.getElementById('editSerialsContainer');
                 container.innerHTML = '';
-                (serials && serials.length > 0 ? serials : [{}]).forEach(s => addSerialInput(s.serial_number || ''));
+                if (!isInstall) {
+                    (serials && serials.length > 0 ? serials : [{}]).forEach(s => addSerialInput(s.serial_number || ''));
+                }
                 document.getElementById('editJobModal').classList.add('active');
             } catch (error) {
                 console.error('Error loading job:', error);
@@ -1265,6 +1364,8 @@
             document.getElementById('editJobModal').classList.remove('active');
             document.getElementById('editJobForm').reset();
             document.getElementById('editSerialsContainer').innerHTML = '';
+            editJobType = null;
+            editOriginalSerials = [];
         }
 
         function addSerialInput(value = '') {
@@ -1284,30 +1385,49 @@
             const boxId = document.getElementById('editBoxId').value;
             const jobNumber = document.getElementById('editJobNumber').value.trim();
             const vendor = document.getElementById('editJobVendor').value;
-            const serials = [...document.querySelectorAll('#editSerialsContainer .serial-input')]
+            const isInstall = editJobType === 'install';
+            const serials = isInstall ? [] : [...document.querySelectorAll('#editSerialsContainer .serial-input')]
                 .map(i => i.value.trim()).filter(Boolean);
 
             if (!jobNumber || !vendor) { showAlert('Please fill in job number and vendor', 'error'); return; }
-            if (serials.length === 0) { showAlert('Please add at least one serial', 'error'); return; }
-            if ([...new Set(serials)].length !== serials.length) { showAlert('Duplicate serials found', 'warning'); return; }
+            if (!isInstall) {
+                if (serials.length === 0) { showAlert('Please add at least one serial', 'error'); return; }
+                if ([...new Set(serials)].length !== serials.length) { showAlert('Duplicate serials found', 'warning'); return; }
 
-            const { data: existing, error: checkError } = await db.from('serials').select('serial_number')
-                .in('serial_number', serials).neq('job_id', jobId).eq('depot_id', currentDepotId);
-            if (checkError) { showAlert('Error checking duplicates: ' + checkError.message, 'error'); return; }
-            if (existing && existing.length > 0) { showAlert(`Serials already exist: ${existing.map(s => s.serial_number).join(', ')}`, 'warning'); return; }
+                let existing;
+                try {
+                    existing = await checkDuplicateSerials(serials, jobId, currentDepotId);
+                } catch (err) {
+                    showAlert('Could not verify serials are unique. Please check your connection and try again.', 'error');
+                    return;
+                }
+                if (existing.length > 0) { showAlert(`Serials already exist: ${existing.join(', ')}`, 'warning'); return; }
+            }
 
             showLoading(true);
             showSyncStatus('Saving...', 'syncing');
             try {
                 const { error: jobError } = await db.from('jobs').update({ job_number: jobNumber, vendor }).eq('id', jobId);
                 if (jobError) throw jobError;
-                const { error: delError } = await db.from('serials').delete().eq('job_id', jobId);
-                if (delError) throw delError;
-                const { error: insError } = await db.from('serials').insert(serials.map(s => ({
-                    job_id: parseInt(jobId), box_id: parseInt(boxId),
-                    serial_number: s, created_at: new Date().toISOString(), depot_id: currentDepotId
-                })));
-                if (insError) throw insError;
+                if (!isInstall) {
+                    // Diff against the loaded serials instead of delete-all-then-reinsert:
+                    // unchanged rows keep their original created_at, and a mid-flight
+                    // failure can only affect the delta, never wipe the whole set
+                    const toAdd = serials.filter(s => !editOriginalSerials.includes(s));
+                    const toRemove = editOriginalSerials.filter(s => !serials.includes(s));
+                    if (toAdd.length > 0) {
+                        const { error: insError } = await db.from('serials').insert(toAdd.map(s => ({
+                            job_id: parseInt(jobId), box_id: boxId,
+                            serial_number: s, created_at: new Date().toISOString(), depot_id: currentDepotId
+                        })));
+                        if (insError) throw insError;
+                    }
+                    if (toRemove.length > 0) {
+                        const { error: delError } = await db.from('serials').delete()
+                            .eq('job_id', jobId).in('serial_number', toRemove);
+                        if (delError) throw delError;
+                    }
+                }
                 showAlert('✓ Job updated successfully', 'success');
                 showSyncStatus('✓ Saved', 'synced');
                 closeEditJobModal();
@@ -1345,10 +1465,24 @@
             showLoading(true);
             showSyncStatus('Deleting...', 'syncing');
             try {
+                // Grab the receipt path before the row disappears
+                const { data: jobRow } = await db.from('jobs').select('receipt_url').eq('id', deleteJobId).maybeSingle();
+
+                // Detach any planned job pointing at this job so the FK doesn't
+                // block the delete (best-effort — RLS may hide other users' rows)
+                await db.from('prefilled_jobs').update({ completed_job_id: null }).eq('completed_job_id', deleteJobId);
+
                 const { error: sErr } = await db.from('serials').delete().eq('job_id', deleteJobId);
                 if (sErr) throw sErr;
                 const { error: jErr } = await db.from('jobs').delete().eq('id', deleteJobId);
                 if (jErr) throw jErr;
+
+                // Remove the receipt file so it doesn't orphan in storage (best-effort)
+                if (jobRow?.receipt_url) {
+                    db.storage.from('job-receipts').remove([jobRow.receipt_url])
+                        .then(({ error }) => { if (error) console.error('Receipt cleanup failed:', error); })
+                        .catch(err => console.error('Receipt cleanup failed:', err));
+                }
                 showAlert('✓ Job deleted successfully', 'success');
                 showSyncStatus('✓ Deleted', 'synced');
                 closeDeleteJobModal();
@@ -1403,15 +1537,6 @@
             }
         }
 
-        // ============================================================
-        // UI HELPERS
-        // ============================================================
-        function showSyncStatus(message, type) {
-            const el = document.getElementById('syncStatus');
-            el.textContent = message;
-            el.className = `sync-status active ${type}`;
-            setTimeout(() => el.classList.remove('active'), 3000);
-        }
     </script>
 </body>
 </html>

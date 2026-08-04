@@ -626,7 +626,7 @@
                             <td data-label="Linked clients">${linked === 0 ? '<span class="b b-muted">None</span>' : `<span class="b b-info">${linked} client${linked>1?'s':''}</span>`}</td>
                             <td data-label="Total jobs" class="num">${jobs}</td>
                             <td class="actions-cell"><div class="row-actions">
-                                <button class="danger" title="Delete" onclick="deleteVendor('${escapeHTML(v.vendor_id)}')">${I.trash}</button>
+                                <button class="danger" title="Remove from this depot" onclick="removeVendorFromDepot('${escapeHTML(v.vendor_id)}')">${I.trash}</button>
                             </div></td>
                         </tr>
                     `;
@@ -730,20 +730,19 @@
             }
         }
 
-        async function deleteVendor(vendorId) {
-            if (!confirm(`Delete vendor ${vendorId}?`)) return;
+        async function removeVendorFromDepot(vendorId) {
+            if (!confirm(`Remove vendor ${vendorId} from this depot? It will be unlinked from all of this depot's clients. Other depots are not affected.`)) return;
             try {
-                // Vendors are global — remove client links first so no orphaned
-                // clients_vendors rows are left behind
-                const { error: cvError } = await db.from('clients_vendors').delete().eq('vendor_id', vendorId);
-                if (cvError) throw cvError;
-                const { error } = await db.from('vendors').delete().eq('vendor_id', vendorId);
+                // Vendors are a shared catalogue across depots — a depot manager
+                // only removes their own depot's links, never the vendor itself
+                const { error } = await db.from('clients_vendors').delete()
+                    .eq('vendor_id', vendorId).eq('depot_id', currentDepotId);
                 if (error) throw error;
-                showAlert('Vendor deleted successfully!', 'success');
+                showAlert('Vendor removed from this depot.', 'success');
                 await loadVendors();
                 updateStatStrip();
             } catch (error) {
-                showAlert('Error deleting vendor. Please try again.', 'error');
+                showAlert('Error removing vendor. Please try again.', 'error');
             }
         }
 

@@ -339,14 +339,7 @@
             return `${y}-${m}-${d}`;
         }
 
-        function formatDateTime(date) {
-            return new Date(date).toLocaleString('en-AU', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:true });
-        }
-
-        function formatDateTimeLocal(date) {
-            const pad = n => String(n).padStart(2, '0');
-            return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-        }
+        // formatDateTime / formatDateTimeLocal come from utils.js
 
         function setDatePreset(preset) {
             activePreset = preset;

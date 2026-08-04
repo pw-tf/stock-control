@@ -97,7 +97,8 @@ The primary work page for technicians.
 - Filter by: agent, client, date range (quick filters or custom)
 - Text search: job number or serial number (min 3 chars, supports * wildcards, uses SQL ILIKE)
 - Results grouped by: boxes, jobs, serials — each expandable
-- Actions: view/download receipt, edit job (manager or owning tech), delete job (manager only)
+- Actions: view/download receipt, edit job (manager or owning tech), delete job (manager or owning tech). Deleting a job also removes its receipt from storage and detaches any `prefilled_jobs.completed_job_id` reference
+- **Close box on behalf** (manager/super_admin): box drawer has a "Close box" action for open boxes — closes the box and auto-opens the next box for the same agent+client (mirrors the technician's New Box flow, including the ≥1-job requirement)
 - Print: generates PDF with serials and CODE128 barcodes, uses `page-break-inside: avoid` on job sections
 - **Deep-link params**: `?box=UUID` auto-opens box detail view; `?job=UUID` auto-opens job detail modal on page load
 
@@ -113,7 +114,7 @@ Four tabs:
 - **Users**: table with assign agent, view stats, delete
 - **Agents**: add/delete agents (can't delete if users assigned)
 - **Clients**: configure receipt requirements per job type, link/unlink vendors
-- **Vendors**: add/delete vendors globally
+- **Vendors**: add vendors (shared catalogue across depots); remove vendor from this depot (unlinks it from the depot's clients only — never deletes the vendor globally or affects other depots)
 
 #### shifts.html — Shift Reports (manager+)
 - Filter by technician and date range
@@ -152,8 +153,8 @@ depot_clients:    client_id + depot_id (composite PK), receipt_swap_upgrade_enab
 clients_vendors:  client_id + vendor_id + depot_id (composite PK)
 vendors:          vendor_id (PK)
 invitation_tokens: token (PK), email, depot_id, used, used_at, expires_at
-prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, client_id, vendor_id, job_type, job_number, notes, planned_date (date), is_completed, completed_job_id (FK jobs.id bigint), sort_order (int), created_at
-user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidden (JSONB), theme (text), theme_mode (text), updated_at
+prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, client_id, vendor_id, job_type, job_number, notes, planned_date (date), assigned_agent_id, is_completed, completed_job_id (FK jobs.id bigint), sort_order (int), created_at
+user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidden (JSONB), widget_spans (JSONB), quick_links (JSONB), theme (text), theme_mode (text), updated_at
 ```
 
 **Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `prefilled_jobs` and `user_widget_config` are scoped per user (RLS: auth.uid() = user_id).
@@ -177,6 +178,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 
 - **Duplicate serials**: checked per-depot scope. Same serial allowed in different depots
 - **Install jobs**: no serials required or accepted
+- **Nil swap**: entering the serial `nilswap` (exact string) on a swap-upgrade job submits the job with no serials — the sentinel is never saved as a serial and skips the duplicate check. Rejected on other job types
 - **Receipt requirements**: configurable per client per job type (swap-upgrade, install, deinstall) via `depot_clients` toggles
 - **Box auto-creation**: selecting a client checks for an open box for that agent+client; creates one if none exists
 - **Shift time multipliers**: Mon-Fri 1x, Sat 1.5x, Sun 2x — used in shift reports and CSV exports
@@ -187,7 +189,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 
 ## Design System
 
-**Themes**: 8 themes × 2 modes (dark/light) = 16 combinations. Default: Ocean Dark. Theme applied via `data-theme` + `data-mode` attributes on `<html>`, driven by CSS `[data-theme][data-mode]` variable overrides. Each page has an inline `<script>` in `<head>` that reads localStorage and sets attributes before the stylesheet loads (prevents flash). Theme names: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand.
+**Themes**: 9 themes × 2 modes (dark/light) = 18 combinations. Default: Ocean Dark. Theme applied via `data-theme` + `data-mode` attributes on `<html>`, driven by CSS `[data-theme][data-mode]` variable overrides. Each page has an inline `<script>` in `<head>` that reads localStorage and sets attributes before the stylesheet loads (prevents flash). Theme names: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand, Perry's Beach.
 
 **Fonts**: Inter (UI), JetBrains Mono (IDs, codes, numbers)
 
@@ -220,7 +222,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 ├── utils.js                 Shared utilities + theme functions
 ├── sidebar.js               Navigation (Home is first menu item)
 ├── icons.js                 Lucide icons
-├── styles.css               Full design system + 8 theme variants
+├── styles.css               Full design system + 9 theme variants
 └── .htaccess                Apache routing + cache headers
 ```
 
@@ -234,3 +236,5 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 - **File uploads**: image/* only, compressed client-side, sanitized filenames (`{timestamp}-{jobId}`)
 - **Error messages**: generic user-facing messages, detailed errors only in console.error()
 - **Passwords**: minimum 8 characters, forced change on first login
+- **RLS is the real enforcement boundary**: all role/ownership checks in the UI are advisory — with a public anon key, Supabase Row Level Security policies must enforce depot scoping and role permissions on every table (jobs, serials, boxes, shifts, prefilled_jobs, user_widget_config) and the `job-receipts` bucket
+- **Recommended DB constraint**: `UNIQUE (depot_id, box_id)` on `boxes` — box numbers are computed client-side (max+1), so concurrent sessions for the same agent+client can race; only a DB constraint fully prevents duplicate box IDs
