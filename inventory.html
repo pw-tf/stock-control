@@ -949,6 +949,10 @@
                 let actions = `<button onclick="printBoxFromDrawer()">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
                     Print all
+                </button>
+                <button onclick="exportBoxSerialsCSV()">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    Export CSV
                 </button>`;
                 // Managers can close a technician's box on their behalf; a new box
                 // for the same agent+client opens automatically (same as the
@@ -1244,6 +1248,53 @@
             });
             const csv = rows.map(r => r.join(',')).join('\n');
             downloadCSV(csv, `inventory-export-${Date.now()}.csv`);
+        }
+
+        // One row per serial for every job in the open box drawer. Jobs without
+        // serials (installs, nil swaps) have nothing to list, so they're skipped
+        // — same rule the print output uses.
+        async function exportBoxSerialsCSV() {
+            if (!currentDrawerBoxId) return;
+            showLoading(true);
+            try {
+                const [{ data: box, error: boxError }, { data: jobs, error: jobsError }] = await Promise.all([
+                    db.from('boxes').select('box_id').eq('id', currentDrawerBoxId).single(),
+                    db.from('jobs').select('id, job_number, job_type, vendor').eq('box_id', currentDrawerBoxId).order('created_at', { ascending: false })
+                ]);
+                if (boxError) throw boxError;
+                if (jobsError) throw jobsError;
+
+                const jobIds = (jobs || []).map(j => j.id);
+                const serialsByJob = {};
+                if (jobIds.length > 0) {
+                    const { data: allSerials, error: serialsError } = await db.from('serials').select('serial_number, job_id').in('job_id', jobIds).order('created_at', { ascending: true });
+                    if (serialsError) throw serialsError;
+                    (allSerials || []).forEach(s => { (serialsByJob[s.job_id] = serialsByJob[s.job_id] || []).push(s.serial_number); });
+                }
+
+                const rows = [['Job Number', 'Job Type', 'Bank', 'Serial']];
+                (jobs || []).forEach(j => {
+                    (serialsByJob[j.id] || []).forEach(serial => {
+                        rows.push([
+                            escapeCSV(j.job_number),
+                            escapeCSV(j.job_type),
+                            escapeCSV(j.vendor),
+                            escapeCSV(serial)
+                        ]);
+                    });
+                });
+
+                if (rows.length === 1) { showAlert('Nothing to export — no serials in this box.', 'warning'); return; }
+
+                const csv = rows.map(r => r.join(',')).join('\n');
+                const safeBoxId = String(box?.box_id || 'box').replace(/[^A-Za-z0-9._-]/g, '-');
+                downloadCSV(csv, `${safeBoxId}-serials-${Date.now()}.csv`);
+            } catch (e) {
+                console.error('Export error:', e);
+                showAlert('Error preparing export.', 'error');
+            } finally {
+                showLoading(false);
+            }
         }
 
         // ============================================================
