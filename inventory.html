@@ -9,6 +9,36 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
     <script>(function(){var t=localStorage.getItem("theme")||"ocean";var m=localStorage.getItem("mode")||"dark";var d=localStorage.getItem("density")||"comfortable";document.documentElement.setAttribute("data-theme",t);document.documentElement.setAttribute("data-mode",m);document.documentElement.setAttribute("data-density",d);})();</script>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Export dropdown in the box drawer header — groups the print and
+           spreadsheet actions under one trigger. Inherits .dactions button
+           styling; only the popup itself needs rules. */
+        .drawer-head .dactions .drawer-menu { position: relative; }
+        .drawer-head .dactions .drawer-menu-list {
+            position: absolute;
+            top: calc(100% + 5px); right: 0;
+            z-index: 30;
+            min-width: 178px;
+            padding: 4px;
+            display: none;
+            flex-direction: column;
+            gap: 2px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 6px;
+            box-shadow: 0 10px 28px rgba(0,0,0,.32);
+        }
+        .drawer-head .dactions .drawer-menu.open .drawer-menu-list { display: flex; }
+        .drawer-head .dactions .drawer-menu-list button {
+            width: 100%;
+            justify-content: flex-start;
+            background: transparent;
+            border-color: transparent;
+        }
+        .drawer-head .dactions .drawer-menu-list button:hover { background: var(--bg-tertiary); }
+        .drawer-head .dactions .drawer-menu-btn .chev { transition: transform .15s; }
+        .drawer-head .dactions .drawer-menu.open .drawer-menu-btn .chev { transform: rotate(180deg); }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/lucide@0.460.0"></script>
     <script src="icons.js"></script>
@@ -946,14 +976,23 @@
                 document.getElementById('drawerTitle').textContent = box.box_id;
 
                 // Header actions
-                let actions = `<button onclick="printBoxFromDrawer()">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
-                    Print all
-                </button>
-                <button onclick="exportBoxSerialsXLSX()">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-                    Export XLSX
-                </button>`;
+                let actions = `<div class="drawer-menu" id="boxExportMenu">
+                    <button type="button" class="drawer-menu-btn" aria-haspopup="true" aria-expanded="false" onclick="toggleBoxExportMenu(event)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                        Export
+                        <svg class="chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    <div class="drawer-menu-list" role="menu">
+                        <button type="button" role="menuitem" onclick="runBoxExport('print')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
+                            Print Barcodes
+                        </button>
+                        <button type="button" role="menuitem" onclick="runBoxExport('xlsx')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                            Export .XLSX
+                        </button>
+                    </div>
+                </div>`;
                 // Managers can close a technician's box on their behalf; a new box
                 // for the same agent+client opens automatically (same as the
                 // technician's own "New Box" flow in stock-entry)
@@ -1006,6 +1045,44 @@
                 console.error('Error loading box drawer:', error);
                 document.getElementById('drawerBody').innerHTML = '<p style="padding:20px;color:var(--error)">Error loading box. Please try again.</p>';
             }
+        }
+
+        // Export dropdown in the box drawer header. The drawer rebuilds its
+        // actions on every open, so the dismiss handlers are bound once against
+        // the document and look the menu up by id each time.
+        let boxExportMenuBound = false;
+
+        function closeBoxExportMenu() {
+            const menu = document.getElementById('boxExportMenu');
+            if (!menu || !menu.classList.contains('open')) return;
+            menu.classList.remove('open');
+            const trigger = menu.querySelector('.drawer-menu-btn');
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        }
+
+        function toggleBoxExportMenu(event) {
+            event.stopPropagation();
+            const menu = document.getElementById('boxExportMenu');
+            if (!menu) return;
+            const isOpen = menu.classList.toggle('open');
+            menu.querySelector('.drawer-menu-btn').setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+
+            if (!boxExportMenuBound) {
+                boxExportMenuBound = true;
+                document.addEventListener('click', e => {
+                    const m = document.getElementById('boxExportMenu');
+                    if (m && m.classList.contains('open') && !m.contains(e.target)) closeBoxExportMenu();
+                });
+                document.addEventListener('keydown', e => {
+                    if (e.key === 'Escape') closeBoxExportMenu();
+                });
+            }
+        }
+
+        function runBoxExport(kind) {
+            closeBoxExportMenu();
+            if (kind === 'print') printBoxFromDrawer();
+            else if (kind === 'xlsx') exportBoxSerialsXLSX();
         }
 
         // Close a box on behalf of its technician (manager/super_admin only) and
