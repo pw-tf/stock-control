@@ -950,9 +950,9 @@
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
                     Print all
                 </button>
-                <button onclick="exportBoxSerialsCSV()">
+                <button onclick="exportBoxSerialsXLSX()">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-                    Export CSV
+                    Export XLSX
                 </button>`;
                 // Managers can close a technician's box on their behalf; a new box
                 // for the same agent+client opens automatically (same as the
@@ -1250,45 +1250,239 @@
             downloadCSV(csv, `inventory-export-${Date.now()}.csv`);
         }
 
+        // ============================================================
+        // XLSX EXPORT
+        // ============================================================
+        // A .xlsx is a zip of XML parts, so we can emit one without pulling in a
+        // spreadsheet library: build the parts, store them uncompressed, and zip.
+        // Written here rather than in utils.js so nothing outside this page moves.
+
+        function crc32(bytes) {
+            let table = crc32._table;
+            if (!table) {
+                table = crc32._table = new Uint32Array(256);
+                for (let i = 0; i < 256; i++) {
+                    let c = i;
+                    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+                    table[i] = c >>> 0;
+                }
+            }
+            let crc = 0xFFFFFFFF;
+            for (let i = 0; i < bytes.length; i++) crc = (crc >>> 8) ^ table[(crc ^ bytes[i]) & 0xFF];
+            return (crc ^ 0xFFFFFFFF) >>> 0;
+        }
+
+        // Minimal ZIP writer, stored (method 0) — no deflate needed for our size
+        function zipStore(files) {
+            const enc = new TextEncoder();
+            const parts = [];
+            const central = [];
+            let offset = 0;
+
+            files.forEach(f => {
+                const name = enc.encode(f.name);
+                const data = enc.encode(f.content);
+                const crc = crc32(data);
+
+                const local = new Uint8Array(30 + name.length);
+                const ldv = new DataView(local.buffer);
+                ldv.setUint32(0, 0x04034b50, true);
+                ldv.setUint16(4, 20, true);       // version needed
+                ldv.setUint16(6, 0x0800, true);   // UTF-8 filenames
+                ldv.setUint16(8, 0, true);        // stored
+                ldv.setUint16(10, 0, true);       // mod time
+                ldv.setUint16(12, 0x0021, true);  // mod date (1980-01-01)
+                ldv.setUint32(14, crc, true);
+                ldv.setUint32(18, data.length, true);
+                ldv.setUint32(22, data.length, true);
+                ldv.setUint16(26, name.length, true);
+                ldv.setUint16(28, 0, true);
+                local.set(name, 30);
+                parts.push(local, data);
+
+                const cd = new Uint8Array(46 + name.length);
+                const cdv = new DataView(cd.buffer);
+                cdv.setUint32(0, 0x02014b50, true);
+                cdv.setUint16(4, 20, true);       // version made by
+                cdv.setUint16(6, 20, true);       // version needed
+                cdv.setUint16(8, 0x0800, true);
+                cdv.setUint16(10, 0, true);
+                cdv.setUint16(12, 0, true);
+                cdv.setUint16(14, 0x0021, true);
+                cdv.setUint32(16, crc, true);
+                cdv.setUint32(20, data.length, true);
+                cdv.setUint32(24, data.length, true);
+                cdv.setUint16(28, name.length, true);
+                cdv.setUint32(42, offset, true);  // local header offset
+                cd.set(name, 46);
+                central.push(cd);
+
+                offset += local.length + data.length;
+            });
+
+            const cdSize = central.reduce((n, c) => n + c.length, 0);
+            const end = new Uint8Array(22);
+            const edv = new DataView(end.buffer);
+            edv.setUint32(0, 0x06054b50, true);
+            edv.setUint16(8, files.length, true);
+            edv.setUint16(10, files.length, true);
+            edv.setUint32(12, cdSize, true);
+            edv.setUint32(16, offset, true);
+
+            return new Blob([...parts, ...central, end], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            });
+        }
+
+        function escapeXML(value) {
+            return String(value === null || value === undefined ? '' : value)
+                // Control characters are not legal in XLSX text nodes
+                .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function colLetter(index) {
+            let s = '';
+            for (let n = index; n >= 0; n = Math.floor(n / 26) - 1) s = String.fromCharCode(65 + (n % 26)) + s;
+            return s;
+        }
+
+        /**
+         * Build an .xlsx Blob with a bold frozen header row and autofilter
+         * dropdowns already enabled, so columns can be re-sorted on open.
+         * @param {string[]} headers
+         * @param {Array<Array<string|number>>} rows - numbers become numeric cells
+         * @param {string} sheetName
+         */
+        function buildXLSX(headers, rows, sheetName = 'Sheet1') {
+            const lastCol = colLetter(headers.length - 1);
+            const lastRow = rows.length + 1;
+            const ref = `A1:${lastCol}${lastRow}`;
+
+            const cell = (value, rowNum, colIdx, styleId) => {
+                const r = `${colLetter(colIdx)}${rowNum}`;
+                const s = styleId ? ` s="${styleId}"` : '';
+                // Inline strings are never parsed as formulas, so a leading
+                // "=" or "-" in a serial stays literal without any prefixing
+                if (typeof value === 'number' && Number.isFinite(value)) return `<c r="${r}"${s}><v>${value}</v></c>`;
+                return `<c r="${r}"${s} t="inlineStr"><is><t xml:space="preserve">${escapeXML(value)}</t></is></c>`;
+            };
+
+            let sheetData = `<row r="1">${headers.map((h, i) => cell(h, 1, i, 1)).join('')}</row>`;
+            rows.forEach((row, ri) => {
+                sheetData += `<row r="${ri + 2}">${row.map((v, ci) => cell(v, ri + 2, ci, 0)).join('')}</row>`;
+            });
+
+            const cols = headers.map((h, i) => `<col min="${i + 1}" max="${i + 1}" width="${Math.min(40, Math.max(12, h.length + 6))}" customWidth="1"/>`).join('');
+
+            const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="${ref}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${cols}</cols><sheetData>${sheetData}</sheetData><autoFilter ref="${ref}"/></worksheet>`;
+
+            const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${escapeXML(sheetName)}" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'${escapeXML(sheetName).replace(/'/g, "''")}'!$A$1:$${lastCol}$${lastRow}</definedName></definedNames></workbook>`;
+
+            const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+
+            return zipStore([
+                { name: '[Content_Types].xml', content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>` },
+                { name: '_rels/.rels', content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+                { name: 'xl/workbook.xml', content: workbook },
+                { name: 'xl/_rels/workbook.xml.rels', content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
+                { name: 'xl/styles.xml', content: styles },
+                { name: 'xl/worksheets/sheet1.xml', content: sheet }
+            ]);
+        }
+
+        function downloadBlob(blob, filename) {
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 0);
+        }
+
         // One row per serial for every job in the open box drawer. Jobs without
         // serials (installs, nil swaps) have nothing to list, so they're skipped
         // — same rule the print output uses.
-        async function exportBoxSerialsCSV() {
+        async function exportBoxSerialsXLSX() {
             if (!currentDrawerBoxId) return;
             showLoading(true);
             try {
                 const [{ data: box, error: boxError }, { data: jobs, error: jobsError }] = await Promise.all([
-                    db.from('boxes').select('box_id').eq('id', currentDrawerBoxId).single(),
-                    db.from('jobs').select('id, job_number, job_type, vendor').eq('box_id', currentDrawerBoxId).order('created_at', { ascending: false })
+                    db.from('boxes').select('box_id, agent, client').eq('id', currentDrawerBoxId).single(),
+                    db.from('jobs').select('id, job_number, job_type, vendor, created_at').eq('box_id', currentDrawerBoxId).order('created_at', { ascending: false })
                 ]);
                 if (boxError) throw boxError;
                 if (jobsError) throw jobsError;
 
                 const jobIds = (jobs || []).map(j => j.id);
-                const serialsByJob = {};
-                if (jobIds.length > 0) {
-                    const { data: allSerials, error: serialsError } = await db.from('serials').select('serial_number, job_id').in('job_id', jobIds).order('created_at', { ascending: true });
-                    if (serialsError) throw serialsError;
-                    (allSerials || []).forEach(s => { (serialsByJob[s.job_id] = serialsByJob[s.job_id] || []).push(s.serial_number); });
-                }
 
-                const rows = [['Job Number', 'Job Type', 'Bank', 'Serial']];
+                // Serials are fetched by box AND by job id, then merged on the
+                // serial's own id. Either filter alone is enough in healthy data;
+                // querying both means a row missing one link still gets exported.
+                // fetchAllRows pages past Supabase's silent 1000-row cap.
+                const [byBox, byJob] = await Promise.all([
+                    fetchAllRows(() => db.from('serials')
+                        .select('id, serial_number, job_id')
+                        .eq('box_id', currentDrawerBoxId)
+                        .order('created_at', { ascending: true })
+                        .order('id', { ascending: true })),
+                    jobIds.length > 0
+                        ? fetchAllRows(() => db.from('serials')
+                            .select('id, serial_number, job_id')
+                            .in('job_id', jobIds)
+                            .order('created_at', { ascending: true })
+                            .order('id', { ascending: true }))
+                        : Promise.resolve([])
+                ]);
+
+                const seen = new Set();
+                const serialsByJob = {};
+                [...byBox, ...byJob].forEach(s => {
+                    if (seen.has(s.id)) return;
+                    seen.add(s.id);
+                    (serialsByJob[s.job_id] = serialsByJob[s.job_id] || []).push(s.serial_number);
+                });
+
+                const typeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
+                const headers = ['Job Number', 'Job Type', 'Bank', 'Serial', 'Serial # in Job', 'Serials in Job', 'Box ID', 'Agent', 'Client', 'Job Date'];
+                const rows = [];
                 (jobs || []).forEach(j => {
-                    (serialsByJob[j.id] || []).forEach(serial => {
+                    const jobSerials = serialsByJob[j.id] || [];
+                    const d = new Date(j.created_at);
+                    const pad = n => String(n).padStart(2, '0');
+                    // ISO-style so the column sorts chronologically as text
+                    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                    jobSerials.forEach((serial, i) => {
                         rows.push([
-                            escapeCSV(j.job_number),
-                            escapeCSV(j.job_type),
-                            escapeCSV(j.vendor),
-                            escapeCSV(serial)
+                            j.job_number,
+                            typeLabels[j.job_type] || j.job_type,
+                            j.vendor,
+                            serial,
+                            i + 1,
+                            jobSerials.length,
+                            box?.box_id || '',
+                            box?.agent || '',
+                            box?.client || '',
+                            stamp
                         ]);
                     });
                 });
 
-                if (rows.length === 1) { showAlert('Nothing to export — no serials in this box.', 'warning'); return; }
+                if (rows.length === 0) { showAlert('Nothing to export — no serials in this box.', 'warning'); return; }
 
-                const csv = rows.map(r => r.join(',')).join('\n');
                 const safeBoxId = String(box?.box_id || 'box').replace(/[^A-Za-z0-9._-]/g, '-');
-                downloadCSV(csv, `${safeBoxId}-serials-${Date.now()}.csv`);
+                downloadBlob(buildXLSX(headers, rows, 'Serials'), `${safeBoxId}-serials-${Date.now()}.xlsx`);
             } catch (e) {
                 console.error('Export error:', e);
                 showAlert('Error preparing export.', 'error');
