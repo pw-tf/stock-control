@@ -81,7 +81,7 @@
                 </span>
                 <div class="page-title">
                     <h1>Inventory</h1>
-                    <div class="page-title-sub">Search boxes, jobs and serials across the depot</div>
+                    <div class="page-title-sub" id="pageSubtitle">Search boxes, jobs and serials across the depot</div>
                 </div>
             </div>
             <div class="result-count-pill" id="resultCountPill" style="display:none">
@@ -259,6 +259,7 @@
         let currentTab = 'all';
         let currentDrawerJobId = null;
         let currentDrawerBoxId = null;
+        let shiftContext = null;
         let drawerHasHistoryEntry = false;
         let closingFromPopstate = false;
 
@@ -310,11 +311,14 @@
             const params = new URLSearchParams(window.location.search);
             const boxParam = params.get('box');
             const jobParam = params.get('job');
+            const shiftParam = params.get('shift');
             const searchParam = params.get('search');
             if (jobParam) {
                 openJobDrawer(jobParam);
             } else if (boxParam) {
                 openBoxDrawer(boxParam);
+            } else if (shiftParam) {
+                loadShiftJobs(shiftParam);
             } else if (searchParam) {
                 document.getElementById('jobSearchInput').value = searchParam;
                 searchJob();
@@ -389,6 +393,9 @@
 
             // Rebuild chip section before date-quick
             let chips = '';
+            if (shiftContext) {
+                chips += `<span class="filter-chip active"><span class="k">Shift</span><span class="v">${escapeHTML(shiftContext.label)}</span><button class="x" onclick="clearShiftFilter()" aria-label="Remove">×</button></span>`;
+            }
             if (agent) {
                 chips += `<span class="filter-chip active"><span class="k">Agent</span><span class="v">${escapeHTML(agent)}</span><button class="x" onclick="clearAgentFilter()" aria-label="Remove">×</button></span>`;
             }
@@ -399,7 +406,7 @@
                 chips += `<span class="filter-chip active"><span class="k">Date</span><span class="v">${escapeHTML(activeDateRange.label)}</span><button class="x" onclick="clearDateFilter()" aria-label="Remove">×</button></span>`;
             }
 
-            const hasClear = agent || client || activeDateRange;
+            const hasClear = agent || client || activeDateRange || shiftContext;
             const clearBtn = hasClear ? `<button class="filter-chip clear" onclick="clearJobSearch()">Clear all</button>` : '';
 
             // Rebuild full row: chips + date-quick + clear
@@ -420,6 +427,23 @@
         function clearClientFilter() {
             document.getElementById('searchClient').value = '';
             updateFiltersRow();
+        }
+
+        // Drops the ?shift= scope (chip + URL param) without touching results
+        function dropShiftContext() {
+            if (!shiftContext) return;
+            shiftContext = null;
+            document.getElementById('pageSubtitle').textContent = 'Search boxes, jobs and serials across the depot';
+            const url = new URL(window.location.href);
+            if (url.searchParams.has('shift')) {
+                url.searchParams.delete('shift');
+                history.replaceState(null, '', url.pathname + (url.search || '') + url.hash);
+            }
+        }
+
+        function clearShiftFilter() {
+            dropShiftContext();
+            clearJobSearch();
         }
 
         // ============================================================
@@ -471,6 +495,9 @@
                 showAlert('"From" date must be before "To" date', 'error');
                 return;
             }
+
+            // A fresh search replaces any shift-scoped results
+            if (shiftContext) { dropShiftContext(); updateFiltersRow(); }
 
             showLoading(true);
 
@@ -599,6 +626,85 @@
             } finally {
                 showLoading(false);
             }
+        }
+
+        // ============================================================
+        // SHIFT SCOPE (?shift=UUID from the shift reports page)
+        // ============================================================
+        async function loadShiftJobs(shiftId) {
+            showLoading(true);
+            try {
+                const { data: shift, error: shiftError } = await db.from('shifts')
+                    .select('*').eq('id', shiftId).eq('depot_id', currentDepotId).maybeSingle();
+                if (shiftError) throw shiftError;
+                if (!shift) {
+                    showAlert('That shift could not be found.', 'error');
+                    return;
+                }
+
+                const startTime = new Date(shift.start_time);
+                const dateLabel = startTime.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+                shiftContext = {
+                    id: shiftId,
+                    label: `${dateLabel} · Agent ${shift.agent_id || '—'}`
+                };
+
+                const timeRange = shift.end_time
+                    ? `${startTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })} – ${new Date(shift.end_time).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+                    : 'shift still active';
+                document.getElementById('pageSubtitle').textContent =
+                    `Jobs logged on Agent ${shift.agent_id || '—'}'s shift · ${startTime.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · ${timeRange}`;
+                updateFiltersRow();
+
+                const { data: jobs, error } = await db.from('jobs').select('*')
+                    .eq('shift_id', shiftId).eq('depot_id', currentDepotId)
+                    .order('created_at', { ascending: false });
+                if (error) throw error;
+
+                if (!jobs || jobs.length === 0) {
+                    showNoShiftJobs();
+                    return;
+                }
+
+                const boxIds = [...new Set(jobs.map(j => j.box_id).filter(Boolean))];
+                const boxMap = new Map();
+                if (boxIds.length > 0) {
+                    const { data: boxes } = await db.from('boxes').select('*').in('id', boxIds);
+                    (boxes || []).forEach(box => boxMap.set(box.id, box));
+                }
+                const jobMap = new Map();
+                jobs.forEach(job => { job.box = boxMap.get(job.box_id); jobMap.set(job.id, job); });
+
+                const { data: serialRows } = await db.from('serials').select('*')
+                    .in('job_id', jobs.map(j => j.id)).order('created_at', { ascending: true });
+                const serials = (serialRows || []).map(s => {
+                    const job = jobMap.get(s.job_id);
+                    return { ...s, job, box: job?.box };
+                });
+
+                lastSearchResults = { boxes: [], jobs, serials, truncated: false };
+                renderSearchResults(lastSearchResults);
+
+            } catch (e) {
+                console.error('Error loading shift jobs:', e);
+                showAlert('Error loading jobs for this shift. Please try again.', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function showNoShiftJobs() {
+            document.getElementById('searchResults').innerHTML = `
+                <div class="inv-empty">
+                    <div class="inv-empty-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                    </div>
+                    <h3>No jobs on this shift</h3>
+                    <p>No jobs were logged against this shift. Any work counted for it was recorded as extra jobs.</p>
+                </div>
+            `;
+            document.getElementById('tabsRow').style.display = 'none';
+            document.getElementById('resultCountPill').style.display = 'none';
         }
 
         function showNoResults(hasAgentFilter, hasClientFilter, hasTextSearch, hasDateFilter, selectedAgent, selectedClient, searchInput) {
