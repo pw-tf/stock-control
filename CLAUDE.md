@@ -100,7 +100,7 @@ The primary work page for technicians.
 - Actions: view/download receipt, edit job (manager or owning tech), delete job (manager or owning tech). Deleting a job also removes its receipt from storage and detaches any `prefilled_jobs.completed_job_id` reference
 - **Close box on behalf** (manager/super_admin): box drawer has a "Close box" action for open boxes — closes the box and auto-opens the next box for the same agent+client (mirrors the technician's New Box flow, including the ≥1-job requirement)
 - Print: generates PDF with serials and CODE128 barcodes, uses `page-break-inside: avoid` on job sections
-- **Deep-link params**: `?box=UUID` auto-opens box detail view; `?job=UUID` auto-opens job detail modal on page load
+- **Deep-link params**: `?box=UUID` auto-opens box detail view; `?job=UUID` auto-opens job detail modal on page load; `?shift=UUID` loads every job logged against that shift (plus their serials) as results, with a removable "Shift" filter chip and the shift's date/agent/time window in the page subtitle. Clearing the chip or running a new search drops the shift scope and strips the URL param
 
 #### user.html — Profile & Shift History
 - **Shift Reports tab**: date-filtered list of own shifts with summary stats (total shifts, hours, km, jobs). CSV export with dynamic client columns
@@ -119,6 +119,7 @@ Four tabs:
 #### shifts.html — Shift Reports (manager+)
 - Filter by technician and date range
 - Summary stats + shift cards with click-to-detail
+- Shift detail modal actions: Close, View jobs (→ `inventory.html?shift=UUID`), Copy, Edit
 - Edit any shift (end_time, end_kms, extra_jobs, notes)
 - Copy report text or download CSV
 
