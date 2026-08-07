@@ -103,7 +103,7 @@ The primary work page for technicians.
 - **Deep-link params**: `?box=UUID` auto-opens box detail view; `?job=UUID` auto-opens job detail modal on page load; `?shift=UUID` loads every job logged against that shift (plus their serials) as results, with a removable "Shift" filter chip and the shift's date/agent/time window in the page subtitle. Clearing the chip or running a new search drops the shift scope and strips the URL param
 
 #### user.html — Profile & Shift History
-- **Shift Reports tab**: date-filtered list of own shifts with summary stats (total shifts, hours, km, jobs). CSV export with dynamic client columns
+- **Shift Reports tab**: date-filtered list of own shifts with summary stats (total shifts, hours, km, jobs). CSV export with dynamic client columns. Shift detail modal actions: Close, View jobs (→ `inventory.html?shift=UUID`), Copy
 - **Settings tab**: view email/role/agent, change password, sign out
 - **Appearance card**: theme picker (themes: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand, Perry's Beach) × Dark/Light mode. Saved to localStorage (`theme`, `mode`) for instant flash-free apply, AND synced to `user_widget_config.theme` / `theme_mode` in Supabase for cross-device persistence. On every page load, `initAuth()` (in auth.js) fetches the saved values and updates localStorage + DOM if different. Applied site-wide via `data-theme` and `data-mode` attributes on `<html>`
 
