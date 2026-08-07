@@ -447,6 +447,9 @@
 .strength-meter[data-level="4"] span:nth-child(-n+4) { background: var(--success); }
 .strength-label { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
 
+/* Three actions can outgrow a narrow modal — let them wrap */
+#shiftDetailModal .modal-actions { flex-wrap: wrap; }
+
 @media (max-width: 720px) {
   .profile-hero { padding: 18px; gap: 14px; }
   .avatar-big { width: 64px; height: 64px; font-size: 1.5rem; }
@@ -701,6 +704,7 @@
             <div id="shiftDetailContent"></div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-ghost" onclick="closeShiftDetailModal()">Close</button>
+                <button type="button" class="btn btn-secondary" onclick="viewShiftJobs()"><i data-lucide="clipboard-list" width="20" height="20"></i> View jobs</button>
                 <button type="button" class="btn btn-secondary" onclick="copyShiftDetail()"><i data-lucide="clipboard" width="20" height="20"></i> Copy</button>
             </div>
         </div>
@@ -1242,6 +1246,12 @@
         function closeShiftDetailModal() {
             document.getElementById('shiftDetailModal').classList.remove('active');
             selectedShiftDetail = null;
+        }
+
+        // Open the inventory scoped to the jobs logged against this shift
+        function viewShiftJobs() {
+            if (!selectedShiftDetail) return;
+            window.location.href = `inventory.html?shift=${encodeURIComponent(selectedShiftDetail.id)}`;
         }
 
         function copyShiftDetail() {
