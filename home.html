@@ -1926,9 +1926,11 @@
                 ? `<div class="widget-empty">Nothing booked in${isDepotView ? ' for this depot' : ''} — plan jobs in the Planner</div>`
                 : `<div class="widget-list">${groupsHTML}</div>${paginationHTML}`;
 
+            // Labels sit in spans so the narrow breakpoint can drop them and keep
+            // the whole action row on one line (see .dj-actions in styles.css)
             const editBtnLabel = dailyJobListEditMode
-                ? '<i data-lucide="check" width="14" height="14"></i> Done'
-                : '<i data-lucide="settings-2" width="14" height="14"></i> Edit';
+                ? '<i data-lucide="check" width="14" height="14"></i><span class="dj-btn-label">Done</span>'
+                : '<i data-lucide="settings-2" width="14" height="14"></i><span class="dj-btn-label">Edit</span>';
 
             const toggleHTML = (canSeeDepot && user.agent_id) ? `
                 <div class="widget-view-toggle">
@@ -1938,17 +1940,17 @@
             ` : '<span></span>';
 
             container.innerHTML = `
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:var(--spacing-sm);">
+                <div class="dj-head">
                     ${toggleHTML}
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <div class="dj-actions">
                         <a class="btn btn-ghost btn-sm" href="planner.html" title="Open the Planner">
-                            <i data-lucide="calendar-days" width="14" height="14"></i> Planner
+                            <i data-lucide="calendar-days" width="14" height="14"></i><span class="dj-btn-label">Planner</span>
                         </a>
-                        <button class="btn btn-ghost btn-sm" id="djEditToggleBtn" onclick="toggleDailyJobEditMode()">
+                        <button class="btn btn-ghost btn-sm" id="djEditToggleBtn" onclick="toggleDailyJobEditMode()" title="Edit list">
                             ${editBtnLabel}
                         </button>
-                        <button class="btn btn-primary btn-sm" onclick="openDailyJobModal()">
-                            <i data-lucide="plus" width="14" height="14"></i> Add Job
+                        <button class="btn btn-primary btn-sm" onclick="openDailyJobModal()" title="Add a planned job">
+                            <i data-lucide="plus" width="14" height="14"></i><span class="dj-btn-label">Add Job</span>
                         </button>
                     </div>
                 </div>
@@ -2127,8 +2129,8 @@
             const toggleBtn = document.getElementById('djEditToggleBtn');
             if (toggleBtn) {
                 toggleBtn.innerHTML = dailyJobListEditMode
-                    ? '<i data-lucide="check" width="14" height="14"></i> Done'
-                    : '<i data-lucide="settings-2" width="14" height="14"></i> Edit';
+                    ? '<i data-lucide="check" width="14" height="14"></i><span class="dj-btn-label">Done</span>'
+                    : '<i data-lucide="settings-2" width="14" height="14"></i><span class="dj-btn-label">Edit</span>';
                 lucide.createIcons();
             }
         }

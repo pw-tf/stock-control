@@ -110,7 +110,7 @@ Calendar for booking work onto dates. Open to technicians, managers and super_ad
 - Click a chip to open the entry modal (create/edit/delete in one place: type, date, time, agent, job or task fields, notes)
 - An "Overdue & unfinished" card lists every open entry dated before today, each with a one-click "Move to today"
 
-**Permissions** (UI mirror of the RLS policies in `sql/planner.sql`): managers and super_admins may edit anything in their depot; technicians only entries assigned to their own agent, plus unassigned tasks. RLS still permits depot-wide *reads* for every role (managers need them); the technician UI simply never asks for anything outside its own scope.
+**Permissions** (UI mirror of the RLS policies in `sql/planner.sql`): managers and super_admins may edit anything in their depot; technicians only entries assigned to their own agent, plus unassigned tasks. Reads are scoped exactly the same way, so a technician cannot even fetch another agent's entry — messages therefore never name another agent, they just say the entry belongs to someone else or is unavailable.
 
 **Deep-link params**: `?date=YYYY-MM-DD` opens on that day, `?view=month|week|day` picks a view, `?entry=UUID` jumps to the entry's date and opens its modal (used by the home widget when editing a task).
 
@@ -181,7 +181,7 @@ prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, entry_type ('job'|'tas
 user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidden (JSONB), widget_spans (JSONB), quick_links (JSONB), theme (text), theme_mode (text), updated_at
 ```
 
-**Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `user_widget_config` is scoped per user (RLS: auth.uid() = user_id). `prefilled_jobs` is **depot-scoped for reads** (the Planner and the Upcoming Jobs widget are depot-wide for every role) and agent-scoped for writes — technicians may only write entries assigned to their own agent (plus unassigned tasks), managers and super_admins anything in their depot.
+**Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `user_widget_config` is scoped per user (RLS: auth.uid() = user_id). `prefilled_jobs` is depot-scoped, then agent-scoped for reads *and* writes alike: managers and super_admins reach anything in their depot, technicians only entries assigned to their own agent plus unassigned tasks (`can_write_planner_entry()`).
 
 **Migration**: `sql/planner.sql` adds the planner columns (`entry_type`, `title`, `planned_time`), relaxes `client_id`/`job_number` to nullable for tasks, adds shape/integrity constraints, indexes the date lookups, and installs the RLS policies above. Run it once in the Supabase SQL editor before deploying the Planner.
 

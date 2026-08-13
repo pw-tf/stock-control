@@ -1078,8 +1078,10 @@
         async function openEntryModal(entryId = null, dateStr = null) {
             const entry = entryId ? entryIndex[entryId] : null;
             if (entryId && !entry) { showAlert('That entry is no longer available.', 'warning'); return; }
+            // Never name the other agent — the entry may not even be one this
+            // user is allowed to read.
             if (entry && !canEdit(entry)) {
-                showAlert(`This entry belongs to agent ${escapeHTML(entry.assigned_agent_id)} and can only be changed by that agent or a manager.`, 'warning');
+                showAlert('This entry belongs to another agent and can only be changed by them or a manager.', 'warning');
                 return;
             }
             editingEntryId = entryId;

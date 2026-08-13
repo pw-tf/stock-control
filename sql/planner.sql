@@ -71,12 +71,12 @@ CREATE INDEX IF NOT EXISTS prefilled_jobs_depot_agent_date_idx
 -- ---------------------------------------------------------------------------
 -- 4. Row Level Security
 -- ---------------------------------------------------------------------------
--- The planner and the "Upcoming Jobs" widget are depot-wide for every role, so
--- SELECT must be scoped to the caller's depot rather than to auth.uid().
--- Writes stay narrower: technicians may only touch entries assigned to their own
--- agent, managers and super_admins may touch anything in their depot.
--- An unassigned task is the exception — it belongs to no one agent, so anyone in
--- the depot may create it, tick it off, or clear it.
+-- Every policy is scoped to the caller's depot first. Within the depot:
+--   * managers and super_admins see and write anything (the Depot view)
+--   * technicians see and write only entries assigned to their own agent,
+--     plus unassigned tasks — depot-wide chores that belong to no one agent
+-- Reads are deliberately as narrow as writes: a technician has no depot view in
+-- the UI, so nothing should hand them another agent's rows to read either.
 
 ALTER TABLE public.prefilled_jobs ENABLE ROW LEVEL SECURITY;
 
@@ -102,8 +102,8 @@ AS $$ SELECT EXISTS (
         WHERE user_id = auth.uid() AND role IN ('manager', 'super_admin')
      ) $$;
 
--- May the caller write this row? Managers: anything in their depot. Everyone
--- else: their own agent's entries, plus unassigned tasks (depot-wide chores).
+-- May the caller touch this row (read or write)? Managers: anything in their
+-- depot. Everyone else: their own agent's entries, plus unassigned tasks.
 CREATE OR REPLACE FUNCTION public.can_write_planner_entry(entry_agent text, entry_kind text)
 RETURNS boolean
 LANGUAGE sql STABLE
@@ -114,7 +114,10 @@ AS $$ SELECT public.current_is_manager()
 DROP POLICY IF EXISTS prefilled_jobs_select ON public.prefilled_jobs;
 CREATE POLICY prefilled_jobs_select ON public.prefilled_jobs
     FOR SELECT TO authenticated
-    USING (depot_id = public.current_depot_id());
+    USING (
+        depot_id = public.current_depot_id()
+        AND public.can_write_planner_entry(assigned_agent_id, entry_type)
+    );
 
 DROP POLICY IF EXISTS prefilled_jobs_insert ON public.prefilled_jobs;
 CREATE POLICY prefilled_jobs_insert ON public.prefilled_jobs
