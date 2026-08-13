@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planner — Stock Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+    <script>(function(){var t=localStorage.getItem('theme')||'ocean';var m=localStorage.getItem('mode')||'dark';var d=localStorage.getItem('density')||'comfortable';document.documentElement.setAttribute('data-theme',t);document.documentElement.setAttribute('data-mode',m);document.documentElement.setAttribute('data-density',d);})();</script>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@0.460.0"></script>
+    <script src="icons.js"></script>
+    <script src="auth.js"></script>
+    <script src="sidebar.js"></script>
+    <script src="utils.js"></script>
+    <style>
+        /* ---------- Card shell (mirrors analytics.html) ---------- */
+        .card { margin-bottom: var(--gap, 16px); }
+        .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+        .card-head .card-title {
+            display: inline-flex; align-items: center; gap: 10px;
+            font-size: 0.9rem; font-weight: 600; color: var(--text-primary); letter-spacing: -0.005em;
+        }
+        .card-head .card-title .ico {
+            width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+            background: var(--accent-glow); color: var(--accent-tertiary); border-radius: 5px; flex-shrink: 0;
+        }
+
+        /* ---------- Toolbar ---------- */
+        .pl-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .pl-bar-spacer { flex: 1; min-width: 0; }
+        .pl-nav { display: flex; align-items: center; gap: 6px; }
+        .pl-nav-btn {
+            width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+            background: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-secondary);
+            border-radius: 5px; cursor: pointer; transition: all .15s;
+        }
+        .pl-nav-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .pl-period { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+        .pl-seg {
+            display: inline-flex; gap: 2px; background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary); border-radius: 6px; padding: 3px;
+        }
+        .pl-seg button {
+            padding: 5px 12px; border: none; border-radius: 4px; background: transparent;
+            color: var(--text-secondary); font-size: 0.78rem; font-weight: 500; font-family: inherit;
+            cursor: pointer; white-space: nowrap; transition: background .15s, color .15s;
+        }
+        .pl-seg button.active { background: var(--accent-primary); color: #fff; font-weight: 600; }
+        .pl-seg button:not(.active):hover { background: var(--bg-hover); color: var(--text-primary); }
+        .pl-agent-select {
+            background: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);
+            border-radius: 5px; padding: 7px 10px; font-size: 0.8rem; font-family: inherit; max-width: 190px;
+        }
+
+        /* ---------- Calendar grid ---------- */
+        .pl-dow-row {
+            display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-bottom: 6px;
+        }
+        .pl-dow {
+            text-align: center; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-muted); font-weight: 700;
+        }
+        .pl-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+        .pl-grid.week { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+
+        .pl-day {
+            display: flex; flex-direction: column; gap: 4px;
+            min-height: 118px; padding: 7px;
+            background: var(--bg-tertiary); border: 1px solid var(--border-primary);
+            border-radius: 6px; cursor: pointer; transition: background .15s, border-color .15s;
+            min-width: 0;
+        }
+        .pl-grid.week .pl-day { min-height: 300px; }
+        .pl-day:hover { border-color: var(--border-secondary); }
+        .pl-day.other-month { opacity: 0.5; }
+        .pl-day.weekend { background: var(--bg-secondary); }
+        .pl-day.today { border-color: var(--accent-tertiary); box-shadow: inset 0 0 0 1px var(--accent-tertiary); }
+        .pl-day.selected { border-color: var(--accent-tertiary); background: var(--accent-glow); }
+        .pl-day.drop-target { border-color: var(--accent-tertiary); background: var(--accent-glow); border-style: dashed; }
+
+        .pl-day-head { display: flex; align-items: baseline; gap: 6px; }
+        .pl-daynum { font-family: var(--font-mono); font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
+        .pl-day.today .pl-daynum { color: var(--accent-tertiary); }
+        .pl-dow-inline { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .pl-day-count {
+            margin-left: auto; font-family: var(--font-mono); font-size: 0.62rem; font-weight: 700;
+            background: var(--bg-secondary); color: var(--text-muted); border-radius: 3px; padding: 1px 5px;
+        }
+
+        .pl-chips { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+        .pl-chip {
+            display: flex; align-items: center; gap: 5px; min-width: 0;
+            padding: 3px 6px; border-radius: 4px; text-align: left; width: 100%;
+            background: var(--bg-secondary); border: 1px solid var(--border-primary);
+            border-left: 3px solid var(--accent-tertiary);
+            color: var(--text-primary); font-family: inherit; font-size: 0.7rem; cursor: pointer;
+            transition: background .15s;
+        }
+        .pl-chip:hover { background: var(--bg-hover); }
+        .pl-chip .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        .pl-chip .tm { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-muted); flex-shrink: 0; }
+        .pl-chip.task { border-left-color: var(--warning); }
+        .pl-chip.overdue { border-left-color: var(--error); }
+        .pl-chip.done { opacity: 0.5; border-left-color: var(--success); }
+        .pl-chip.done .t { text-decoration: line-through; }
+        .pl-chip.dragging { opacity: 0.4; }
+        .pl-more { font-size: 0.65rem; color: var(--text-muted); font-weight: 600; padding-left: 2px; }
+        .pl-dots { display: none; flex-wrap: wrap; gap: 3px; }
+        .pl-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-tertiary); }
+        .pl-dot.task { background: var(--warning); }
+        .pl-dot.overdue { background: var(--error); }
+        .pl-dot.done { background: var(--success); opacity: 0.6; }
+
+        /* ---------- Day panel ---------- */
+        .pl-entry {
+            display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px;
+            border: 1px solid var(--border-primary); border-radius: 6px; background: var(--bg-tertiary);
+            border-left: 3px solid var(--accent-tertiary);
+        }
+        .pl-entry + .pl-entry { margin-top: 8px; }
+        .pl-entry.task { border-left-color: var(--warning); }
+        .pl-entry.overdue { border-left-color: var(--error); }
+        .pl-entry.done { border-left-color: var(--success); opacity: 0.6; }
+        .pl-entry.done .pl-entry-title { text-decoration: line-through; }
+        .pl-entry-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .pl-entry-title { font-size: 0.87rem; font-weight: 600; color: var(--text-primary); word-break: break-word; }
+        .pl-entry-sub { font-size: 0.75rem; color: var(--text-secondary); word-break: break-word; }
+        .pl-entry-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+        .pl-tag {
+            font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+            background: var(--bg-secondary); color: var(--text-muted);
+            border: 1px solid var(--border-primary); border-radius: 3px; padding: 2px 6px;
+        }
+        .pl-tag.accent { background: var(--accent-glow); color: var(--accent-tertiary); border-color: transparent; }
+        .pl-tag.danger { background: var(--error-bg); color: var(--error); border-color: transparent; }
+        .pl-entry-actions { display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+        .pl-act {
+            width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+            background: var(--bg-secondary); border: 1px solid var(--border-primary); color: var(--text-secondary);
+            border-radius: 5px; cursor: pointer; transition: all .15s;
+        }
+        .pl-act:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .pl-act.danger:hover { background: var(--error); border-color: var(--error); color: #fff; }
+
+        .pl-empty { text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 26px 10px; }
+        .pl-hint { font-size: 0.72rem; color: var(--text-muted); }
+
+        /* ---------- Modal extras ---------- */
+        .pl-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .modal-actions.split { justify-content: space-between; }
+        .modal-actions .grp { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 900px) {
+            .pl-grid.week { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+            .pl-grid.week .pl-day { min-height: 210px; }
+        }
+        @media (max-width: 720px) {
+            .pl-bar { gap: 8px; }
+            .pl-period { font-size: 0.95rem; }
+            .pl-bar-spacer { display: none; }
+            .pl-seg { flex: 1; }
+            .pl-seg button { flex: 1; }
+            .pl-agent-select { max-width: none; width: 100%; }
+
+            /* Month: compact cells with dots — chips are unreadable at this width */
+            .pl-dow-row, .pl-grid { gap: 4px; }
+            .pl-grid.month .pl-day { min-height: 58px; padding: 5px 4px; gap: 3px; }
+            .pl-grid.month .pl-chips, .pl-grid.month .pl-day-count { display: none; }
+            .pl-grid.month .pl-dots { display: flex; }
+
+            /* Week: stack into a single readable column */
+            .pl-grid.week { grid-template-columns: minmax(0, 1fr); }
+            .pl-grid.week .pl-day { min-height: 0; }
+
+            .pl-entry { flex-wrap: wrap; }
+            .pl-entry-actions { width: 100%; justify-content: flex-start; }
+            .pl-field-row { grid-template-columns: 1fr; }
+            .modal-actions.split { flex-direction: column-reverse; align-items: stretch; }
+            .modal-actions .grp { justify-content: stretch; }
+            .modal-actions .grp .btn { flex: 1; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loading"><div class="spinner"></div></div>
+    <div class="sync-status" id="syncStatus"></div>
+
+    <div class="app">
+
+        <!-- TOPBAR -->
+        <div class="topbar fade-in">
+            <button class="topbar-burger" onclick="toggleSidebar()" aria-label="Menu">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+            </button>
+            <div class="topbar-logo">
+                <span class="topbar-logo-mark">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg>
+                </span>
+                <span>Stock Control</span>
+            </div>
+            <div class="topbar-spacer"></div>
+            <div class="topbar-avatar" id="userAvatar" onclick="location.href='user.html'" style="cursor:pointer" title="My Profile">??</div>
+        </div>
+
+        <!-- PAGE HEAD -->
+        <div class="page-head fade-in d1">
+            <div class="page-title-group">
+                <span class="page-title-mark">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+                </span>
+                <div class="page-title">
+                    <h1>Planner</h1>
+                    <div class="page-title-sub" id="pageSubtitle">Book jobs and tasks onto the calendar</div>
+                </div>
+            </div>
+            <div class="page-actions">
+                <button class="btn btn-primary" onclick="openEntryModal(null, selectedDate)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                    New Entry
+                </button>
+            </div>
+        </div>
+
+        <!-- TOOLBAR -->
+        <div class="card fade-in d2">
+            <div class="pl-bar">
+                <div class="pl-nav">
+                    <button class="pl-nav-btn" id="prevBtn" onclick="navigatePeriod(-1)" aria-label="Previous period">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    </button>
+                    <button class="pl-nav-btn" id="nextBtn" onclick="navigatePeriod(1)" aria-label="Next period">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="goToToday()">Today</button>
+                </div>
+                <div class="pl-period" id="periodLabel">&nbsp;</div>
+                <div class="pl-bar-spacer"></div>
+                <div class="pl-seg" id="viewSeg">
+                    <button data-view="month" onclick="setPlannerView('month')">Month</button>
+                    <button data-view="week" onclick="setPlannerView('week')">Week</button>
+                    <button data-view="day" onclick="setPlannerView('day')">Day</button>
+                </div>
+                <div class="pl-seg" id="scopeSeg">
+                    <button data-scope="depot" onclick="setPlannerScope('depot')">Depot</button>
+                    <button data-scope="mine" onclick="setPlannerScope('mine')">My Jobs</button>
+                </div>
+                <select class="pl-agent-select" id="agentFilter" onchange="setAgentFilter(this.value)" style="display:none">
+                    <option value="">All agents</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- SUMMARY -->
+        <div class="stat-strip fade-in d3" id="statStrip">
+            <div><span class="lbl">Jobs</span><span class="v" id="statJobs">0</span></div>
+            <div><span class="lbl">Tasks</span><span class="v" id="statTasks">0</span></div>
+            <div><span class="lbl">Completed</span><span class="v" id="statDone">0</span></div>
+            <div><span class="lbl">Overdue</span><span class="v" id="statOverdue">0</span></div>
+        </div>
+
+        <!-- OVERDUE -->
+        <div class="card fade-in d3" id="overdueCard" style="display:none">
+            <div class="card-head">
+                <span class="card-title">
+                    <span class="ico" style="background:var(--error-bg); color:var(--error)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+                    </span>
+                    Overdue &amp; unfinished
+                </span>
+                <span class="pl-hint" id="overdueHint"></span>
+            </div>
+            <div id="overdueList"></div>
+        </div>
+
+        <!-- CALENDAR -->
+        <div class="card fade-in d3" id="calendarCard">
+            <div class="pl-dow-row" id="dowRow"></div>
+            <div class="pl-grid month" id="calGrid"></div>
+        </div>
+
+        <!-- SELECTED DAY -->
+        <div class="card fade-in d4">
+            <div class="card-head">
+                <span class="card-title">
+                    <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18M8 14h8"/></svg></span>
+                    <span id="dayPanelTitle">Selected day</span>
+                </span>
+                <button class="btn btn-secondary btn-sm" onclick="openEntryModal(null, selectedDate)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                    Add to this day
+                </button>
+            </div>
+            <div id="dayPanelList"></div>
+        </div>
+
+    </div><!-- /.app -->
+
+    <!-- ENTRY MODAL -->
+    <div class="modal" id="entryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="section-title">
+                    <span class="ico">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                    </span>
+                    <span id="entryModalTitle">New Entry</span>
+                </div>
+            </div>
+            <form id="entryForm">
+                <div class="field">
+                    <label>Entry type</label>
+                    <div class="type-pills" id="peTypePills">
+                        <button class="type-pill active" data-entry="job" onclick="selectEntryKind('job')" type="button">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                            Stock Job
+                        </button>
+                        <button class="type-pill" data-entry="task" onclick="selectEntryKind('task')" type="button">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 12H3M16 6H3M16 18H3M18 9l3 3-3 3"/></svg>
+                            Task
+                        </button>
+                    </div>
+                    <input type="hidden" id="peEntryType" value="job">
+                    <span class="pl-hint" id="peTypeHint">A stock job is completed in Stock Entry and pre-fills the form.</span>
+                </div>
+
+                <div class="pl-field-row">
+                    <div class="field">
+                        <label for="peDate">Date <span class="req">*</span></label>
+                        <input type="date" id="peDate" class="input mono" required>
+                    </div>
+                    <div class="field">
+                        <label for="peTime">Time <span class="hint">optional</span></label>
+                        <input type="time" id="peTime" class="input mono">
+                    </div>
+                </div>
+
+                <div class="field" id="peAgentGroup" style="display:none">
+                    <label for="peAgent">Assign to agent <span class="req">*</span></label>
+                    <select id="peAgent" class="select"></select>
+                </div>
+
+                <!-- Task-only -->
+                <div class="field" id="peTaskFields" style="display:none">
+                    <label for="peTitle">Task <span class="req">*</span> <span class="hint">what needs doing</span></label>
+                    <input type="text" id="peTitle" class="input" maxlength="120" placeholder="e.g. Collect faulty units from depot" autocomplete="off">
+                </div>
+
+                <!-- Job-only -->
+                <div id="peJobFields">
+                    <div class="field">
+                        <label for="peClient">Client <span class="req">*</span></label>
+                        <select id="peClient" class="select" onchange="loadEntryVendors(this.value)">
+                            <option value="">Select a client…</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="peVendor">Vendor</label>
+                        <select id="peVendor" class="select">
+                            <option value="">Select a client first…</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Job type</label>
+                        <div class="type-pills" id="peJobTypePills">
+                            <button class="type-pill" data-type="swap-upgrade" onclick="selectEntryJobType('swap-upgrade')" type="button">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+                                Swap / Upgrade
+                            </button>
+                            <button class="type-pill" data-type="install" onclick="selectEntryJobType('install')" type="button">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                                Install
+                            </button>
+                            <button class="type-pill" data-type="deinstall" onclick="selectEntryJobType('deinstall')" type="button">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>
+                                Deinstall
+                            </button>
+                        </div>
+                        <input type="hidden" id="peJobType">
+                    </div>
+                    <div class="field">
+                        <label for="peJobNumber">Job number <span class="req">*</span> <span class="hint">numeric or alphanumeric</span></label>
+                        <input type="text" id="peJobNumber" class="input mono" placeholder="e.g. WO-1234" autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="peNotes">Notes <span class="hint">merchant name, suburb, etc.</span></label>
+                    <input type="text" id="peNotes" class="input" placeholder="e.g. Mayberry - Darwin">
+                </div>
+
+                <div class="modal-actions split">
+                    <div class="grp">
+                        <button type="button" class="btn btn-danger" id="peDeleteBtn" style="display:none" onclick="deleteEntryFromModal()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                            Delete
+                        </button>
+                    </div>
+                    <div class="grp">
+                        <button type="button" class="btn btn-ghost" onclick="closeEntryModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="peSaveBtn">Save</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let currentDepotId = null;
+        let isManager = false;
+
+        let plannerView = 'month';          // 'month' | 'week' | 'day'
+        let plannerScope = 'depot';         // 'depot' | 'mine'
+        let agentFilter = '';               // manager-only extra filter within the depot view
+        let cursorDate = getTodayMidnight();// anchor date for the visible period
+        let selectedDate = localDateString();
+
+        let entries = [];                   // entries inside the visible period
+        let overdueEntries = [];            // incomplete entries before today (any period)
+        let entriesByDate = {};             // 'YYYY-MM-DD' -> entry[]
+        let entryIndex = {};                // id -> entry (covers both lists)
+
+        let depotAgents = null;             // cached agent ids for the depot
+        let depotClients = null;            // cached client ids for the depot
+        const vendorCache = {};             // client_id -> vendor ids
+
+        let editingEntryId = null;
+        let dragEntryId = null;
+
+        const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const JOB_TYPE_LABELS = { 'swap-upgrade': 'Swap / Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
+        const MAX_CHIPS = 3;
+
+        // ============================================
+        // INIT
+        // ============================================
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await initAuth(['technician', 'manager', 'super_admin']);
+            if (!currentUser) return;
+            currentDepotId = currentUser.depot_id;
+            isManager = hasRole(currentUser.role, ['manager', 'super_admin']);
+
+            initSidebar(currentUser);
+            setAvatarInitials(currentUser);
+
+            // Managers get an extra per-agent filter on top of the depot view.
+            if (isManager) document.getElementById('agentFilter').style.display = '';
+            // A user with no agent (super_admin) has no "my jobs" to show.
+            if (!currentUser.agent_id) {
+                document.querySelector('#scopeSeg button[data-scope="mine"]').style.display = 'none';
+            }
+
+            document.getElementById('entryForm').addEventListener('submit', handleEntrySave);
+            wireCalendarEvents();
+
+            // Deep links: ?date=YYYY-MM-DD lands on a day, ?entry=UUID opens one
+            // entry (used by the home "Upcoming Jobs" widget), ?view= picks a view.
+            const params = new URLSearchParams(window.location.search);
+            const paramDate = params.get('date');
+            if (paramDate && /^\d{4}-\d{2}-\d{2}$/.test(paramDate)) {
+                selectedDate = paramDate;
+                cursorDate = parseLocalDate(paramDate);
+            }
+            const paramView = params.get('view');
+            if (['month', 'week', 'day'].includes(paramView)) plannerView = paramView;
+
+            const paramEntry = params.get('entry');
+            if (paramEntry) await jumpToEntryDate(paramEntry);
+
+            syncSegs();
+            if (isManager) loadAgentFilter();
+            await refresh();
+
+            if (paramEntry && entryIndex[paramEntry]) openEntryModal(paramEntry);
+        });
+
+        // Point the calendar at the period holding a deep-linked entry, so the
+        // entry is loaded by the normal range query and can be opened.
+        async function jumpToEntryDate(id) {
+            try {
+                const { data } = await db.from('prefilled_jobs')
+                    .select('planned_date, assigned_agent_id')
+                    .eq('id', id)
+                    .maybeSingle();
+                if (!data) return;
+                selectedDate = data.planned_date;
+                cursorDate = parseLocalDate(data.planned_date);
+                // A depot-wide view always contains it; "mine" might not.
+                if (data.assigned_agent_id !== currentUser.agent_id) plannerScope = 'depot';
+            } catch (err) {
+                console.error('Error resolving planner entry link:', err);
+            }
+        }
+
+        function setAvatarInitials(user) {
+            const el = document.getElementById('userAvatar');
+            if (el && user) el.textContent = getAvatarInitials(user);
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').classList.toggle('active', show);
+        }
+
+        // ============================================
+        // PERIOD MATHS
+        // ============================================
+
+        // Inclusive [from, to] date strings covering the visible period. The month
+        // view shows whole weeks, so it spills into the neighbouring months.
+        function visibleRange() {
+            if (plannerView === 'day') {
+                const d = localDateString(cursorDate);
+                return { from: d, to: d };
+            }
+            if (plannerView === 'week') {
+                const start = startOfWeek(cursorDate);
+                return { from: localDateString(start), to: localDateString(addDays(start, 6)) };
+            }
+            const first = new Date(cursorDate.getFullYear(), cursorDate.getMonth(), 1);
+            const last = new Date(cursorDate.getFullYear(), cursorDate.getMonth() + 1, 0);
+            const start = startOfWeek(first);
+            const endWeek = startOfWeek(last);
+            return { from: localDateString(start), to: localDateString(addDays(endWeek, 6)) };
+        }
+
+        function visibleDates() {
+            const { from, to } = visibleRange();
+            const out = [];
+            for (let d = parseLocalDate(from); localDateString(d) <= to; d = addDays(d, 1)) out.push(new Date(d));
+            return out;
+        }
+
+        function periodLabel() {
+            if (plannerView === 'day') {
+                return cursorDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            }
+            if (plannerView === 'week') {
+                const start = startOfWeek(cursorDate);
+                const end = addDays(start, 6);
+                const sameMonth = start.getMonth() === end.getMonth();
+                const startFmt = start.toLocaleDateString('en-AU', sameMonth ? { day: 'numeric' } : { day: 'numeric', month: 'short' });
+                const endFmt = end.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+                return `${startFmt} – ${endFmt}`;
+            }
+            return cursorDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+        }
+
+        function navigatePeriod(delta) {
+            if (plannerView === 'day') cursorDate = addDays(cursorDate, delta);
+            else if (plannerView === 'week') cursorDate = addDays(cursorDate, delta * 7);
+            else cursorDate = new Date(cursorDate.getFullYear(), cursorDate.getMonth() + delta, 1);
+            if (plannerView === 'day') selectedDate = localDateString(cursorDate);
+            refresh();
+        }
+
+        function goToToday() {
+            cursorDate = getTodayMidnight();
+            selectedDate = localDateString(cursorDate);
+            refresh();
+        }
+
+        function setPlannerView(view) {
+            plannerView = view;
+            if (view === 'day') cursorDate = parseLocalDate(selectedDate);
+            syncSegs();
+            refresh();
+        }
+
+        function setPlannerScope(scope) {
+            plannerScope = scope;
+            syncSegs();
+            refresh();
+        }
+
+        function setAgentFilter(value) {
+            agentFilter = value;
+            refresh();
+        }
+
+        function syncSegs() {
+            document.querySelectorAll('#viewSeg button').forEach(b => {
+                b.classList.toggle('active', b.dataset.view === plannerView);
+            });
+            document.querySelectorAll('#scopeSeg button').forEach(b => {
+                b.classList.toggle('active', b.dataset.scope === plannerScope);
+            });
+            const filter = document.getElementById('agentFilter');
+            if (filter) filter.disabled = plannerScope === 'mine';
+        }
+
+        async function loadAgentFilter() {
+            const agents = await getDepotAgents();
+            const sel = document.getElementById('agentFilter');
+            sel.innerHTML = '<option value="">All agents</option>' +
+                agents.map(a => `<option value="${escapeHTML(a)}">Agent ${escapeHTML(a)}</option>`).join('');
+            sel.value = agentFilter;
+        }
+
+        // ============================================
+        // DATA
+        // ============================================
+
+        // The agent this view is pinned to, or null for the whole depot.
+        function activeAgent() {
+            if (plannerScope === 'mine') return currentUser.agent_id || null;
+            return agentFilter || null;
+        }
+
+        async function refresh() {
+            document.getElementById('periodLabel').textContent = periodLabel();
+            showLoading(true);
+            try {
+                await loadEntries();
+                renderCalendar();
+                renderDayPanel();
+                renderOverdue();
+                renderStats();
+                showSyncStatus('✓ Synced', 'synced');
+            } catch (err) {
+                console.error('Error loading planner:', err);
+                showAlert('Could not load the planner. Please try again.', 'error');
+                showSyncStatus('✕ Sync failed', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function loadEntries() {
+            const { from, to } = visibleRange();
+            const agent = activeAgent();
+            const today = localDateString();
+
+            const scoped = (q) => {
+                q = q.eq('depot_id', currentDepotId);
+                return agent ? q.eq('assigned_agent_id', agent) : q;
+            };
+
+            const [inRange, overdue] = await Promise.all([
+                fetchAllRows(() => scoped(db.from('prefilled_jobs').select('*'))
+                    .gte('planned_date', from)
+                    .lte('planned_date', to)
+                    .order('planned_date', { ascending: true })
+                    .order('sort_order', { ascending: true })
+                    .order('created_at', { ascending: true })),
+                fetchAllRows(() => scoped(db.from('prefilled_jobs').select('*'))
+                    .lt('planned_date', today)
+                    .eq('is_completed', false)
+                    .order('planned_date', { ascending: true }))
+            ]);
+
+            entries = inRange;
+            overdueEntries = overdue;
+
+            entriesByDate = {};
+            entryIndex = {};
+            entries.forEach(e => {
+                (entriesByDate[e.planned_date] = entriesByDate[e.planned_date] || []).push(e);
+                entryIndex[e.id] = e;
+            });
+            // Overdue rows already inside the visible range are the same objects.
+            overdueEntries.forEach(e => { if (!entryIndex[e.id]) entryIndex[e.id] = e; });
+
+            Object.values(entriesByDate).forEach(list => list.sort(compareEntries));
+        }
+
+        // Completed entries sink to the bottom of the day; unscheduled entries
+        // sort after timed ones, then by the manual order.
+        function compareEntries(a, b) {
+            if (!!a.is_completed !== !!b.is_completed) return a.is_completed ? 1 : -1;
+            const at = a.planned_time || '99:99';
+            const bt = b.planned_time || '99:99';
+            if (at !== bt) return at < bt ? -1 : 1;
+            return (a.sort_order || 0) - (b.sort_order || 0);
+        }
+
+        function isTask(entry) {
+            return entry.entry_type === 'task';
+        }
+
+        function entryTitle(entry) {
+            return isTask(entry) ? (entry.title || 'Task') : (entry.job_number || 'Job');
+        }
+
+        function isOverdue(entry) {
+            return !entry.is_completed && entry.planned_date < localDateString();
+        }
+
+        // UI-side permission mirror of the RLS write policy in sql/planner.sql.
+        function canEdit(entry) {
+            return isManager || entry.assigned_agent_id === currentUser.agent_id;
+        }
+
+        // A planned job is completed in stock-entry, which opens the box under the
+        // logged-in user's agent — so only the assignee can work it.
+        function canWorkInStockEntry(entry) {
+            return !isTask(entry) && !entry.is_completed && entry.assigned_agent_id === currentUser.agent_id;
+        }
+
+        function formatTime(t) {
+            if (!t) return '';
+            const [h, m] = String(t).split(':');
+            const hour = parseInt(h, 10);
+            const suffix = hour >= 12 ? 'pm' : 'am';
+            const h12 = hour % 12 === 0 ? 12 : hour % 12;
+            return `${h12}:${m}${suffix}`;
+        }
+
+        // ============================================
+        // CALENDAR RENDERING
+        // ============================================
+
+        function renderCalendar() {
+            const card = document.getElementById('calendarCard');
+            // Day view is just the day panel — a one-cell grid above it would
+            // only repeat the same entries in a less useful form.
+            if (plannerView === 'day') {
+                selectedDate = localDateString(cursorDate);
+                card.style.display = 'none';
+                return;
+            }
+            card.style.display = '';
+
+            const grid = document.getElementById('calGrid');
+            const dowRow = document.getElementById('dowRow');
+            grid.className = `pl-grid ${plannerView}`;
+
+            dowRow.style.display = plannerView === 'month' ? '' : 'none';
+            if (plannerView === 'month') {
+                dowRow.innerHTML = DOW.map(d => `<div class="pl-dow">${d}</div>`).join('');
+            }
+
+            const todayStr = localDateString();
+            const month = cursorDate.getMonth();
+            grid.innerHTML = visibleDates().map(date => {
+                const ds = localDateString(date);
+                const list = entriesByDate[ds] || [];
+                const classes = ['pl-day'];
+                if (plannerView === 'month' && date.getMonth() !== month) classes.push('other-month');
+                if (date.getDay() === 0 || date.getDay() === 6) classes.push('weekend');
+                if (ds === todayStr) classes.push('today');
+                if (ds === selectedDate) classes.push('selected');
+
+                const showDow = plannerView !== 'month';
+                const chips = list.slice(0, plannerView === 'month' ? MAX_CHIPS : list.length).map(chipHTML).join('');
+                const more = plannerView === 'month' && list.length > MAX_CHIPS
+                    ? `<div class="pl-more">+${list.length - MAX_CHIPS} more</div>` : '';
+                const dots = list.slice(0, 8).map(e => `<span class="pl-dot ${dotClass(e)}"></span>`).join('');
+
+                return `
+                    <div class="${classes.join(' ')}" data-date="${ds}">
+                        <div class="pl-day-head">
+                            <span class="pl-daynum">${date.getDate()}</span>
+                            ${showDow ? `<span class="pl-dow-inline">${DOW[(date.getDay() + 6) % 7]}</span>` : ''}
+                            ${list.length ? `<span class="pl-day-count">${list.length}</span>` : ''}
+                        </div>
+                        <div class="pl-chips">${chips}${more}</div>
+                        <div class="pl-dots">${dots}</div>
+                    </div>`;
+            }).join('');
+        }
+
+        // Selection only moves a class — re-rendering the grid here would destroy
+        // the cell mid-gesture and swallow the double-click that books an entry.
+        function selectDay(dateStr) {
+            selectedDate = dateStr;
+            document.querySelectorAll('#calGrid .pl-day').forEach(c => {
+                c.classList.toggle('selected', c.dataset.date === dateStr);
+            });
+            renderDayPanel();
+        }
+
+        function dotClass(entry) {
+            if (entry.is_completed) return 'done';
+            if (isOverdue(entry)) return 'overdue';
+            return isTask(entry) ? 'task' : '';
+        }
+
+        function chipHTML(entry) {
+            const classes = ['pl-chip'];
+            if (isTask(entry)) classes.push('task');
+            if (entry.is_completed) classes.push('done');
+            else if (isOverdue(entry)) classes.push('overdue');
+            const sub = isTask(entry) ? '' : (entry.client_id || '');
+            const label = entryTitle(entry) + (sub ? ` · ${sub}` : '');
+            return `
+                <button type="button" class="${classes.join(' ')}" data-entry-id="${entry.id}"
+                        ${canEdit(entry) ? 'draggable="true"' : ''} title="${escapeHTML(label)}">
+                    ${entry.planned_time ? `<span class="tm">${escapeHTML(formatTime(entry.planned_time))}</span>` : ''}
+                    <span class="t">${escapeHTML(label)}</span>
+                </button>`;
+        }
+
+        // Delegated: day cells select/create, chips open, chips drag to reschedule.
+        function wireCalendarEvents() {
+            const grid = document.getElementById('calGrid');
+
+            grid.addEventListener('click', (e) => {
+                const chip = e.target.closest('.pl-chip');
+                if (chip) {
+                    e.stopPropagation();
+                    openEntryModal(chip.dataset.entryId);
+                    return;
+                }
+                const cell = e.target.closest('.pl-day');
+                if (cell) selectDay(cell.dataset.date);
+            });
+
+            // Double-click an empty part of a day to book something on it.
+            grid.addEventListener('dblclick', (e) => {
+                if (e.target.closest('.pl-chip')) return;
+                const cell = e.target.closest('.pl-day');
+                if (cell) openEntryModal(null, cell.dataset.date);
+            });
+
+            grid.addEventListener('dragstart', (e) => {
+                const chip = e.target.closest('.pl-chip');
+                if (!chip) return;
+                dragEntryId = chip.dataset.entryId;
+                chip.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                // Firefox needs data set for the drag to start at all.
+                e.dataTransfer.setData('text/plain', dragEntryId);
+            });
+
+            grid.addEventListener('dragend', (e) => {
+                const chip = e.target.closest('.pl-chip');
+                if (chip) chip.classList.remove('dragging');
+                document.querySelectorAll('.pl-day.drop-target').forEach(c => c.classList.remove('drop-target'));
+                dragEntryId = null;
+            });
+
+            grid.addEventListener('dragover', (e) => {
+                if (!dragEntryId) return;
+                const cell = e.target.closest('.pl-day');
+                if (!cell) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                document.querySelectorAll('.pl-day.drop-target').forEach(c => c.classList.remove('drop-target'));
+                cell.classList.add('drop-target');
+            });
+
+            grid.addEventListener('drop', (e) => {
+                const cell = e.target.closest('.pl-day');
+                if (!cell || !dragEntryId) return;
+                e.preventDefault();
+                cell.classList.remove('drop-target');
+                const id = dragEntryId;
+                dragEntryId = null;
+                rescheduleEntry(id, cell.dataset.date);
+            });
+        }
+
+        // ============================================
+        // DAY PANEL / OVERDUE / STATS
+        // ============================================
+
+        function renderDayPanel() {
+            const date = parseLocalDate(selectedDate);
+            const todayStr = localDateString();
+            let prefix = '';
+            if (selectedDate === todayStr) prefix = 'Today · ';
+            else if (selectedDate === localDateString(addDays(getTodayMidnight(), 1))) prefix = 'Tomorrow · ';
+            document.getElementById('dayPanelTitle').textContent =
+                prefix + date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+
+            const list = entriesByDate[selectedDate] || [];
+            const target = document.getElementById('dayPanelList');
+            target.innerHTML = list.length
+                ? list.map(e => entryRowHTML(e)).join('')
+                : '<div class="pl-empty">Nothing booked for this day yet</div>';
+            lucide.createIcons();
+        }
+
+        function entryRowHTML(entry, opts = {}) {
+            const classes = ['pl-entry'];
+            if (isTask(entry)) classes.push('task');
+            if (entry.is_completed) classes.push('done');
+            else if (isOverdue(entry)) classes.push('overdue');
+
+            const subParts = isTask(entry)
+                ? []
+                : [entry.client_id, entry.vendor_id].filter(Boolean);
+            const sub = subParts.map(escapeHTML).join(' · ');
+
+            const tags = [];
+            if (entry.planned_time) tags.push(`<span class="pl-tag accent">${escapeHTML(formatTime(entry.planned_time))}</span>`);
+            tags.push(`<span class="pl-tag">${isTask(entry) ? 'Task' : 'Job'}</span>`);
+            if (!isTask(entry) && entry.job_type) {
+                tags.push(`<span class="pl-tag">${escapeHTML(JOB_TYPE_LABELS[entry.job_type] || entry.job_type)}</span>`);
+            }
+            if (entry.assigned_agent_id) tags.push(`<span class="pl-tag">Agent ${escapeHTML(entry.assigned_agent_id)}</span>`);
+            if (opts.showDate) tags.push(`<span class="pl-tag danger">${escapeHTML(formatDayLabel(entry.planned_date))}</span>`);
+            else if (isOverdue(entry)) tags.push('<span class="pl-tag danger">Overdue</span>');
+
+            const editable = canEdit(entry);
+            const actions = [];
+            if (canWorkInStockEntry(entry)) {
+                actions.push(`<a class="pl-act" href="stock-entry.html?prefilled_job=${encodeURIComponent(entry.id)}" title="Open in Stock Entry">
+                    <i data-lucide="clipboard-check" width="15" height="15"></i></a>`);
+            }
+            if (editable) {
+                actions.push(`<button class="pl-act" title="${entry.is_completed ? 'Reopen' : 'Mark complete'}" onclick="toggleEntryComplete('${entry.id}')">
+                    <i data-lucide="${entry.is_completed ? 'rotate-ccw' : 'check'}" width="15" height="15"></i></button>`);
+                if (opts.showDate) {
+                    actions.push(`<button class="pl-act" title="Move to today" onclick="rescheduleEntry('${entry.id}', '${localDateString()}')">
+                        <i data-lucide="calendar-clock" width="15" height="15"></i></button>`);
+                }
+                actions.push(`<button class="pl-act" title="Edit" onclick="openEntryModal('${entry.id}')">
+                    <i data-lucide="pencil" width="15" height="15"></i></button>`);
+                actions.push(`<button class="pl-act danger" title="Delete" onclick="deleteEntry('${entry.id}')">
+                    <i data-lucide="trash-2" width="15" height="15"></i></button>`);
+            }
+
+            return `
+                <div class="${classes.join(' ')}">
+                    <div class="pl-entry-main">
+                        <span class="pl-entry-title">${escapeHTML(entryTitle(entry))}</span>
+                        ${sub ? `<span class="pl-entry-sub">${sub}</span>` : ''}
+                        ${entry.notes ? `<span class="pl-entry-sub">${escapeHTML(entry.notes)}</span>` : ''}
+                        <div class="pl-entry-meta">${tags.join('')}</div>
+                    </div>
+                    <div class="pl-entry-actions">${actions.join('')}</div>
+                </div>`;
+        }
+
+        function formatDayLabel(dateStr) {
+            const todayStr = localDateString();
+            if (dateStr === todayStr) return 'Today';
+            if (dateStr === localDateString(addDays(getTodayMidnight(), 1))) return 'Tomorrow';
+            const days = Math.round((getTodayMidnight() - parseLocalDate(dateStr)) / 86400000);
+            if (days > 0) return `${days} day${days === 1 ? '' : 's'} ago`;
+            return parseLocalDate(dateStr).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+        }
+
+        function renderOverdue() {
+            const card = document.getElementById('overdueCard');
+            if (!overdueEntries.length) { card.style.display = 'none'; return; }
+            card.style.display = '';
+            document.getElementById('overdueHint').textContent =
+                `${overdueEntries.length} entr${overdueEntries.length === 1 ? 'y' : 'ies'} still open`;
+            document.getElementById('overdueList').innerHTML =
+                overdueEntries.map(e => entryRowHTML(e, { showDate: true })).join('');
+            lucide.createIcons();
+        }
+
+        function renderStats() {
+            const jobs = entries.filter(e => !isTask(e)).length;
+            const tasks = entries.filter(e => isTask(e)).length;
+            const done = entries.filter(e => e.is_completed).length;
+            document.getElementById('statJobs').textContent = jobs;
+            document.getElementById('statTasks').textContent = tasks;
+            document.getElementById('statDone').textContent = done;
+            document.getElementById('statOverdue').textContent = overdueEntries.length;
+        }
+
+        // ============================================
+        // ENTRY MODAL
+        // ============================================
+
+        async function getDepotAgents() {
+            if (!depotAgents) {
+                const { data, error } = await db.from('agents')
+                    .select('agent_id')
+                    .eq('depot_id', currentDepotId)
+                    .order('agent_id', { ascending: true });
+                if (error) throw error;
+                depotAgents = (data || []).map(r => r.agent_id);
+            }
+            return depotAgents;
+        }
+
+        async function getDepotClients() {
+            if (!depotClients) {
+                const { data, error } = await db.from('depot_clients')
+                    .select('client_id')
+                    .eq('depot_id', currentDepotId)
+                    .order('client_id', { ascending: true });
+                if (error) throw error;
+                depotClients = (data || []).map(r => r.client_id);
+            }
+            return depotClients;
+        }
+
+        function selectEntryKind(kind) {
+            document.getElementById('peEntryType').value = kind;
+            document.querySelectorAll('#peTypePills .type-pill').forEach(p => {
+                p.classList.toggle('active', p.dataset.entry === kind);
+            });
+            document.getElementById('peJobFields').style.display = kind === 'job' ? '' : 'none';
+            document.getElementById('peTaskFields').style.display = kind === 'task' ? '' : 'none';
+            document.getElementById('peTypeHint').textContent = kind === 'job'
+                ? 'A stock job is completed in Stock Entry and pre-fills the form.'
+                : 'A task is ticked off here — it never touches stock entry.';
+        }
+
+        function selectEntryJobType(type, toggle = true) {
+            const hidden = document.getElementById('peJobType');
+            const val = (toggle && hidden.value === type) ? '' : type;
+            hidden.value = val;
+            document.querySelectorAll('#peJobTypePills .type-pill').forEach(p => {
+                p.classList.toggle('active', p.dataset.type === val);
+            });
+        }
+
+        async function loadEntryVendors(clientId, preselect = null) {
+            const sel = document.getElementById('peVendor');
+            if (!clientId) {
+                sel.innerHTML = '<option value="">Select a client first…</option>';
+                return;
+            }
+            if (!vendorCache[clientId]) {
+                const { data } = await db.from('clients_vendors')
+                    .select('vendor_id')
+                    .eq('client_id', clientId)
+                    .eq('depot_id', currentDepotId);
+                vendorCache[clientId] = (data || []).map(r => r.vendor_id);
+            }
+            sel.innerHTML = '<option value="">Select vendor…</option>' +
+                vendorCache[clientId].map(v =>
+                    `<option value="${escapeHTML(v)}" ${v === preselect ? 'selected' : ''}>${escapeHTML(v)}</option>`).join('');
+        }
+
+        async function openEntryModal(entryId = null, dateStr = null) {
+            const entry = entryId ? entryIndex[entryId] : null;
+            if (entryId && !entry) { showAlert('That entry is no longer available.', 'warning'); return; }
+            if (entry && !canEdit(entry)) {
+                showAlert(`This entry belongs to agent ${entry.assigned_agent_id} and can only be changed by that agent or a manager.`, 'warning');
+                return;
+            }
+            editingEntryId = entryId;
+
+            try {
+                const clients = await getDepotClients();
+                const clientSel = document.getElementById('peClient');
+                clientSel.innerHTML = '<option value="">Select a client…</option>' +
+                    clients.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join('');
+
+                const agentGroup = document.getElementById('peAgentGroup');
+                const agentSel = document.getElementById('peAgent');
+                if (isManager) {
+                    const agents = await getDepotAgents();
+                    agentSel.innerHTML = agents
+                        .map(a => `<option value="${escapeHTML(a)}">Agent ${escapeHTML(a)}</option>`).join('');
+                    agentSel.value = currentUser.agent_id || agents[0] || '';
+                    agentGroup.style.display = '';
+                } else {
+                    agentGroup.style.display = 'none';
+                }
+            } catch (err) {
+                console.error('Error preparing planner entry modal:', err);
+                showAlert('Could not load clients or agents. Please try again.', 'error');
+                return;
+            }
+
+            // Reset
+            document.getElementById('entryModalTitle').textContent = entry ? 'Edit Entry' : 'New Entry';
+            document.getElementById('peDate').value = entry ? entry.planned_date : (dateStr || selectedDate || localDateString());
+            document.getElementById('peTime').value = entry && entry.planned_time ? String(entry.planned_time).slice(0, 5) : '';
+            document.getElementById('peTitle').value = entry && entry.title ? entry.title : '';
+            document.getElementById('peJobNumber').value = entry && entry.job_number ? entry.job_number : '';
+            document.getElementById('peNotes').value = entry && entry.notes ? entry.notes : '';
+            document.getElementById('peVendor').innerHTML = '<option value="">Select a client first…</option>';
+            selectEntryKind(entry && isTask(entry) ? 'task' : 'job');
+            selectEntryJobType(entry && entry.job_type ? entry.job_type : '', false);
+            document.getElementById('peDeleteBtn').style.display = entry ? '' : 'none';
+
+            if (entry) {
+                document.getElementById('peClient').value = entry.client_id || '';
+                if (entry.client_id) await loadEntryVendors(entry.client_id, entry.vendor_id);
+                if (isManager && entry.assigned_agent_id) document.getElementById('peAgent').value = entry.assigned_agent_id;
+            } else {
+                document.getElementById('peClient').value = '';
+            }
+
+            document.getElementById('entryModal').classList.add('active');
+            lucide.createIcons();
+        }
+
+        function closeEntryModal() {
+            document.getElementById('entryModal').classList.remove('active');
+            editingEntryId = null;
+        }
+
+        async function handleEntrySave(e) {
+            e.preventDefault();
+            const kind = document.getElementById('peEntryType').value;
+            const plannedDate = document.getElementById('peDate').value;
+            const plannedTime = document.getElementById('peTime').value;
+            const notes = document.getElementById('peNotes').value.trim();
+            const title = document.getElementById('peTitle').value.trim();
+            const clientId = document.getElementById('peClient').value;
+            const vendorId = document.getElementById('peVendor').value;
+            const jobType = document.getElementById('peJobType').value;
+            const jobNumber = document.getElementById('peJobNumber').value.trim();
+
+            if (!plannedDate) { showAlert('Please pick a date', 'error'); return; }
+            if (kind === 'task' && !title) { showAlert('Please give the task a title', 'error'); return; }
+            if (kind === 'job' && (!clientId || !jobNumber)) {
+                showAlert('Client and job number are required for a stock job', 'error');
+                return;
+            }
+
+            const assignedAgent = isManager
+                ? document.getElementById('peAgent').value
+                : currentUser.agent_id;
+            if (!assignedAgent) { showAlert('Please select an agent to assign this entry to', 'error'); return; }
+
+            const payload = {
+                entry_type:        kind,
+                planned_date:      plannedDate,
+                planned_time:      plannedTime || null,
+                notes:             notes || null,
+                assigned_agent_id: assignedAgent,
+                title:             kind === 'task' ? title : null,
+                client_id:         kind === 'job' ? clientId : null,
+                vendor_id:         kind === 'job' ? (vendorId || null) : null,
+                job_type:          kind === 'job' ? (jobType || null) : null,
+                job_number:        kind === 'job' ? jobNumber : null
+            };
+
+            showLoading(true);
+            try {
+                if (editingEntryId) {
+                    const { error } = await db.from('prefilled_jobs')
+                        .update(payload)
+                        .eq('id', editingEntryId);
+                    if (error) throw error;
+                } else {
+                    // sort_order positions the entry last within its day for that agent
+                    const { count } = await db.from('prefilled_jobs')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('depot_id', currentDepotId)
+                        .eq('assigned_agent_id', assignedAgent)
+                        .eq('planned_date', plannedDate);
+                    const { error } = await db.from('prefilled_jobs').insert([{
+                        ...payload,
+                        user_id:    currentUser.id,
+                        depot_id:   currentDepotId,
+                        sort_order: count || 0
+                    }]);
+                    if (error) throw error;
+                }
+                closeEntryModal();
+                selectedDate = plannedDate;
+                if (localDateString(cursorDate) !== plannedDate && !isDateVisible(plannedDate)) {
+                    cursorDate = parseLocalDate(plannedDate);
+                }
+                await refresh();
+                showAlert(editingEntryId ? 'Entry updated' : 'Entry booked in', 'success');
+            } catch (err) {
+                console.error('Error saving planner entry:', err);
+                showAlert('Error saving entry. Please try again.', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function isDateVisible(dateStr) {
+            const { from, to } = visibleRange();
+            return dateStr >= from && dateStr <= to;
+        }
+
+        function deleteEntryFromModal() {
+            const id = editingEntryId;
+            if (!id) return;
+            closeEntryModal();
+            deleteEntry(id);
+        }
+
+        async function deleteEntry(id) {
+            const entry = entryIndex[id];
+            if (entry && !canEdit(entry)) { showAlert('You cannot delete another agent\'s entry.', 'warning'); return; }
+            if (!confirm('Delete this planner entry?')) return;
+            try {
+                const { error } = await db.from('prefilled_jobs').delete().eq('id', id);
+                if (error) throw error;
+                await refresh();
+            } catch (err) {
+                console.error('Error deleting planner entry:', err);
+                showAlert('Error deleting entry. Please try again.', 'error');
+            }
+        }
+
+        async function toggleEntryComplete(id) {
+            const entry = entryIndex[id];
+            if (!entry) return;
+            if (!canEdit(entry)) { showAlert('You cannot change another agent\'s entry.', 'warning'); return; }
+            try {
+                const update = { is_completed: !entry.is_completed };
+                // Reopening drops the link to the stock job that closed it.
+                if (entry.is_completed) update.completed_job_id = null;
+                const { error } = await db.from('prefilled_jobs').update(update).eq('id', id);
+                if (error) throw error;
+                await refresh();
+            } catch (err) {
+                console.error('Error updating planner entry:', err);
+                showAlert('Error updating entry. Please try again.', 'error');
+            }
+        }
+
+        async function rescheduleEntry(id, dateStr) {
+            const entry = entryIndex[id];
+            if (!entry || entry.planned_date === dateStr) return;
+            if (!canEdit(entry)) { showAlert('You cannot move another agent\'s entry.', 'warning'); return; }
+            try {
+                const { error } = await db.from('prefilled_jobs')
+                    .update({ planned_date: dateStr })
+                    .eq('id', id);
+                if (error) throw error;
+                selectedDate = dateStr;
+                await refresh();
+                showAlert(`Moved to ${formatDayLabel(dateStr)}`, 'success');
+            } catch (err) {
+                console.error('Error rescheduling planner entry:', err);
+                showAlert('Error moving entry. Please try again.', 'error');
+            }
+        }
+
+        // Close the modal on backdrop click / Escape
+        document.addEventListener('click', (e) => {
+            if (e.target && e.target.id === 'entryModal') closeEntryModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeEntryModal();
+        });
+    </script>
+</body>
+</html>

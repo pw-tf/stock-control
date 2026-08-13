@@ -134,7 +134,9 @@
         let dailyJobListVendors = {};
         let dailyJobListEditId = null;
         let dailyJobListEditMode = false;
-        let dailyJobView = 'mine'; // 'mine' or 'depot' (manager+ only)
+        // 'depot' or 'mine' — every role starts depot-wide so the whole team's
+        // plan is visible, and can flick to their own list.
+        let dailyJobView = localStorage.getItem('upcoming_jobs_view') === 'mine' ? 'mine' : 'depot';
         let dailyJobAgents = null; // cached depot agent IDs for the assign dropdown
         let shiftTimer = null;
         let todayJobsView = 'mine'; // 'mine' or 'depot'
@@ -164,9 +166,13 @@
                 render: renderTodayJobs
             },
             {
+                // Widget id is part of every saved layout (widget_order / spans),
+                // so it stays `daily-job-list` even though the widget is now
+                // "Upcoming Jobs" — renaming it would drop the card from every
+                // layout users have already saved.
                 id: 'daily-job-list',
-                title: 'Daily Job List',
-                icon: 'list-checks',
+                title: 'Upcoming Jobs',
+                icon: 'calendar-days',
                 roles: ['technician', 'manager', 'super_admin'],
                 render: renderDailyJobList
             },
@@ -820,15 +826,7 @@
             return d;
         }
 
-        // Local-timezone YYYY-MM-DD. Never use toISOString().split('T')[0] for
-        // "today" — that returns the UTC date, which is off by a day for part
-        // of the day in any non-UTC timezone.
-        function localDateString(date = new Date()) {
-            const y = date.getFullYear();
-            const m = String(date.getMonth() + 1).padStart(2, '0');
-            const d = String(date.getDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
-        }
+        // localDateString(), parseLocalDate() and addDays() live in utils.js
 
         function getMondayOfWeek() {
             const d = new Date();
@@ -878,6 +876,7 @@
 
         async function renderQuickNav(container, user) {
             const links = [
+                { href: 'planner.html', icon: 'calendar-days', label: 'Planner' },
                 { href: 'stock-entry.html', icon: 'plus-circle', label: 'Stock Entry' },
                 { href: 'inventory.html', icon: 'search', label: 'Inventory' },
                 { href: 'user.html', icon: 'user', label: 'Profile' }
@@ -1841,91 +1840,160 @@
         }
 
         // ============================================
-        // WIDGET: Daily Job List
+        // WIDGET: Upcoming Jobs
+        // (planner entries — booked stock jobs and standalone tasks)
         // ============================================
+
+        // How many entries the widget lists before deferring to the Planner
+        const UPCOMING_LIMIT = 15;
 
         async function renderDailyJobList(container, user) {
             const today = localDateString();
-            const isManager = hasRole(user.role, ['manager', 'super_admin']);
-
-            // Technicians only ever see their own list. Managers can toggle;
-            // super_admins without an agent_id default to the depot view.
-            let view = isManager ? dailyJobView : 'mine';
-            if (view === 'mine' && !user.agent_id && isManager) view = 'depot';
+            // Everyone starts depot-wide; a user with no agent has no "mine" to show.
+            const view = user.agent_id ? dailyJobView : 'depot';
             const isDepotView = view === 'depot';
 
             let query = db.from('prefilled_jobs').select('*').eq('depot_id', user.depot_id);
             if (!isDepotView) query = query.eq('assigned_agent_id', user.agent_id);
-            if (isDepotView) query = query.order('assigned_agent_id', { ascending: true });
             query = query
-                .order('is_completed', { ascending: true })
+                .order('planned_date', { ascending: true })
                 .order('sort_order', { ascending: true })
                 .order('created_at', { ascending: true });
 
             const { data: jobs, error } = await query;
             if (error) throw error;
 
-            // Show all incomplete jobs + only today's completed jobs (prevents accumulation)
-            dailyJobListCache = (jobs || []).filter(j => !j.is_completed || j.planned_date === today);
+            // Everything still open (whatever its date) plus today's completed
+            // entries, so a finished day still reads as finished.
+            const all = (jobs || [])
+                .filter(j => !j.is_completed || j.planned_date === today)
+                .sort(compareUpcoming);
+            dailyJobListCache = all;
 
-            const incomplete = dailyJobListCache.filter(j => !j.is_completed);
-            const complete   = dailyJobListCache.filter(j =>  j.is_completed);
+            const groups = groupUpcoming(all, today);
+            const shown = all.slice(0, UPCOMING_LIMIT);
+            const overflow = all.length - shown.length;
 
-            const itemsHTML = [
-                ...incomplete.map((job, i) => renderDailyJobItem(job, i === 0, i === incomplete.length - 1, isDepotView)),
-                ...complete.map(job => renderDailyJobItem(job, false, false, isDepotView))
-            ].join('');
+            const groupsHTML = groups.map(group => {
+                const items = group.items.filter(j => shown.includes(j));
+                if (!items.length) return '';
+                // Manual order only applies within one day, so the overdue group
+                // (which spans dates) gets no reorder arrows.
+                const orderable = group.overdue ? [] : group.items.filter(j => !j.is_completed);
+                const rows = items.map(job => {
+                    // Positions come from the whole group, not the truncated
+                    // slice — the arrows act on the real list.
+                    const idxInGroup = orderable.indexOf(job);
+                    return renderDailyJobItem(
+                        job,
+                        idxInGroup === 0,
+                        idxInGroup === orderable.length - 1,
+                        isDepotView,
+                        idxInGroup >= 0
+                    );
+                }).join('');
+                return `
+                    <div class="dj-group-label ${group.overdue ? 'overdue' : ''}">${escapeHTML(group.label)}</div>
+                    ${rows}`;
+            }).join('');
 
-            const listHTML = dailyJobListCache.length === 0
-                ? `<div class="widget-empty">No planned jobs${isDepotView ? ' in this depot' : ' — click "Add Job" to plan one'}</div>`
-                : `<div class="widget-list">${itemsHTML}</div>`;
+            const listHTML = all.length === 0
+                ? `<div class="widget-empty">Nothing booked in${isDepotView ? ' for this depot' : ''} — plan jobs in the Planner</div>`
+                : `<div class="widget-list">${groupsHTML}</div>` +
+                  (overflow > 0
+                    ? `<div style="text-align:center; padding-top:var(--spacing-sm);">
+                           <a href="planner.html" style="font-size:0.75rem; color:var(--accent-tertiary); text-decoration:none;">
+                               +${overflow} more in the Planner
+                           </a>
+                       </div>`
+                    : '');
 
             const editBtnLabel = dailyJobListEditMode
                 ? '<i data-lucide="check" width="14" height="14"></i> Done'
                 : '<i data-lucide="settings-2" width="14" height="14"></i> Edit';
 
-            const toggleHTML = isManager ? `
-                <div style="display:flex; justify-content:flex-end; margin-bottom:var(--spacing-sm);">
-                    <div class="widget-view-toggle">
-                        <button class="${!isDepotView ? 'active' : ''}" onclick="setDailyJobView('mine')">My Jobs</button>
-                        <button class="${isDepotView ? 'active' : ''}" onclick="setDailyJobView('depot')">Depot</button>
-                    </div>
+            const toggleHTML = user.agent_id ? `
+                <div class="widget-view-toggle">
+                    <button class="${isDepotView ? 'active' : ''}" onclick="setDailyJobView('depot')">Depot</button>
+                    <button class="${!isDepotView ? 'active' : ''}" onclick="setDailyJobView('mine')">My Jobs</button>
                 </div>
-            ` : '';
+            ` : '<span></span>';
 
             container.innerHTML = `
-                ${toggleHTML}
-                <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:var(--spacing-sm);">
-                    <button class="btn btn-ghost btn-sm" id="djEditToggleBtn" onclick="toggleDailyJobEditMode()">
-                        ${editBtnLabel}
-                    </button>
-                    <button class="btn btn-primary btn-sm" onclick="openDailyJobModal()">
-                        <i data-lucide="plus" width="14" height="14"></i> Add Job
-                    </button>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:var(--spacing-sm);">
+                    ${toggleHTML}
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <a class="btn btn-ghost btn-sm" href="planner.html" title="Open the Planner">
+                            <i data-lucide="calendar-days" width="14" height="14"></i> Planner
+                        </a>
+                        <button class="btn btn-ghost btn-sm" id="djEditToggleBtn" onclick="toggleDailyJobEditMode()">
+                            ${editBtnLabel}
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="openDailyJobModal()">
+                            <i data-lucide="plus" width="14" height="14"></i> Add Job
+                        </button>
+                    </div>
                 </div>
                 ${listHTML}
             `;
             lucide.createIcons();
         }
 
-        function renderDailyJobItem(job, isFirst, isLast, isDepotView) {
+        // Timed entries first (earliest first), then the manual order. Dates are
+        // already ordered by the query; this only sorts within a date.
+        function compareUpcoming(a, b) {
+            if (a.planned_date !== b.planned_date) return a.planned_date < b.planned_date ? -1 : 1;
+            if (!!a.is_completed !== !!b.is_completed) return a.is_completed ? 1 : -1;
+            const at = a.planned_time || '99:99';
+            const bt = b.planned_time || '99:99';
+            if (at !== bt) return at < bt ? -1 : 1;
+            return (a.sort_order || 0) - (b.sort_order || 0);
+        }
+
+        // Overdue first, then one group per date going forward.
+        function groupUpcoming(list, today) {
+            const overdue = list.filter(j => !j.is_completed && j.planned_date < today);
+            const groups = overdue.length
+                ? [{ key: 'overdue', label: `Overdue (${overdue.length})`, overdue: true, items: overdue }]
+                : [];
+            const byDate = {};
+            list.filter(j => !overdue.includes(j)).forEach(j => {
+                (byDate[j.planned_date] = byDate[j.planned_date] || []).push(j);
+            });
+            Object.keys(byDate).sort().forEach(date => {
+                groups.push({ key: date, label: upcomingDateLabel(date, today), overdue: false, items: byDate[date] });
+            });
+            return groups;
+        }
+
+        function upcomingDateLabel(date, today) {
+            if (date === today) return 'Today';
+            if (date === localDateString(addDays(getTodayMidnight(), 1))) return 'Tomorrow';
+            return parseLocalDate(date).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+        }
+
+        function renderDailyJobItem(job, isFirst, isLast, isDepotView, canReorder = true) {
             const jobTypeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
-            const typeLabel = job.job_type ? jobTypeLabels[job.job_type] || job.job_type : '';
-            const ageDays = Math.floor((Date.now() - new Date(job.created_at).getTime()) / 86400000);
-            const ageHTML = !job.is_completed && ageDays >= 1
-                ? `<span style="font-size:0.7rem; color:var(--text-muted); white-space:nowrap;">${ageDays} day${ageDays !== 1 ? 's' : ''} old</span>`
-                : '';
+            const isTaskEntry = job.entry_type === 'task';
+            const typeLabel = !isTaskEntry && job.job_type ? jobTypeLabels[job.job_type] || job.job_type : '';
+            const title = isTaskEntry ? (job.title || 'Task') : job.job_number;
 
             // Build stacked sub-lines so nothing gets truncated on mobile
-            const clientVendor = [job.client_id, job.vendor_id].filter(Boolean).map(escapeHTML).join(' · ');
-            const clientVendorHTML = `<span class="widget-list-item-sub">${clientVendor}</span>`;
+            const clientVendor = isTaskEntry ? '' : [job.client_id, job.vendor_id].filter(Boolean).map(escapeHTML).join(' · ');
+            const clientVendorHTML = clientVendor ? `<span class="widget-list-item-sub">${clientVendor}</span>` : '';
             const typeHTML  = typeLabel  ? `<span class="widget-list-item-sub">${escapeHTML(typeLabel)}</span>`  : '';
             const notesHTML = job.notes  ? `<span class="widget-list-item-sub">${escapeHTML(job.notes)}</span>`  : '';
             const agentHTML = isDepotView && job.assigned_agent_id
                 ? `<span class="widget-list-item-sub">Agent ${escapeHTML(job.assigned_agent_id)}</span>` : '';
+            const timeHTML = job.planned_time
+                ? `<span style="font-size:0.7rem; font-family:var(--font-mono); color:var(--text-muted); white-space:nowrap;">${escapeHTML(String(job.planned_time).slice(0, 5))}</span>`
+                : '';
+            const taskBadge = isTaskEntry
+                ? '<span class="dj-badge">Task</span>'
+                : '';
 
-            // The job is completed in stock-entry, which attaches the box to the
-            // logged-in user's agent — so only the assignee can open/complete it.
+            // A stock job is completed in stock-entry, which attaches the box to
+            // the logged-in user's agent — so only the assignee can open it.
             const isOwnAgent = job.assigned_agent_id === currentUser.agent_id;
 
             if (job.is_completed) {
@@ -1933,7 +2001,7 @@
                     <div class="widget-list-item" style="opacity:0.45;">
                         <i data-lucide="check-circle-2" width="18" height="18" style="color:var(--success); flex-shrink:0;"></i>
                         <div class="widget-list-item-main" style="margin-left:8px; text-decoration:line-through;">
-                            <span class="widget-list-item-title">${escapeHTML(job.job_number)}</span>
+                            <span class="widget-list-item-title">${escapeHTML(title)}${taskBadge}</span>
                             ${clientVendorHTML}
                             ${typeHTML}
                             ${agentHTML}
@@ -1949,7 +2017,7 @@
             const upStyle   = isFirst ? 'opacity:0.25;' : '';
             const downStyle = isLast  ? 'opacity:0.25;' : '';
 
-            // Mark-complete circle for the assignee; a muted placeholder for others
+            // Tasks are ticked off by their assignee; stock jobs by whoever works them.
             const completeBtn = isOwnAgent
                 ? `<button class="widget-ctrl-btn" title="Mark complete" style="color:var(--text-muted); padding:0; background:none; border:none; cursor:pointer; flex-shrink:0; margin-top:2px;"
                         onclick="markDailyJobComplete('${job.id}', null); event.stopPropagation();">
@@ -1958,17 +2026,19 @@
                 : `<i data-lucide="circle" width="18" height="18" style="color:var(--text-muted); flex-shrink:0; margin-top:2px; opacity:0.4;"></i>`;
 
             const mainContent = `
-                        <span class="widget-list-item-title" style="white-space:normal;">${escapeHTML(job.job_number)}</span>
+                        <span class="widget-list-item-title" style="white-space:normal;">${escapeHTML(title)}${taskBadge}</span>
                         ${clientVendorHTML}
                         ${typeHTML}
                         ${agentHTML}
                         ${notesHTML}`;
-            const mainHTML = isOwnAgent
+            // Only a stock job assigned to this agent opens the pre-filled form.
+            const mainHTML = (isOwnAgent && !isTaskEntry)
                 ? `<a href="stock-entry.html?prefilled_job=${job.id}" class="widget-list-item-main" style="text-decoration:none; flex:1; margin-left:8px;">${mainContent}</a>`
                 : `<div class="widget-list-item-main" style="flex:1; margin-left:8px;">${mainContent}</div>`;
 
-            // Reordering is per-agent, so only offer it in the single-agent "mine" view
-            const reorderHTML = isDepotView ? '' : `
+            // Reordering swaps positions within one agent's day, so it is only
+            // offered in the single-agent "My Jobs" view.
+            const reorderHTML = (isDepotView || !canReorder) ? '' : `
                             <button class="widget-ctrl-btn" title="Move up" style="${upStyle}" ${isFirst ? 'disabled' : ''} onclick="moveDailyJob('${job.id}', 'up')">
                                 <i data-lucide="chevron-up" width="14" height="14"></i>
                             </button>
@@ -1981,7 +2051,7 @@
                     ${completeBtn}
                     ${mainHTML}
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px; flex-shrink:0; margin-left:4px;">
-                        ${ageHTML}
+                        ${timeHTML}
                         <div class="dj-actions-container" style="${dailyJobListEditMode ? 'display:flex' : 'display:none'}; gap:2px;">
                             ${reorderHTML}
                             <button class="widget-ctrl-btn" title="Edit" onclick="openDailyJobModal('${job.id}')">
@@ -2012,6 +2082,7 @@
 
         function setDailyJobView(view) {
             dailyJobView = view;
+            localStorage.setItem('upcoming_jobs_view', view);
             dailyJobListEditMode = false;
             _rerenderDailyJobList();
         }
@@ -2045,6 +2116,14 @@
         }
 
         async function openDailyJobModal(editId = null) {
+            // Tasks carry no client/vendor/job number, so they are edited in the
+            // Planner where the task fields live.
+            const existing = editId ? dailyJobListCache?.find(j => j.id === editId) : null;
+            if (existing && existing.entry_type === 'task') {
+                window.location.href = 'planner.html?entry=' + encodeURIComponent(editId);
+                return;
+            }
+
             dailyJobListEditId = editId || null;
 
             if (dailyJobListClients.length === 0) {
@@ -2065,6 +2144,7 @@
             selectDailyJobType('', false);
             document.getElementById('djJobNumber').value = '';
             document.getElementById('djNotes').value = '';
+            document.getElementById('djDate').value = localDateString();
 
             // Managers+ can assign the job to any agent in the depot; technicians
             // always get their own agent (selector hidden).
@@ -2087,16 +2167,14 @@
                 agentGroup.style.display = 'none';
             }
 
-            if (editId) {
-                const job = dailyJobListCache?.find(j => j.id === editId);
-                if (job) {
-                    clientSel.value = job.client_id;
-                    await loadDailyJobVendors(job.client_id, job.vendor_id);
-                    selectDailyJobType(job.job_type || '', false);
-                    document.getElementById('djJobNumber').value = job.job_number;
-                    document.getElementById('djNotes').value = job.notes || '';
-                    if (isManager && job.assigned_agent_id) agentSel.value = job.assigned_agent_id;
-                }
+            if (existing) {
+                clientSel.value = existing.client_id;
+                await loadDailyJobVendors(existing.client_id, existing.vendor_id);
+                selectDailyJobType(existing.job_type || '', false);
+                document.getElementById('djJobNumber').value = existing.job_number;
+                document.getElementById('djNotes').value = existing.notes || '';
+                document.getElementById('djDate').value = existing.planned_date || localDateString();
+                if (isManager && existing.assigned_agent_id) agentSel.value = existing.assigned_agent_id;
             }
 
             document.getElementById('dailyJobModal').classList.add('active');
@@ -2133,6 +2211,7 @@
             const jobType   = document.getElementById('djJobType').value;
             const jobNumber = document.getElementById('djJobNumber').value.trim();
             const notes     = document.getElementById('djNotes').value.trim();
+            const plannedDate = document.getElementById('djDate').value || localDateString();
 
             if (!clientId || !jobNumber) {
                 showAlert('Client and job number are required', 'error');
@@ -2149,8 +2228,6 @@
                 return;
             }
 
-            const today = new Date().toISOString().split('T')[0];
-
             try {
                 if (dailyJobListEditId) {
                     const { error } = await db.from('prefilled_jobs')
@@ -2160,17 +2237,18 @@
                             job_type:          jobType || null,
                             job_number:        jobNumber,
                             notes:             notes || null,
+                            planned_date:      plannedDate,
                             assigned_agent_id: assignedAgent
                         })
                         .eq('id', dailyJobListEditId);
                     if (error) throw error;
                 } else {
-                    // sort_order = number of incomplete jobs already on that agent's list
+                    // sort_order = how many entries that agent already has that day
                     const { count } = await db.from('prefilled_jobs')
                         .select('*', { count: 'exact', head: true })
                         .eq('depot_id', currentUser.depot_id)
                         .eq('assigned_agent_id', assignedAgent)
-                        .eq('is_completed', false);
+                        .eq('planned_date', plannedDate);
                     const { error } = await db.from('prefilled_jobs').insert([{
                         user_id:           currentUser.id,
                         depot_id:          currentUser.depot_id,
@@ -2179,7 +2257,7 @@
                         job_type:          jobType || null,
                         job_number:        jobNumber,
                         notes:             notes || null,
-                        planned_date:      today,
+                        planned_date:      plannedDate,
                         sort_order:        count || 0,
                         assigned_agent_id: assignedAgent
                     }]);
@@ -2219,22 +2297,26 @@
         }
 
         async function moveDailyJob(id, direction) {
-            const incomplete = (dailyJobListCache || []).filter(j => !j.is_completed);
-            const idx = incomplete.findIndex(j => j.id === id);
-            const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-            if (idx < 0 || swapIdx < 0 || swapIdx >= incomplete.length) return;
+            const cache = dailyJobListCache || [];
+            const entry = cache.find(j => j.id === id);
+            if (!entry) return;
 
-            // Normalize sort_orders to sequential positions, then swap the two
-            const orders = incomplete.map((_, i) => i);
-            const temp = orders[idx];
-            orders[idx] = orders[swapIdx];
-            orders[swapIdx] = temp;
+            // sort_order positions an entry within its own day, so reordering is
+            // scoped to the open entries booked on that date.
+            const group = cache.filter(j => j.planned_date === entry.planned_date && !j.is_completed);
+            const idx = group.indexOf(entry);
+            const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+            if (idx < 0 || swapIdx < 0 || swapIdx >= group.length) return;
+
+            const reordered = [...group];
+            reordered[idx] = group[swapIdx];
+            reordered[swapIdx] = group[idx];
 
             try {
-                await Promise.all([
-                    db.from('prefilled_jobs').update({ sort_order: orders[idx] }).eq('id', incomplete[idx].id),
-                    db.from('prefilled_jobs').update({ sort_order: orders[swapIdx] }).eq('id', incomplete[swapIdx].id)
-                ]);
+                // Rewrite the whole day sequentially — the stored values can be
+                // stale or duplicated, so a two-row swap alone isn't stable.
+                await Promise.all(reordered.map((j, i) =>
+                    db.from('prefilled_jobs').update({ sort_order: i }).eq('id', j.id)));
                 await _rerenderDailyJobList();
             } catch (err) {
                 console.error('Error reordering planned job:', err);
@@ -2522,8 +2604,12 @@
                 </a>
                 <button class="action-chip" onclick="openDailyJobModal(null)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 11l3 3L22 4"/></svg>
-                    Add Daily Job
+                    Add Planned Job
                 </button>
+                <a class="action-chip" href="planner.html">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                    Planner
+                </a>
             `;
 
             if (user.shifts_enabled) {
@@ -2735,6 +2821,10 @@
                 <div class="field" id="djAssignAgentGroup" style="display:none;">
                     <label for="djAssignAgent">Assign to agent</label>
                     <select id="djAssignAgent" class="select"></select>
+                </div>
+                <div class="field">
+                    <label for="djDate">Date <span class="req">*</span> <span class="hint">when it is booked in</span></label>
+                    <input type="date" id="djDate" class="input mono" required>
                 </div>
                 <div class="field">
                     <label for="djClientSelect">Client <span class="req">*</span></label>
