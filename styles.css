@@ -2463,6 +2463,34 @@ tr:hover td {
     overflow-y: auto;
 }
 
+/* Upcoming Jobs widget — header row. The scope toggle may wrap above the
+   actions, but the actions themselves always stay on one line: below 600px
+   the ghost buttons drop their labels and become icon-only rather than
+   pushing "Add Job" onto a second row. */
+.dj-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: var(--spacing-sm);
+}
+
+.dj-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+    margin-left: auto;
+}
+
+.dj-actions .btn { gap: 6px; white-space: nowrap; }
+
+@media (max-width: 600px) {
+    .dj-actions { gap: 6px; }
+    .dj-actions .btn-ghost { padding: 6px 9px; }
+    .dj-actions .btn-ghost .dj-btn-label { display: none; }
+}
+
 /* Upcoming Jobs widget — date group headers and the task marker */
 .dj-group-label {
     font-size: 0.68rem;

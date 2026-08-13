@@ -272,8 +272,8 @@
                     <button data-view="day" onclick="setPlannerView('day')">Day</button>
                 </div>
                 <div class="pl-seg" id="scopeSeg">
-                    <button data-scope="depot" onclick="setPlannerScope('depot')">Depot</button>
                     <button data-scope="mine" onclick="setPlannerScope('mine')">My Jobs</button>
+                    <button data-scope="depot" onclick="setPlannerScope('depot')">Depot</button>
                 </div>
                 <select class="pl-agent-select" id="agentFilter" onchange="setAgentFilter(this.value)" style="display:none">
                     <option value="">All agents</option>
@@ -433,7 +433,7 @@
         let isManager = false;
 
         let plannerView = 'month';          // 'month' | 'week' | 'day'
-        let plannerScope = 'depot';         // 'depot' | 'mine'
+        let plannerScope = 'mine';          // 'mine' (own + unassigned) | 'depot'
         let agentFilter = '';               // manager-only extra filter within the depot view
         let cursorDate = getTodayMidnight();// anchor date for the visible period
         let selectedDate = localDateString();
@@ -468,11 +468,19 @@
             initSidebar(currentUser);
             setAvatarInitials(currentUser);
 
-            // Managers get an extra per-agent filter on top of the depot view.
-            if (isManager) document.getElementById('agentFilter').style.display = '';
-            // A user with no agent (super_admin) has no "my jobs" to show.
-            if (!currentUser.agent_id) {
-                document.querySelector('#scopeSeg button[data-scope="mine"]').style.display = 'none';
+            // The depot-wide view is an admin tool: technicians only ever see
+            // their own work (plus unassigned tasks), so they get no scope
+            // switch at all. Managers get both, and an extra per-agent filter.
+            if (isManager) {
+                document.getElementById('agentFilter').style.display = '';
+                // A user with no agent (super_admin) has no "my jobs" to show.
+                if (!currentUser.agent_id) {
+                    document.querySelector('#scopeSeg button[data-scope="mine"]').style.display = 'none';
+                    plannerScope = 'depot';
+                }
+            } else {
+                document.getElementById('scopeSeg').style.display = 'none';
+                plannerScope = 'mine';
             }
 
             document.getElementById('entryForm').addEventListener('submit', handleEntrySave);
@@ -510,8 +518,10 @@
                 if (!data) return;
                 selectedDate = data.planned_date;
                 cursorDate = parseLocalDate(data.planned_date);
-                // A depot-wide view always contains it; "mine" might not.
-                if (data.assigned_agent_id !== currentUser.agent_id) plannerScope = 'depot';
+                // "My Jobs" covers this agent's entries and unassigned tasks;
+                // anything else is only reachable from the depot view.
+                const inMyScope = !data.assigned_agent_id || data.assigned_agent_id === currentUser.agent_id;
+                if (!inMyScope && isManager) plannerScope = 'depot';
             } catch (err) {
                 console.error('Error resolving planner entry link:', err);
             }
@@ -625,10 +635,16 @@
         // DATA
         // ============================================
 
-        // The agent this view is pinned to, or null for the whole depot.
-        function activeAgent() {
-            if (plannerScope === 'mine') return currentUser.agent_id || null;
-            return agentFilter || null;
+        // Narrow a query to the current scope. "My Jobs" is this agent's own
+        // entries plus unassigned tasks — depot-wide chores that are nobody's
+        // and everybody's. Only a task may be unassigned (DB constraint), so a
+        // null agent is enough to match them.
+        function applyScope(query) {
+            query = query.eq('depot_id', currentDepotId);
+            if (plannerScope === 'mine' && currentUser.agent_id) {
+                return query.or(`assigned_agent_id.eq.${currentUser.agent_id},assigned_agent_id.is.null`);
+            }
+            return agentFilter ? query.eq('assigned_agent_id', agentFilter) : query;
         }
 
         async function refresh() {
@@ -653,13 +669,8 @@
 
         async function loadEntries() {
             const { from, to } = visibleRange();
-            const agent = activeAgent();
             const today = localDateString();
-
-            const scoped = (q) => {
-                q = q.eq('depot_id', currentDepotId);
-                return agent ? q.eq('assigned_agent_id', agent) : q;
-            };
+            const scoped = applyScope;
 
             const [inRange, overdue] = await Promise.all([
                 fetchAllRows(() => scoped(db.from('prefilled_jobs').select('*'))
@@ -1067,8 +1078,10 @@
         async function openEntryModal(entryId = null, dateStr = null) {
             const entry = entryId ? entryIndex[entryId] : null;
             if (entryId && !entry) { showAlert('That entry is no longer available.', 'warning'); return; }
+            // Never name the other agent — the entry may not even be one this
+            // user is allowed to read.
             if (entry && !canEdit(entry)) {
-                showAlert(`This entry belongs to agent ${escapeHTML(entry.assigned_agent_id)} and can only be changed by that agent or a manager.`, 'warning');
+                showAlert('This entry belongs to another agent and can only be changed by them or a manager.', 'warning');
                 return;
             }
             editingEntryId = entryId;

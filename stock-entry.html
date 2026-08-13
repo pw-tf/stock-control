@@ -1359,8 +1359,13 @@ async function handleClientChange() {
 
 async function prefillFromPrefilledJob(id) {
     try {
-        const { data: pj, error } = await db.from('prefilled_jobs').select('*').eq('id', id).single();
-        if (error || !pj) return;
+        const { data: pj, error } = await db.from('prefilled_jobs').select('*').eq('id', id).maybeSingle();
+        // A row outside this agent's scope simply doesn't come back — say so
+        // rather than leaving the link looking like it did nothing.
+        if (error || !pj) {
+            showAlert('That planned job is no longer available.', 'warning');
+            return;
+        }
         if (pj.is_completed) { showAlert('This planned job is already completed.', 'info'); return; }
         // Planner tasks carry no client/vendor/job number — they are ticked off
         // in the Planner, never through stock entry.
@@ -1368,7 +1373,7 @@ async function prefillFromPrefilledJob(id) {
         // The box is created under the logged-in user's agent, so only the
         // assigned agent may complete the job — guard against wrong-agent completion.
         if (pj.assigned_agent_id && pj.assigned_agent_id !== currentAgent) {
-            showAlert(`This planned job is assigned to agent ${escapeHTML(pj.assigned_agent_id)} and can only be completed by that agent.`, 'warning');
+            showAlert('This planned job is assigned to another agent and can only be completed by them.', 'warning');
             return;
         }
         prefilledJobId = pj.id;

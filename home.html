@@ -134,9 +134,9 @@
         let dailyJobListVendors = {};
         let dailyJobListEditId = null;
         let dailyJobListEditMode = false;
-        // 'depot' or 'mine' — every role starts depot-wide so the whole team's
-        // plan is visible, and can flick to their own list.
-        let dailyJobView = localStorage.getItem('upcoming_jobs_view') === 'mine' ? 'mine' : 'depot';
+        // 'mine' (own entries + unassigned tasks) or 'depot'. Everyone starts on
+        // their own list; only managers+ can switch to the depot-wide view.
+        let dailyJobView = localStorage.getItem('upcoming_jobs_view') === 'depot' ? 'depot' : 'mine';
         let dailyJobAgents = null; // cached depot agent IDs for the assign dropdown
         let dailyJobPage = 0;      // 0-based page in the Upcoming Jobs list
         let shiftTimer = null;
@@ -1851,12 +1851,19 @@
 
         async function renderDailyJobList(container, user) {
             const today = localDateString();
-            // Everyone starts depot-wide; a user with no agent has no "mine" to show.
-            const view = user.agent_id ? dailyJobView : 'depot';
+            // The depot-wide view is an admin tool. Technicians only see their
+            // own list; a user with no agent (super_admin) has no "mine".
+            const canSeeDepot = hasRole(user.role, ['manager', 'super_admin']);
+            const view = !canSeeDepot ? 'mine' : (user.agent_id ? dailyJobView : 'depot');
             const isDepotView = view === 'depot';
 
             let query = db.from('prefilled_jobs').select('*').eq('depot_id', user.depot_id);
-            if (!isDepotView) query = query.eq('assigned_agent_id', user.agent_id);
+            // "My Jobs" = this agent's entries plus unassigned tasks, which are
+            // depot-wide chores. Only tasks may be unassigned, so a null agent
+            // is enough to match them.
+            if (!isDepotView) {
+                query = query.or(`assigned_agent_id.eq.${user.agent_id},assigned_agent_id.is.null`);
+            }
             query = query
                 .order('planned_date', { ascending: true })
                 .order('sort_order', { ascending: true })
@@ -1919,29 +1926,31 @@
                 ? `<div class="widget-empty">Nothing booked in${isDepotView ? ' for this depot' : ''} — plan jobs in the Planner</div>`
                 : `<div class="widget-list">${groupsHTML}</div>${paginationHTML}`;
 
+            // Labels sit in spans so the narrow breakpoint can drop them and keep
+            // the whole action row on one line (see .dj-actions in styles.css)
             const editBtnLabel = dailyJobListEditMode
-                ? '<i data-lucide="check" width="14" height="14"></i> Done'
-                : '<i data-lucide="settings-2" width="14" height="14"></i> Edit';
+                ? '<i data-lucide="check" width="14" height="14"></i><span class="dj-btn-label">Done</span>'
+                : '<i data-lucide="settings-2" width="14" height="14"></i><span class="dj-btn-label">Edit</span>';
 
-            const toggleHTML = user.agent_id ? `
+            const toggleHTML = (canSeeDepot && user.agent_id) ? `
                 <div class="widget-view-toggle">
-                    <button class="${isDepotView ? 'active' : ''}" onclick="setDailyJobView('depot')">Depot</button>
                     <button class="${!isDepotView ? 'active' : ''}" onclick="setDailyJobView('mine')">My Jobs</button>
+                    <button class="${isDepotView ? 'active' : ''}" onclick="setDailyJobView('depot')">Depot</button>
                 </div>
             ` : '<span></span>';
 
             container.innerHTML = `
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:var(--spacing-sm);">
+                <div class="dj-head">
                     ${toggleHTML}
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <div class="dj-actions">
                         <a class="btn btn-ghost btn-sm" href="planner.html" title="Open the Planner">
-                            <i data-lucide="calendar-days" width="14" height="14"></i> Planner
+                            <i data-lucide="calendar-days" width="14" height="14"></i><span class="dj-btn-label">Planner</span>
                         </a>
-                        <button class="btn btn-ghost btn-sm" id="djEditToggleBtn" onclick="toggleDailyJobEditMode()">
+                        <button class="btn btn-ghost btn-sm" id="djEditToggleBtn" onclick="toggleDailyJobEditMode()" title="Edit list">
                             ${editBtnLabel}
                         </button>
-                        <button class="btn btn-primary btn-sm" onclick="openDailyJobModal()">
-                            <i data-lucide="plus" width="14" height="14"></i> Add Job
+                        <button class="btn btn-primary btn-sm" onclick="openDailyJobModal()" title="Add a planned job">
+                            <i data-lucide="plus" width="14" height="14"></i><span class="dj-btn-label">Add Job</span>
                         </button>
                     </div>
                 </div>
@@ -1994,10 +2003,11 @@
             const clientVendorHTML = clientVendor ? `<span class="widget-list-item-sub">${clientVendor}</span>` : '';
             const typeHTML  = typeLabel  ? `<span class="widget-list-item-sub">${escapeHTML(typeLabel)}</span>`  : '';
             const notesHTML = job.notes  ? `<span class="widget-list-item-sub">${escapeHTML(job.notes)}</span>`  : '';
-            const agentHTML = !isDepotView ? ''
-                : job.assigned_agent_id
-                    ? `<span class="widget-list-item-sub">Agent ${escapeHTML(job.assigned_agent_id)}</span>`
-                    : isTaskEntry ? '<span class="widget-list-item-sub">Unassigned</span>' : '';
+            // Whose entry it is only matters depot-wide, but an unassigned task
+            // is worth flagging in either view — it is a shared chore.
+            const agentHTML = job.assigned_agent_id
+                ? (isDepotView ? `<span class="widget-list-item-sub">Agent ${escapeHTML(job.assigned_agent_id)}</span>` : '')
+                : (isTaskEntry ? '<span class="widget-list-item-sub">Unassigned</span>' : '');
             const timeHTML = job.planned_time
                 ? `<span style="font-size:0.7rem; font-family:var(--font-mono); color:var(--text-muted); white-space:nowrap;">${escapeHTML(String(job.planned_time).slice(0, 5))}</span>`
                 : '';
@@ -2119,8 +2129,8 @@
             const toggleBtn = document.getElementById('djEditToggleBtn');
             if (toggleBtn) {
                 toggleBtn.innerHTML = dailyJobListEditMode
-                    ? '<i data-lucide="check" width="14" height="14"></i> Done'
-                    : '<i data-lucide="settings-2" width="14" height="14"></i> Edit';
+                    ? '<i data-lucide="check" width="14" height="14"></i><span class="dj-btn-label">Done</span>'
+                    : '<i data-lucide="settings-2" width="14" height="14"></i><span class="dj-btn-label">Edit</span>';
                 lucide.createIcons();
             }
         }
