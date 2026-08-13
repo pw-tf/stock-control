@@ -1983,8 +1983,10 @@
             const clientVendorHTML = clientVendor ? `<span class="widget-list-item-sub">${clientVendor}</span>` : '';
             const typeHTML  = typeLabel  ? `<span class="widget-list-item-sub">${escapeHTML(typeLabel)}</span>`  : '';
             const notesHTML = job.notes  ? `<span class="widget-list-item-sub">${escapeHTML(job.notes)}</span>`  : '';
-            const agentHTML = isDepotView && job.assigned_agent_id
-                ? `<span class="widget-list-item-sub">Agent ${escapeHTML(job.assigned_agent_id)}</span>` : '';
+            const agentHTML = !isDepotView ? ''
+                : job.assigned_agent_id
+                    ? `<span class="widget-list-item-sub">Agent ${escapeHTML(job.assigned_agent_id)}</span>`
+                    : isTaskEntry ? '<span class="widget-list-item-sub">Unassigned</span>' : '';
             const timeHTML = job.planned_time
                 ? `<span style="font-size:0.7rem; font-family:var(--font-mono); color:var(--text-muted); white-space:nowrap;">${escapeHTML(String(job.planned_time).slice(0, 5))}</span>`
                 : '';
@@ -1995,12 +1997,14 @@
             // A stock job is completed in stock-entry, which attaches the box to
             // the logged-in user's agent — so only the assignee can open it.
             const isOwnAgent = job.assigned_agent_id === currentUser.agent_id;
+            // An unassigned task is a depot-wide chore anyone can tick off.
+            const canTick = isOwnAgent || (isTaskEntry && !job.assigned_agent_id);
 
             if (job.is_completed) {
                 return `
-                    <div class="widget-list-item" style="opacity:0.45;">
-                        <i data-lucide="check-circle-2" width="18" height="18" style="color:var(--success); flex-shrink:0;"></i>
-                        <div class="widget-list-item-main" style="margin-left:8px; text-decoration:line-through;">
+                    <div class="widget-list-item" style="align-items:flex-start; opacity:0.45;">
+                        <i data-lucide="check-circle-2" width="18" height="18" style="color:var(--success); flex-shrink:0; margin-top:2px;"></i>
+                        <div class="widget-list-item-main" style="flex:1; margin-left:8px; text-decoration:line-through;">
                             <span class="widget-list-item-title">${escapeHTML(title)}${taskBadge}</span>
                             ${clientVendorHTML}
                             ${typeHTML}
@@ -2017,8 +2021,9 @@
             const upStyle   = isFirst ? 'opacity:0.25;' : '';
             const downStyle = isLast  ? 'opacity:0.25;' : '';
 
-            // Tasks are ticked off by their assignee; stock jobs by whoever works them.
-            const completeBtn = isOwnAgent
+            // Tasks are ticked off by their assignee (or anyone, when unassigned);
+            // stock jobs by whoever works them.
+            const completeBtn = canTick
                 ? `<button class="widget-ctrl-btn" title="Mark complete" style="color:var(--text-muted); padding:0; background:none; border:none; cursor:pointer; flex-shrink:0; margin-top:2px;"
                         onclick="markDailyJobComplete('${job.id}', null); event.stopPropagation();">
                         <i data-lucide="circle" width="18" height="18"></i>

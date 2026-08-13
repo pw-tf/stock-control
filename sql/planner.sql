@@ -75,6 +75,8 @@ CREATE INDEX IF NOT EXISTS prefilled_jobs_depot_agent_date_idx
 -- SELECT must be scoped to the caller's depot rather than to auth.uid().
 -- Writes stay narrower: technicians may only touch entries assigned to their own
 -- agent, managers and super_admins may touch anything in their depot.
+-- An unassigned task is the exception — it belongs to no one agent, so anyone in
+-- the depot may create it, tick it off, or clear it.
 
 ALTER TABLE public.prefilled_jobs ENABLE ROW LEVEL SECURITY;
 
@@ -100,6 +102,15 @@ AS $$ SELECT EXISTS (
         WHERE user_id = auth.uid() AND role IN ('manager', 'super_admin')
      ) $$;
 
+-- May the caller write this row? Managers: anything in their depot. Everyone
+-- else: their own agent's entries, plus unassigned tasks (depot-wide chores).
+CREATE OR REPLACE FUNCTION public.can_write_planner_entry(entry_agent text, entry_kind text)
+RETURNS boolean
+LANGUAGE sql STABLE
+AS $$ SELECT public.current_is_manager()
+          OR entry_agent = public.current_agent_id()
+          OR (entry_agent IS NULL AND entry_kind = 'task') $$;
+
 DROP POLICY IF EXISTS prefilled_jobs_select ON public.prefilled_jobs;
 CREATE POLICY prefilled_jobs_select ON public.prefilled_jobs
     FOR SELECT TO authenticated
@@ -111,7 +122,7 @@ CREATE POLICY prefilled_jobs_insert ON public.prefilled_jobs
     WITH CHECK (
         depot_id = public.current_depot_id()
         AND user_id = auth.uid()
-        AND (public.current_is_manager() OR assigned_agent_id = public.current_agent_id())
+        AND public.can_write_planner_entry(assigned_agent_id, entry_type)
     );
 
 DROP POLICY IF EXISTS prefilled_jobs_update ON public.prefilled_jobs;
@@ -119,11 +130,11 @@ CREATE POLICY prefilled_jobs_update ON public.prefilled_jobs
     FOR UPDATE TO authenticated
     USING (
         depot_id = public.current_depot_id()
-        AND (public.current_is_manager() OR assigned_agent_id = public.current_agent_id())
+        AND public.can_write_planner_entry(assigned_agent_id, entry_type)
     )
     WITH CHECK (
         depot_id = public.current_depot_id()
-        AND (public.current_is_manager() OR assigned_agent_id = public.current_agent_id())
+        AND public.can_write_planner_entry(assigned_agent_id, entry_type)
     );
 
 DROP POLICY IF EXISTS prefilled_jobs_delete ON public.prefilled_jobs;
@@ -131,5 +142,5 @@ CREATE POLICY prefilled_jobs_delete ON public.prefilled_jobs
     FOR DELETE TO authenticated
     USING (
         depot_id = public.current_depot_id()
-        AND (public.current_is_manager() OR assigned_agent_id = public.current_agent_id())
+        AND public.can_write_planner_entry(assigned_agent_id, entry_type)
     );

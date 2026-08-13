@@ -96,8 +96,8 @@ The primary work page for technicians.
 #### planner.html — Calendar Planner
 Calendar for booking work onto dates. Open to technicians, managers and super_admins (merchants bounce to home). Every entry is a `prefilled_jobs` row:
 
-- **Stock job** (`entry_type='job'`) — client, vendor, job type, job number. Completed through stock entry, exactly like the old planned jobs
-- **Task** (`entry_type='task'`) — a title and notes only, for work that needs no stock entry. Ticked off in the Planner or the home widget; never opens stock entry
+- **Stock job** (`entry_type='job'`) — client, vendor, job type, job number. Completed through stock entry, exactly like the old planned jobs. **Always needs an agent**, because stock entry opens the box under that agent
+- **Task** (`entry_type='task'`) — a title and notes only, for work that needs no stock entry. Ticked off in the Planner or the home widget; never opens stock entry. **The agent is optional**: an unassigned task is a depot-wide chore that anyone in the depot can edit, tick off or delete (technicians get the agent field for tasks purely so they can choose "Unassigned"). Unassigned entries only surface in the Depot scope — "My Jobs" means assigned to you
 
 **Views**: Month (whole weeks, chips per day capped at 3 + "+N more"), Week (7 day columns), Day (the day panel alone — the grid is hidden rather than repeating one cell). Prev / Next / Today navigate the current period.
 
@@ -109,13 +109,12 @@ Calendar for booking work onto dates. Open to technicians, managers and super_ad
 - Drag a chip onto another day to reschedule (desktop; touch uses the date field in the edit modal). Only entries you may edit are draggable
 - Click a chip to open the entry modal (create/edit/delete in one place: type, date, time, agent, job or task fields, notes)
 - An "Overdue & unfinished" card lists every open entry dated before today, each with a one-click "Move to today"
-- Summary strip counts jobs / tasks / completed in the visible period plus total overdue
 
-**Permissions** (UI mirror of the RLS policies in `sql/planner.sql`): managers and super_admins may edit anything in their depot; technicians only entries assigned to their own agent. Everyone can *see* the whole depot.
+**Permissions** (UI mirror of the RLS policies in `sql/planner.sql`): managers and super_admins may edit anything in their depot; technicians only entries assigned to their own agent, plus unassigned tasks. Everyone can *see* the whole depot.
 
 **Deep-link params**: `?date=YYYY-MM-DD` opens on that day, `?view=month|week|day` picks a view, `?entry=UUID` jumps to the entry's date and opens its modal (used by the home widget when editing a task).
 
-**Mobile**: month cells collapse to coloured dots (accent = job, amber = task, red = overdue, green = done) with the day panel as the working surface; week view stacks into one column; the toolbar and modal actions reflow full-width.
+**Mobile**: the toolbar card (`#plannerToolbar`) is hidden entirely — mobile works the grid and the day panel directly, so period navigation and the view/scope toggles are desktop-only. Month cells collapse to coloured dots (accent = job, amber = task, red = overdue, green = done), week view stacks into one column, and modal actions reflow full-width.
 
 #### inventory.html — Search & Browse
 - Filter by: agent, client, date range (quick filters or custom)
@@ -182,7 +181,7 @@ prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, entry_type ('job'|'tas
 user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidden (JSONB), widget_spans (JSONB), quick_links (JSONB), theme (text), theme_mode (text), updated_at
 ```
 
-**Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `user_widget_config` is scoped per user (RLS: auth.uid() = user_id). `prefilled_jobs` is **depot-scoped for reads** (the Planner and the Upcoming Jobs widget are depot-wide for every role) and agent-scoped for writes — technicians may only write entries assigned to their own agent, managers and super_admins anything in their depot.
+**Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `user_widget_config` is scoped per user (RLS: auth.uid() = user_id). `prefilled_jobs` is **depot-scoped for reads** (the Planner and the Upcoming Jobs widget are depot-wide for every role) and agent-scoped for writes — technicians may only write entries assigned to their own agent (plus unassigned tasks), managers and super_admins anything in their depot.
 
 **Migration**: `sql/planner.sql` adds the planner columns (`entry_type`, `title`, `planned_time`), relaxes `client_id`/`job_number` to nullable for tasks, adds shape/integrity constraints, indexes the date lookups, and installs the RLS policies above. Run it once in the Supabase SQL editor before deploying the Planner.
 
@@ -209,6 +208,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 - **Receipt requirements**: configurable per client per job type (swap-upgrade, install, deinstall) via `depot_clients` toggles
 - **Box auto-creation**: selecting a client checks for an open box for that agent+client; creates one if none exists
 - **Planner entries**: a `prefilled_jobs` row is either a stock job (needs client + job number) or a task (needs a title) — enforced by a DB check constraint as well as the UI. Tasks never reach stock entry and never carry a `completed_job_id`
+- **Unassigned tasks**: only tasks may have a null `assigned_agent_id`. Such an entry belongs to the depot, not an agent — anyone in the depot may write it (`can_write_planner_entry()` in `sql/planner.sql`). A stock job always carries an agent
 - **Planner scheduling**: `planned_date` is required and defaults to today; `planned_time` is optional and only orders entries within a day (timed first, then manual `sort_order`). Completed entries sink to the bottom of their day
 - **Who may change an entry**: the assigned agent, or any manager/super_admin in the depot. Only the assigned agent can complete a stock job through stock entry, because the box is opened under the logged-in user's agent
 - **Shift time multipliers**: Mon-Fri 1x, Sat 1.5x, Sun 2x — used in shift reports and CSV exports
