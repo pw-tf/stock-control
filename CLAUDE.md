@@ -53,7 +53,7 @@ Post-login landing page for all non-merchant roles. Displays a customisable widg
 |--------|-----|-------|------|
 | Quick Navigation | `quick-nav` | all | Static links to pages, role-aware. Plus user-defined custom links to external sites (http/https only, opened in a new tab) with a letter icon from the title's first character. Stored in localStorage (`home_quick_links`) and synced to `user_widget_config.quick_links` (JSONB); works device-locally if that column is missing |
 | Jobs Today | `today-jobs` | all | Own agent's jobs today — count, type breakdown, scrollable list (newest first), click to open in inventory |
-| Daily Job List | `daily-job-list` | all | Pre-planned jobs from `prefilled_jobs` table. Add/edit/delete jobs (client, vendor, job type, job number, notes). Up/down reordering. Incomplete jobs persist indefinitely until deleted or completed — jobs ≥24h old show an age label ("1 day old", "2 days old", etc.) near the action buttons. Click incomplete job → stock-entry.html?prefilled_job=UUID pre-fills the form. Completed jobs grey out at the bottom and only show for the day they were completed |
+| Upcoming Jobs | `daily-job-list` | all | Planner entries from `prefilled_jobs` — booked stock jobs *and* tasks. **Defaults to depot-wide for every role**, with a Depot / My Jobs toggle (remembered in localStorage `upcoming_jobs_view`; hidden for users with no agent). Grouped by date: "Overdue (n)" first, then Today / Tomorrow / weekday date. Lists up to 15 entries, then links the rest to the Planner. Add/edit/delete jobs inline (client, vendor, job type, job number, date, notes); editing a *task* hands off to `planner.html?entry=UUID`. Up/down reordering within a day, offered only in the My Jobs view (`sort_order` is per agent per day). Click an incomplete stock job assigned to your agent → `stock-entry.html?prefilled_job=UUID` pre-fills the form. Completed entries grey out at the bottom of their day and only show on the day they were completed. Widget id stays `daily-job-list` so saved layouts keep the card |
 | Open Boxes | `open-boxes` | all | Own open boxes count + jobs total. Dropdown filters by client (all) and agent (manager+). Each box clickable → inventory.html?box=ID |
 | Active Shift | `active-shift` | all (shifts_enabled) | Live elapsed timer for active shift, start time, start kms |
 | This Week | `week-stats` | all | Own completed shifts this week — shifts, hours, km, jobs |
@@ -86,12 +86,36 @@ The primary work page for technicians.
 - Optional receipt photo (if client requires it for that job type) — compressed to ~100KB JPEG
 - Optional custom timestamp
 - Validates no duplicate serials within depot
-- **Pre-fill via URL param**: `?prefilled_job=UUID` fetches a `prefilled_jobs` row and pre-selects client, vendor, job type, and job number. Shows a banner confirming pre-fill. On successful job submit, marks the `prefilled_jobs` row as completed (`is_completed=true`, `completed_job_id=job.id`)
+- **Pre-fill via URL param**: `?prefilled_job=UUID` fetches a `prefilled_jobs` row and pre-selects client, vendor, job type, and job number. Shows a banner confirming pre-fill. On successful job submit, marks the `prefilled_jobs` row as completed (`is_completed=true`, `completed_job_id=job.id`). Refuses rows that are already completed, assigned to another agent, or `entry_type='task'` (planner tasks are ticked off in the Planner)
 
 **Box management**:
 - Box ID format: `{agent}-{client_code}-{box_number}` (e.g., 804-AMT-001)
 - Auto-increments box_number per agent+client
 - "New Box" closes current box and creates next one
+
+#### planner.html — Calendar Planner
+Calendar for booking work onto dates. Open to technicians, managers and super_admins (merchants bounce to home). Every entry is a `prefilled_jobs` row:
+
+- **Stock job** (`entry_type='job'`) — client, vendor, job type, job number. Completed through stock entry, exactly like the old planned jobs
+- **Task** (`entry_type='task'`) — a title and notes only, for work that needs no stock entry. Ticked off in the Planner or the home widget; never opens stock entry
+
+**Views**: Month (whole weeks, chips per day capped at 3 + "+N more"), Week (7 day columns), Day (the day panel alone — the grid is hidden rather than repeating one cell). Prev / Next / Today navigate the current period.
+
+**Scope**: Depot-wide by default for every role; a Depot / My Jobs toggle pins it to the signed-in agent (hidden for users with no agent). Managers get an extra per-agent dropdown on top of the depot view (disabled in My Jobs scope).
+
+**Interaction**:
+- Click a day to select it → the day panel below lists that day's entries with full actions (open in stock entry, complete/reopen, edit, delete)
+- Double-click empty space in a day to book a new entry on it
+- Drag a chip onto another day to reschedule (desktop; touch uses the date field in the edit modal). Only entries you may edit are draggable
+- Click a chip to open the entry modal (create/edit/delete in one place: type, date, time, agent, job or task fields, notes)
+- An "Overdue & unfinished" card lists every open entry dated before today, each with a one-click "Move to today"
+- Summary strip counts jobs / tasks / completed in the visible period plus total overdue
+
+**Permissions** (UI mirror of the RLS policies in `sql/planner.sql`): managers and super_admins may edit anything in their depot; technicians only entries assigned to their own agent. Everyone can *see* the whole depot.
+
+**Deep-link params**: `?date=YYYY-MM-DD` opens on that day, `?view=month|week|day` picks a view, `?entry=UUID` jumps to the entry's date and opens its modal (used by the home widget when editing a task).
+
+**Mobile**: month cells collapse to coloured dots (accent = job, amber = task, red = overdue, green = done) with the day panel as the working surface; week view stacks into one column; the toolbar and modal actions reflow full-width.
 
 #### inventory.html — Search & Browse
 - Filter by: agent, client, date range (quick filters or custom)
@@ -154,11 +178,13 @@ depot_clients:    client_id + depot_id (composite PK), receipt_swap_upgrade_enab
 clients_vendors:  client_id + vendor_id + depot_id (composite PK)
 vendors:          vendor_id (PK)
 invitation_tokens: token (PK), email, depot_id, used, used_at, expires_at
-prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, client_id, vendor_id, job_type, job_number, notes, planned_date (date), assigned_agent_id, is_completed, completed_job_id (FK jobs.id bigint), sort_order (int), created_at
+prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, entry_type ('job'|'task'), title, client_id, vendor_id, job_type, job_number, notes, planned_date (date, NOT NULL), planned_time (time, nullable), assigned_agent_id, is_completed, completed_job_id (FK jobs.id bigint), sort_order (int), created_at
 user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidden (JSONB), widget_spans (JSONB), quick_links (JSONB), theme (text), theme_mode (text), updated_at
 ```
 
-**Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `prefilled_jobs` and `user_widget_config` are scoped per user (RLS: auth.uid() = user_id).
+**Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `user_widget_config` is scoped per user (RLS: auth.uid() = user_id). `prefilled_jobs` is **depot-scoped for reads** (the Planner and the Upcoming Jobs widget are depot-wide for every role) and agent-scoped for writes — technicians may only write entries assigned to their own agent, managers and super_admins anything in their depot.
+
+**Migration**: `sql/planner.sql` adds the planner columns (`entry_type`, `title`, `planned_time`), relaxes `client_id`/`job_number` to nullable for tasks, adds shape/integrity constraints, indexes the date lookups, and installs the RLS policies above. Run it once in the Supabase SQL editor before deploying the Planner.
 
 ---
 
@@ -167,7 +193,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 | File | Purpose | Key Exports |
 |------|---------|-------------|
 | **auth.js** | Supabase client init (`db` global), auth functions | `checkAuth()`, `getCurrentUser()`, `initAuth(requiredRoles)`, `logout()`, `hasRole()`, `restrictByRole()` |
-| **utils.js** | Shared utilities | `escapeHTML()`, `showAlert()`, `showLoading()`, `formatDateTime()`, `checkDuplicateSerials()` (throws on query failure — fail closed), `fetchAllRows()` (pages past Supabase's 1000-row cap), `formatBoxId()`, `downloadCSV()`, `escapeCSV()` (quotes + guards spreadsheet formula injection), `getTheme()`, `setTheme()`, `applyTheme()` |
+| **utils.js** | Shared utilities | `escapeHTML()`, `showAlert()`, `showLoading()`, `formatDateTime()`, `checkDuplicateSerials()` (throws on query failure — fail closed), `fetchAllRows()` (pages past Supabase's 1000-row cap), `formatBoxId()`, `downloadCSV()`, `escapeCSV()` (quotes + guards spreadsheet formula injection), `localDateString()` / `parseLocalDate()` / `addDays()` / `startOfWeek()` (calendar maths in the browser's timezone — never `toISOString()` for a date), `getTheme()`, `setTheme()`, `applyTheme()` |
 | **sidebar.js** | Navigation sidebar component | `initSidebar(user)`, `setActivePage()` — role-based menu items, mobile hamburger |
 | **icons.js** | Lucide icon initialization | Called after DOM updates to render `<i data-lucide="...">` elements |
 
@@ -182,6 +208,9 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 - **Nil swap**: entering the serial `nilswap` (exact string) on a swap-upgrade job submits the job with no serials — the sentinel is never saved as a serial and skips the duplicate check. Rejected on other job types
 - **Receipt requirements**: configurable per client per job type (swap-upgrade, install, deinstall) via `depot_clients` toggles
 - **Box auto-creation**: selecting a client checks for an open box for that agent+client; creates one if none exists
+- **Planner entries**: a `prefilled_jobs` row is either a stock job (needs client + job number) or a task (needs a title) — enforced by a DB check constraint as well as the UI. Tasks never reach stock entry and never carry a `completed_job_id`
+- **Planner scheduling**: `planned_date` is required and defaults to today; `planned_time` is optional and only orders entries within a day (timed first, then manual `sort_order`). Completed entries sink to the bottom of their day
+- **Who may change an entry**: the assigned agent, or any manager/super_admin in the depot. Only the assigned agent can complete a stock job through stock entry, because the box is opened under the logged-in user's agent
 - **Shift time multipliers**: Mon-Fri 1x, Sat 1.5x, Sun 2x — used in shift reports and CSV exports
 - **Image compression**: client-side canvas resize (max 1200px), iterative quality reduction until < 100KB, saved as JPEG to `job-receipts` Supabase storage bucket
 - **Stale shifts**: active shift from a previous day must be completed before starting a new one
@@ -213,6 +242,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 ├── pending.html             Awaiting agent assignment → home.html
 ├── guides.html              Merchant placeholder
 ├── home.html                Landing page + analytics widgets (post-login)
+├── planner.html             Calendar planner — book jobs + tasks (?date= ?view= ?entry=)
 ├── stock-entry.html         Stock entry + shifts (supports ?prefilled_job= param)
 ├── inventory.html           Search + browse + print (supports ?box= and ?job= params)
 ├── user.html                Profile + shift history + theme picker
@@ -221,9 +251,10 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 ├── manage-depots.html       Multi-depot admin (super_admin)
 ├── auth.js                  Supabase auth
 ├── utils.js                 Shared utilities + theme functions
-├── sidebar.js               Navigation (Home is first menu item)
+├── sidebar.js               Navigation (Workspace: Home, Planner, Stock Entry, Inventory)
 ├── icons.js                 Lucide icons
 ├── styles.css               Full design system + 9 theme variants
+├── sql/planner.sql          One-off migration: planner columns, constraints, RLS
 └── .htaccess                Apache routing + cache headers
 ```
 

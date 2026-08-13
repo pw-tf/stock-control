@@ -2463,6 +2463,33 @@ tr:hover td {
     overflow-y: auto;
 }
 
+/* Upcoming Jobs widget — date group headers and the task marker */
+.dj-group-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    padding: var(--spacing-sm) 2px var(--spacing-xs);
+}
+
+.dj-group-label:first-child { padding-top: 0; }
+
+.dj-group-label.overdue { color: var(--error); }
+
+.dj-badge {
+    margin-left: 6px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+    background: var(--accent-glow);
+    color: var(--accent-tertiary);
+    border-radius: 3px;
+    padding: 1px 5px;
+}
+
 /* Quick nav grid */
 .quick-nav-grid {
     display: grid;

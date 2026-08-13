@@ -1,6 +1,11 @@
 # Prevent directory browsing
 Options -Indexes
 
+# Never serve database migration scripts
+<FilesMatch "\.sql$">
+    Require all denied
+</FilesMatch>
+
 # Set the default handler to index.html
 DirectoryIndex index.html
 

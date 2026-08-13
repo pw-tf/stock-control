@@ -165,6 +165,57 @@ function getTodayMidnight() {
 }
 
 /**
+ * Local-timezone YYYY-MM-DD. Never use toISOString().split('T')[0] for a
+ * calendar date — that returns the UTC date, which is off by a day for part
+ * of the day in any non-UTC timezone.
+ * @param {Date} [date] - Defaults to now
+ * @returns {string} YYYY-MM-DD in the browser's timezone
+ */
+function localDateString(date = new Date()) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+/**
+ * Parse a YYYY-MM-DD date string as local midnight.
+ * `new Date('2026-08-13')` parses as UTC midnight, which lands on the previous
+ * day west of Greenwich — this keeps calendar maths in the browser's timezone.
+ * @param {string} str - YYYY-MM-DD
+ * @returns {Date} Local midnight on that date
+ */
+function parseLocalDate(str) {
+    const [y, m, d] = String(str).split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+}
+
+/**
+ * Add days to a date without mutating the input.
+ * @param {Date} date - Base date
+ * @param {number} days - Days to add (may be negative)
+ * @returns {Date} New date
+ */
+function addDays(date, days) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+/**
+ * Monday of the week containing the given date.
+ * @param {Date} [date] - Defaults to today
+ * @returns {Date} Monday at 00:00:00
+ */
+function startOfWeek(date = new Date()) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const day = d.getDay();
+    return addDays(d, day === 0 ? -6 : 1 - day);
+}
+
+/**
  * Check if two dates are on the same calendar day
  * @param {Date|string} date1 - First date
  * @param {Date|string} date2 - Second date
