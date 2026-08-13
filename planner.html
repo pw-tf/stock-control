@@ -39,6 +39,10 @@
         }
         .pl-nav-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
         .pl-period { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+        /* Mobile-only period stepper — the desktop toolbar carries the same
+           navigation, so this is hidden above the phone breakpoint. */
+        .pl-mnav { display: none; }
+
         .pl-seg {
             display: inline-flex; gap: 2px; background: var(--bg-tertiary);
             border: 1px solid var(--border-primary); border-radius: 6px; padding: 3px;
@@ -159,9 +163,24 @@
             .pl-grid.week .pl-day { min-height: 210px; }
         }
         @media (max-width: 720px) {
-            /* The toolbar is desktop-only; mobile works the calendar and the
-               day panel directly. */
+            /* The toolbar is desktop-only; mobile gets the compact stepper and
+               works the calendar and the day panel directly. */
             #plannerToolbar { display: none; }
+            .pl-mnav {
+                display: flex; align-items: center; gap: 6px;
+                background: var(--bg-secondary); border: 1px solid var(--border-primary);
+                border-radius: var(--radius); padding: 6px;
+                margin-bottom: var(--gap, 16px);
+            }
+            .pl-mnav .pl-nav-btn { width: 44px; height: 44px; flex-shrink: 0; }
+            .pl-mnav-label {
+                flex: 1; min-width: 0; padding: 10px 4px;
+                background: none; border: none; font-family: inherit;
+                font-size: 1rem; font-weight: 700; letter-spacing: -0.01em;
+                color: var(--text-primary); text-align: center; cursor: pointer;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            }
+            .pl-mnav-label:active { color: var(--accent-tertiary); }
 
             /* Month: compact cells with dots — chips are unreadable at this width */
             .pl-dow-row, .pl-grid { gap: 4px; }
@@ -220,6 +239,17 @@
                     New Entry
                 </button>
             </div>
+        </div>
+
+        <!-- MOBILE PERIOD NAV (the toolbar below is desktop-only) -->
+        <div class="pl-mnav fade-in d2" id="plannerMobileNav">
+            <button class="pl-nav-btn" onclick="navigatePeriod(-1)" aria-label="Previous month">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <button class="pl-mnav-label" id="mobilePeriodLabel" onclick="goToToday()" title="Jump to today">&nbsp;</button>
+            <button class="pl-nav-btn" onclick="navigatePeriod(1)" aria-label="Next month">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
         </div>
 
         <!-- TOOLBAR (hidden on mobile — see the .pl-bar rules in the stylesheet) -->
@@ -602,7 +632,9 @@
         }
 
         async function refresh() {
-            document.getElementById('periodLabel').textContent = periodLabel();
+            const label = periodLabel();
+            document.getElementById('periodLabel').textContent = label;
+            document.getElementById('mobilePeriodLabel').textContent = label;
             showLoading(true);
             try {
                 await loadEntries();

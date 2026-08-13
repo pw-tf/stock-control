@@ -138,6 +138,7 @@
         // plan is visible, and can flick to their own list.
         let dailyJobView = localStorage.getItem('upcoming_jobs_view') === 'mine' ? 'mine' : 'depot';
         let dailyJobAgents = null; // cached depot agent IDs for the assign dropdown
+        let dailyJobPage = 0;      // 0-based page in the Upcoming Jobs list
         let shiftTimer = null;
         let todayJobsView = 'mine'; // 'mine' or 'depot'
         let todayJobsPage = 0;
@@ -1845,7 +1846,8 @@
         // ============================================
 
         // How many entries the widget lists before deferring to the Planner
-        const UPCOMING_LIMIT = 15;
+        // Entries per page in the widget; the rest are paged through at the bottom
+        const UPCOMING_PAGE_SIZE = 10;
 
         async function renderDailyJobList(container, user) {
             const today = localDateString();
@@ -1871,8 +1873,16 @@
             dailyJobListCache = all;
 
             const groups = groupUpcoming(all, today);
-            const shown = all.slice(0, UPCOMING_LIMIT);
-            const overflow = all.length - shown.length;
+
+            // Page over the flat list, so a page break can fall inside a date
+            // group — each page still carries the headers it needs.
+            const total = all.length;
+            const lastPage = Math.max(0, Math.ceil(total / UPCOMING_PAGE_SIZE) - 1);
+            const page = Math.min(Math.max(dailyJobPage, 0), lastPage);
+            dailyJobPage = page;
+            const start = page * UPCOMING_PAGE_SIZE;
+            const end = Math.min(start + UPCOMING_PAGE_SIZE, total);
+            const shown = all.slice(start, end);
 
             const groupsHTML = groups.map(group => {
                 const items = group.items.filter(j => shown.includes(j));
@@ -1897,16 +1907,17 @@
                     ${rows}`;
             }).join('');
 
-            const listHTML = all.length === 0
+            const paginationHTML = total > UPCOMING_PAGE_SIZE ? `
+                <div class="widget-pagination">
+                    <button class="widget-pagination-btn" onclick="setDailyJobPage(${page - 1})" ${page === 0 ? 'disabled' : ''}>←</button>
+                    <span class="widget-pagination-label">${start + 1}–${end} of ${total}</span>
+                    <button class="widget-pagination-btn" onclick="setDailyJobPage(${page + 1})" ${end >= total ? 'disabled' : ''}>→</button>
+                </div>
+            ` : '';
+
+            const listHTML = total === 0
                 ? `<div class="widget-empty">Nothing booked in${isDepotView ? ' for this depot' : ''} — plan jobs in the Planner</div>`
-                : `<div class="widget-list">${groupsHTML}</div>` +
-                  (overflow > 0
-                    ? `<div style="text-align:center; padding-top:var(--spacing-sm);">
-                           <a href="planner.html" style="font-size:0.75rem; color:var(--accent-tertiary); text-decoration:none;">
-                               +${overflow} more in the Planner
-                           </a>
-                       </div>`
-                    : '');
+                : `<div class="widget-list">${groupsHTML}</div>${paginationHTML}`;
 
             const editBtnLabel = dailyJobListEditMode
                 ? '<i data-lucide="check" width="14" height="14"></i> Done'
@@ -2089,6 +2100,12 @@
             dailyJobView = view;
             localStorage.setItem('upcoming_jobs_view', view);
             dailyJobListEditMode = false;
+            dailyJobPage = 0;
+            _rerenderDailyJobList();
+        }
+
+        function setDailyJobPage(page) {
+            dailyJobPage = Math.max(0, page);
             _rerenderDailyJobList();
         }
 
