@@ -16,6 +16,13 @@
     <script src="sidebar.js"></script>
     <script src="utils.js"></script>
     <style>
+        /* Misc entries (leave, training, vehicle off the road) are deliberately
+           unsaturated: every saturated hue collides with one of the nine theme
+           accents, and "not work" should not compete with work for attention.
+           The diagonal hatch does the distinguishing that colour alone can't. */
+        :root { --pl-misc: #64748b; --pl-misc-soft: rgba(100, 116, 139, 0.14); }
+        [data-mode="dark"] { --pl-misc: #94a3b8; --pl-misc-soft: rgba(148, 163, 184, 0.16); }
+
         /* ---------- Card shell (mirrors analytics.html) ---------- */
         .card { margin-bottom: var(--gap, 16px); }
         .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -67,8 +74,47 @@
             text-align: center; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em;
             color: var(--text-muted); font-weight: 700;
         }
-        .pl-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-        .pl-grid.week { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+        /* The grid is a stack of week rows so a multi-day entry can be drawn as
+           one bar spanning columns. A grid item spanning n columns covers the
+           gaps between them, which is what makes the bar continuous. */
+        .pl-grid { display: flex; flex-direction: column; gap: 6px; }
+        .pl-week { position: relative; }
+        .pl-week-cells { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+        .pl-week-bars {
+            position: absolute; left: 0; right: 0; top: 32px;
+            display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+            column-gap: 6px; row-gap: 3px;
+            pointer-events: none;
+        }
+        .pl-bar {
+            grid-row: var(--lane);
+            display: flex; align-items: center; gap: 5px;
+            margin: 0 8px; padding: 2px 7px; min-width: 0; height: 19px;
+            border-radius: 4px; border: 1px solid var(--border-primary);
+            border-left: 3px solid var(--accent-tertiary);
+            background: var(--bg-secondary); color: var(--text-primary);
+            font-family: inherit; font-size: 0.68rem; font-weight: 600;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            cursor: pointer; pointer-events: auto; text-align: left;
+        }
+        .pl-bar:hover { background: var(--bg-hover); }
+        /* Square off the edge where the bar is cut by a week boundary, so it
+           reads as continuing rather than ending there. */
+        .pl-bar.clip-start { margin-left: 0; border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+        .pl-bar.clip-end { margin-right: 0; border-right-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+        .pl-bar.task { border-left-color: var(--warning); }
+        .pl-bar.overdue { border-left-color: var(--error); }
+        .pl-bar.done { opacity: 0.5; border-left-color: var(--success); text-decoration: line-through; }
+        .pl-bar.misc {
+            border-left-color: var(--pl-misc); color: var(--text-secondary);
+            background:
+                repeating-linear-gradient(135deg,
+                    var(--pl-misc-soft) 0 6px, transparent 6px 12px),
+                var(--bg-secondary);
+        }
+        .pl-bar.dragging { opacity: 0.4; }
+        /* Reserves the vertical band the bars are drawn over */
+        .pl-span-space { flex-shrink: 0; }
 
         .pl-day {
             display: flex; flex-direction: column; gap: 4px;
@@ -79,6 +125,9 @@
         }
         .pl-grid.week .pl-day { min-height: 300px; }
         .pl-day:hover { border-color: var(--border-secondary); }
+        /* Day heads are a fixed height so the absolutely-positioned bar layer
+           can sit at a known offset in every week row. */
+        .pl-day-head { height: 18px; }
         .pl-day.other-month { opacity: 0.5; }
         .pl-day.weekend { background: var(--bg-secondary); }
         .pl-day.today { border-color: var(--accent-tertiary); box-shadow: inset 0 0 0 1px var(--accent-tertiary); }
@@ -107,6 +156,13 @@
         .pl-chip .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
         .pl-chip .tm { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-muted); flex-shrink: 0; }
         .pl-chip.task { border-left-color: var(--warning); }
+        .pl-chip.misc {
+            border-left-color: var(--pl-misc); color: var(--text-secondary);
+            background:
+                repeating-linear-gradient(135deg,
+                    var(--pl-misc-soft) 0 6px, transparent 6px 12px),
+                var(--bg-secondary);
+        }
         .pl-chip.overdue { border-left-color: var(--error); }
         .pl-chip.done { opacity: 0.5; border-left-color: var(--success); }
         .pl-chip.done .t { text-decoration: line-through; }
@@ -115,6 +171,7 @@
         .pl-dots { display: none; flex-wrap: wrap; gap: 3px; }
         .pl-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-tertiary); }
         .pl-dot.task { background: var(--warning); }
+        .pl-dot.misc { background: var(--pl-misc); }
         .pl-dot.overdue { background: var(--error); }
         .pl-dot.done { background: var(--success); opacity: 0.6; }
 
@@ -126,6 +183,13 @@
         }
         .pl-entry + .pl-entry { margin-top: 8px; }
         .pl-entry.task { border-left-color: var(--warning); }
+        .pl-entry.misc {
+            border-left-color: var(--pl-misc);
+            background:
+                repeating-linear-gradient(135deg,
+                    var(--pl-misc-soft) 0 7px, transparent 7px 14px),
+                var(--bg-tertiary);
+        }
         .pl-entry.overdue { border-left-color: var(--error); }
         .pl-entry.done { border-left-color: var(--success); opacity: 0.6; }
         .pl-entry.done .pl-entry-title { text-decoration: line-through; }
@@ -140,6 +204,7 @@
         }
         .pl-tag.accent { background: var(--accent-glow); color: var(--accent-tertiary); border-color: transparent; }
         .pl-tag.danger { background: var(--error-bg); color: var(--error); border-color: transparent; }
+        .pl-tag.misc { background: var(--pl-misc-soft); color: var(--pl-misc); border-color: transparent; }
         .pl-entry-actions { display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
         .pl-act {
             width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
@@ -182,14 +247,19 @@
             }
             .pl-mnav-label:active { color: var(--accent-tertiary); }
 
-            /* Month: compact cells with dots — chips are unreadable at this width */
-            .pl-dow-row, .pl-grid { gap: 4px; }
+            /* Month: compact cells with dots — chips are unreadable at this
+               width, and so are spanning bars, so a ranged entry contributes a
+               dot to every day it covers instead. */
+            .pl-dow-row, .pl-grid, .pl-week-cells { gap: 4px; }
             .pl-grid.month .pl-day { min-height: 58px; padding: 5px 4px; gap: 3px; }
             .pl-grid.month .pl-chips, .pl-grid.month .pl-day-count { display: none; }
+            .pl-grid.month .pl-week-bars, .pl-grid.month .pl-span-space { display: none; }
             .pl-grid.month .pl-dots { display: flex; }
 
-            /* Week: stack into a single readable column */
-            .pl-grid.week { grid-template-columns: minmax(0, 1fr); }
+            /* Week: stack into a single readable column. Bars can't span a
+               single-column layout, so each day shows its own chip instead. */
+            .pl-grid.week .pl-week-cells { grid-template-columns: minmax(0, 1fr); }
+            .pl-grid.week .pl-week-bars, .pl-grid.week .pl-span-space { display: none; }
             .pl-grid.week .pl-day { min-height: 0; }
 
             .pl-entry { flex-wrap: wrap; }
@@ -341,6 +411,10 @@
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 12H3M16 6H3M16 18H3M18 9l3 3-3 3"/></svg>
                             Task
                         </button>
+                        <button class="type-pill" data-entry="misc" onclick="selectEntryKind('misc')" type="button">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="m9 14 2 2 4-4"/></svg>
+                            Misc
+                        </button>
                     </div>
                     <input type="hidden" id="peEntryType" value="job">
                     <span class="pl-hint" id="peTypeHint">A stock job is completed in Stock Entry and pre-fills the form.</span>
@@ -357,14 +431,19 @@
                     </div>
                 </div>
 
+                <div class="field" id="peEndDateGroup" style="display:none">
+                    <label for="peEndDate">Last day <span class="hint">optional — leave blank for a single day</span></label>
+                    <input type="date" id="peEndDate" class="input mono">
+                </div>
+
                 <div class="field" id="peAgentGroup" style="display:none">
                     <label for="peAgent">Assign to agent <span class="req" id="peAgentReq">*</span> <span class="hint" id="peAgentHint" style="display:none">optional for tasks</span></label>
                     <select id="peAgent" class="select"></select>
                 </div>
 
-                <!-- Task-only -->
+                <!-- Task / misc -->
                 <div class="field" id="peTaskFields" style="display:none">
-                    <label for="peTitle">Task <span class="req">*</span> <span class="hint">what needs doing</span></label>
+                    <label for="peTitle"><span id="peTitleLabel">Task</span> <span class="req">*</span> <span class="hint" id="peTitleHint">what needs doing</span></label>
                     <input type="text" id="peTitle" class="input" maxlength="120" placeholder="e.g. Collect faulty units from depot" autocomplete="off">
                 </div>
 
@@ -673,25 +752,38 @@
             const scoped = applyScope;
 
             const [inRange, overdue] = await Promise.all([
+                // A range overlaps the window when it starts on or before the
+                // last visible day and ends on or after the first. end_date is
+                // never before planned_date, so the second half of the overlap
+                // test is a flat OR rather than a coalesce.
                 fetchAllRows(() => scoped(db.from('prefilled_jobs').select('*'))
-                    .gte('planned_date', from)
                     .lte('planned_date', to)
+                    .or(`end_date.gte.${from},planned_date.gte.${from}`)
                     .order('planned_date', { ascending: true })
                     .order('sort_order', { ascending: true })
                     .order('created_at', { ascending: true })),
+                // Misc entries are markers, not work — they are never overdue.
                 fetchAllRows(() => scoped(db.from('prefilled_jobs').select('*'))
                     .lt('planned_date', today)
                     .eq('is_completed', false)
+                    .neq('entry_type', 'misc')
                     .order('planned_date', { ascending: true }))
             ]);
 
             entries = inRange;
-            overdueEntries = overdue;
+            // A multi-day entry is only late once its last day has passed.
+            overdueEntries = overdue.filter(e => entryEndDate(e) < today);
 
             entriesByDate = {};
             entryIndex = {};
             entries.forEach(e => {
-                (entriesByDate[e.planned_date] = entriesByDate[e.planned_date] || []).push(e);
+                // A ranged entry belongs to every day it covers, so the day
+                // panel, the dots and the counts all see it.
+                for (let d = parseLocalDate(e.planned_date); localDateString(d) <= entryEndDate(e); d = addDays(d, 1)) {
+                    const key = localDateString(d);
+                    if (key > to) break;
+                    if (key >= from) (entriesByDate[key] = entriesByDate[key] || []).push(e);
+                }
                 entryIndex[e.id] = e;
             });
             // Overdue rows already inside the visible range are the same objects.
@@ -714,26 +806,63 @@
             return entry.entry_type === 'task';
         }
 
-        function entryTitle(entry) {
-            return isTask(entry) ? (entry.title || 'Task') : (entry.job_number || 'Job');
+        // A non-work marker: leave, training, a vehicle off the road. It is
+        // never ticked off and never counts as overdue.
+        function isMisc(entry) {
+            return entry.entry_type === 'misc';
         }
 
+        function isJob(entry) {
+            return !isTask(entry) && !isMisc(entry);
+        }
+
+        // Last day the entry covers — its own date when there is no range.
+        function entryEndDate(entry) {
+            return entry.end_date && entry.end_date > entry.planned_date ? entry.end_date : entry.planned_date;
+        }
+
+        function spansDays(entry) {
+            return entryEndDate(entry) > entry.planned_date;
+        }
+
+        function entryTitle(entry) {
+            return isJob(entry) ? (entry.job_number || 'Job') : (entry.title || (isMisc(entry) ? 'Misc' : 'Task'));
+        }
+
+        // "12–16 Aug" for a range, empty for a single day.
+        function rangeLabel(entry) {
+            if (!spansDays(entry)) return '';
+            const start = parseLocalDate(entry.planned_date);
+            const end = parseLocalDate(entryEndDate(entry));
+            const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+            const startFmt = start.toLocaleDateString('en-AU', sameMonth ? { day: 'numeric' } : { day: 'numeric', month: 'short' });
+            const endFmt = end.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+            return `${startFmt}–${endFmt}`;
+        }
+
+        // Late only once the whole range has passed. A misc entry is a marker,
+        // not work, so it is never late — leave that ran last week is just over.
         function isOverdue(entry) {
-            return !entry.is_completed && entry.planned_date < localDateString();
+            return !isMisc(entry) && !entry.is_completed && entryEndDate(entry) < localDateString();
+        }
+
+        // Only jobs and tasks are ever ticked off.
+        function canComplete(entry) {
+            return !isMisc(entry);
         }
 
         // UI-side permission mirror of the RLS write policy in sql/planner.sql.
-        // An unassigned task is a depot-wide chore — anyone can pick it up.
+        // An unassigned task or misc entry is depot-wide — anyone can pick it up.
         function canEdit(entry) {
             if (isManager) return true;
-            if (!entry.assigned_agent_id) return isTask(entry);
+            if (!entry.assigned_agent_id) return !isJob(entry);
             return entry.assigned_agent_id === currentUser.agent_id;
         }
 
         // A planned job is completed in stock-entry, which opens the box under the
         // logged-in user's agent — so only the assignee can work it.
         function canWorkInStockEntry(entry) {
-            return !isTask(entry) && !entry.is_completed && entry.assigned_agent_id === currentUser.agent_id;
+            return isJob(entry) && !entry.is_completed && entry.assigned_agent_id === currentUser.agent_id;
         }
 
         function formatTime(t) {
@@ -769,11 +898,27 @@
                 dowRow.innerHTML = DOW.map(d => `<div class="pl-dow">${d}</div>`).join('');
             }
 
+            // Render week by week so a multi-day entry can be drawn as one bar
+            // spanning its columns, the way a wall calendar does it.
+            const dates = visibleDates();
+            const weeks = [];
+            for (let i = 0; i < dates.length; i += 7) weeks.push(dates.slice(i, i + 7));
+            grid.innerHTML = weeks.map(weekHTML).join('');
+        }
+
+        function weekHTML(week) {
             const todayStr = localDateString();
             const month = cursorDate.getMonth();
-            grid.innerHTML = visibleDates().map(date => {
+            const weekStart = localDateString(week[0]);
+            const weekEnd = localDateString(week[week.length - 1]);
+            const lanes = assignBarLanes(week);
+
+            const cells = week.map(date => {
                 const ds = localDateString(date);
+                // Single-day entries become chips in the cell; ranged ones are
+                // drawn once as a bar across the week, so they're excluded here.
                 const list = entriesByDate[ds] || [];
+                const chipList = list.filter(e => !spansDays(e));
                 const classes = ['pl-day'];
                 if (plannerView === 'month' && date.getMonth() !== month) classes.push('other-month');
                 if (date.getDay() === 0 || date.getDay() === 6) classes.push('weekend');
@@ -781,9 +926,10 @@
                 if (ds === selectedDate) classes.push('selected');
 
                 const showDow = plannerView !== 'month';
-                const chips = list.slice(0, plannerView === 'month' ? MAX_CHIPS : list.length).map(chipHTML).join('');
-                const more = plannerView === 'month' && list.length > MAX_CHIPS
-                    ? `<div class="pl-more">+${list.length - MAX_CHIPS} more</div>` : '';
+                const chips = chipList.slice(0, plannerView === 'month' ? MAX_CHIPS : chipList.length).map(chipHTML).join('');
+                const more = plannerView === 'month' && chipList.length > MAX_CHIPS
+                    ? `<div class="pl-more">+${chipList.length - MAX_CHIPS} more</div>` : '';
+                // Dots cover ranged entries too — mobile has no bar layer.
                 const dots = list.slice(0, 8).map(e => `<span class="pl-dot ${dotClass(e)}"></span>`).join('');
 
                 return `
@@ -793,10 +939,71 @@
                             ${showDow ? `<span class="pl-dow-inline">${DOW[(date.getDay() + 6) % 7]}</span>` : ''}
                             ${list.length ? `<span class="pl-day-count">${list.length}</span>` : ''}
                         </div>
+                        <div class="pl-span-space" style="height:${lanes.count * 22}px"></div>
                         <div class="pl-chips">${chips}${more}</div>
                         <div class="pl-dots">${dots}</div>
                     </div>`;
             }).join('');
+
+            const bars = lanes.bars.map(b => barHTML(b, weekStart, weekEnd)).join('');
+
+            return `
+                <div class="pl-week">
+                    <div class="pl-week-cells">${cells}</div>
+                    <div class="pl-week-bars">${bars}</div>
+                </div>`;
+        }
+
+        // Pack this week's ranged entries into lanes so overlapping ranges stack
+        // instead of covering each other.
+        function assignBarLanes(week) {
+            const weekStart = localDateString(week[0]);
+            const weekEnd = localDateString(week[week.length - 1]);
+
+            const seen = new Set();
+            const ranged = [];
+            week.forEach(date => {
+                (entriesByDate[localDateString(date)] || []).forEach(e => {
+                    if (!spansDays(e) || seen.has(e.id)) return;
+                    seen.add(e.id);
+                    ranged.push(e);
+                });
+            });
+            ranged.sort((a, b) => (a.planned_date < b.planned_date ? -1 : a.planned_date > b.planned_date ? 1 : 0));
+
+            const laneEnds = [];   // last column each lane is occupied through
+            const bars = ranged.map(entry => {
+                const startCol = Math.max(0, daysBetween(weekStart, entry.planned_date));
+                const endCol = Math.min(6, daysBetween(weekStart, entryEndDate(entry)));
+                let lane = laneEnds.findIndex(end => end < startCol);
+                if (lane === -1) { laneEnds.push(endCol); lane = laneEnds.length - 1; }
+                else laneEnds[lane] = endCol;
+                return { entry, startCol, endCol, lane };
+            });
+            return { bars, count: laneEnds.length };
+        }
+
+        function daysBetween(fromStr, toStr) {
+            return Math.round((parseLocalDate(toStr) - parseLocalDate(fromStr)) / 86400000);
+        }
+
+        function barHTML(bar, weekStart, weekEnd) {
+            const { entry, startCol, endCol, lane } = bar;
+            const classes = ['pl-bar'];
+            if (isMisc(entry)) classes.push('misc');
+            else if (isTask(entry)) classes.push('task');
+            if (entry.is_completed) classes.push('done');
+            else if (isOverdue(entry)) classes.push('overdue');
+            if (entry.planned_date < weekStart) classes.push('clip-start');
+            if (entryEndDate(entry) > weekEnd) classes.push('clip-end');
+
+            const label = `${entryTitle(entry)} · ${rangeLabel(entry)}`;
+            return `
+                <button type="button" class="${classes.join(' ')}" data-entry-id="${entry.id}"
+                        style="grid-column:${startCol + 1} / span ${endCol - startCol + 1}; --lane:${lane + 1}"
+                        ${canEdit(entry) ? 'draggable="true"' : ''} title="${escapeHTML(label)}">
+                    ${escapeHTML(entryTitle(entry))}
+                </button>`;
         }
 
         // Selection only moves a class — re-rendering the grid here would destroy
@@ -810,6 +1017,7 @@
         }
 
         function dotClass(entry) {
+            if (isMisc(entry)) return 'misc';
             if (entry.is_completed) return 'done';
             if (isOverdue(entry)) return 'overdue';
             return isTask(entry) ? 'task' : '';
@@ -817,10 +1025,11 @@
 
         function chipHTML(entry) {
             const classes = ['pl-chip'];
-            if (isTask(entry)) classes.push('task');
+            if (isMisc(entry)) classes.push('misc');
+            else if (isTask(entry)) classes.push('task');
             if (entry.is_completed) classes.push('done');
             else if (isOverdue(entry)) classes.push('overdue');
-            const sub = isTask(entry) ? '' : (entry.client_id || '');
+            const sub = isJob(entry) ? (entry.client_id || '') : '';
             const label = entryTitle(entry) + (sub ? ` · ${sub}` : '');
             return `
                 <button type="button" class="${classes.join(' ')}" data-entry-id="${entry.id}"
@@ -835,7 +1044,7 @@
             const grid = document.getElementById('calGrid');
 
             grid.addEventListener('click', (e) => {
-                const chip = e.target.closest('.pl-chip');
+                const chip = e.target.closest('.pl-chip, .pl-bar');
                 if (chip) {
                     e.stopPropagation();
                     openEntryModal(chip.dataset.entryId);
@@ -847,13 +1056,13 @@
 
             // Double-click an empty part of a day to book something on it.
             grid.addEventListener('dblclick', (e) => {
-                if (e.target.closest('.pl-chip')) return;
+                if (e.target.closest('.pl-chip, .pl-bar')) return;
                 const cell = e.target.closest('.pl-day');
                 if (cell) openEntryModal(null, cell.dataset.date);
             });
 
             grid.addEventListener('dragstart', (e) => {
-                const chip = e.target.closest('.pl-chip');
+                const chip = e.target.closest('.pl-chip, .pl-bar');
                 if (!chip) return;
                 dragEntryId = chip.dataset.entryId;
                 chip.classList.add('dragging');
@@ -863,7 +1072,7 @@
             });
 
             grid.addEventListener('dragend', (e) => {
-                const chip = e.target.closest('.pl-chip');
+                const chip = e.target.closest('.pl-chip, .pl-bar');
                 if (chip) chip.classList.remove('dragging');
                 document.querySelectorAll('.pl-day.drop-target').forEach(c => c.classList.remove('drop-target'));
                 dragEntryId = null;
@@ -913,23 +1122,24 @@
 
         function entryRowHTML(entry, opts = {}) {
             const classes = ['pl-entry'];
-            if (isTask(entry)) classes.push('task');
+            if (isMisc(entry)) classes.push('misc');
+            else if (isTask(entry)) classes.push('task');
             if (entry.is_completed) classes.push('done');
             else if (isOverdue(entry)) classes.push('overdue');
 
-            const subParts = isTask(entry)
-                ? []
-                : [entry.client_id, entry.vendor_id].filter(Boolean);
+            const subParts = isJob(entry) ? [entry.client_id, entry.vendor_id].filter(Boolean) : [];
             const sub = subParts.map(escapeHTML).join(' · ');
 
+            const kindLabel = isMisc(entry) ? 'Misc' : isTask(entry) ? 'Task' : 'Job';
             const tags = [];
+            if (spansDays(entry)) tags.push(`<span class="pl-tag accent">${escapeHTML(rangeLabel(entry))}</span>`);
             if (entry.planned_time) tags.push(`<span class="pl-tag accent">${escapeHTML(formatTime(entry.planned_time))}</span>`);
-            tags.push(`<span class="pl-tag">${isTask(entry) ? 'Task' : 'Job'}</span>`);
-            if (!isTask(entry) && entry.job_type) {
+            tags.push(`<span class="pl-tag${isMisc(entry) ? ' misc' : ''}">${kindLabel}</span>`);
+            if (isJob(entry) && entry.job_type) {
                 tags.push(`<span class="pl-tag">${escapeHTML(JOB_TYPE_LABELS[entry.job_type] || entry.job_type)}</span>`);
             }
             if (entry.assigned_agent_id) tags.push(`<span class="pl-tag">Agent ${escapeHTML(entry.assigned_agent_id)}</span>`);
-            else if (isTask(entry)) tags.push('<span class="pl-tag">Unassigned</span>');
+            else if (!isJob(entry)) tags.push('<span class="pl-tag">Unassigned</span>');
             if (opts.showDate) tags.push(`<span class="pl-tag danger">${escapeHTML(formatDayLabel(entry.planned_date))}</span>`);
             else if (isOverdue(entry)) tags.push('<span class="pl-tag danger">Overdue</span>');
 
@@ -940,8 +1150,10 @@
                     <i data-lucide="clipboard-check" width="15" height="15"></i></a>`);
             }
             if (editable) {
-                actions.push(`<button class="pl-act" title="${entry.is_completed ? 'Reopen' : 'Mark complete'}" onclick="toggleEntryComplete('${entry.id}')">
-                    <i data-lucide="${entry.is_completed ? 'rotate-ccw' : 'check'}" width="15" height="15"></i></button>`);
+                if (canComplete(entry)) {
+                    actions.push(`<button class="pl-act" title="${entry.is_completed ? 'Reopen' : 'Mark complete'}" onclick="toggleEntryComplete('${entry.id}')">
+                        <i data-lucide="${entry.is_completed ? 'rotate-ccw' : 'check'}" width="15" height="15"></i></button>`);
+                }
                 if (opts.showDate) {
                     actions.push(`<button class="pl-act" title="Move to today" onclick="rescheduleEntry('${entry.id}', '${localDateString()}')">
                         <i data-lucide="calendar-clock" width="15" height="15"></i></button>`);
@@ -1012,16 +1224,32 @@
             return depotClients;
         }
 
+        const KIND_HINTS = {
+            job:  'A stock job is completed in Stock Entry and pre-fills the form.',
+            task: 'A task is ticked off here — it never touches stock entry.',
+            misc: 'A marker for time that is not job work — leave, training, a vehicle off the road. Never completed, never overdue.'
+        };
+
         function selectEntryKind(kind) {
             document.getElementById('peEntryType').value = kind;
             document.querySelectorAll('#peTypePills .type-pill').forEach(p => {
                 p.classList.toggle('active', p.dataset.entry === kind);
             });
-            document.getElementById('peJobFields').style.display = kind === 'job' ? '' : 'none';
-            document.getElementById('peTaskFields').style.display = kind === 'task' ? '' : 'none';
-            document.getElementById('peTypeHint').textContent = kind === 'job'
-                ? 'A stock job is completed in Stock Entry and pre-fills the form.'
-                : 'A task is ticked off here — it never touches stock entry.';
+            const isJobKind = kind === 'job';
+            document.getElementById('peJobFields').style.display = isJobKind ? '' : 'none';
+            document.getElementById('peTaskFields').style.display = isJobKind ? 'none' : '';
+            // Only tasks and misc entries run across days — a job is worked on
+            // one day, under one box.
+            document.getElementById('peEndDateGroup').style.display = isJobKind ? 'none' : '';
+            if (isJobKind) document.getElementById('peEndDate').value = '';
+            document.getElementById('peTitleLabel').textContent = kind === 'misc' ? 'What' : 'Task';
+            document.getElementById('peTitleHint').textContent = kind === 'misc'
+                ? 'e.g. Annual leave, Training, Vehicle service'
+                : 'what needs doing';
+            document.getElementById('peTitle').placeholder = kind === 'misc'
+                ? 'e.g. Annual leave'
+                : 'e.g. Collect faulty units from depot';
+            document.getElementById('peTypeHint').textContent = KIND_HINTS[kind] || KIND_HINTS.job;
             renderAgentField(kind);
         }
 
@@ -1031,7 +1259,7 @@
         function renderAgentField(kind, preselect) {
             const group = document.getElementById('peAgentGroup');
             const sel = document.getElementById('peAgent');
-            const optional = kind === 'task';
+            const optional = kind !== 'job';
             const current = preselect !== undefined ? preselect : sel.value;
 
             sel.innerHTML = (optional ? '<option value="">Unassigned</option>' : '') +
@@ -1111,8 +1339,11 @@
             document.getElementById('peJobNumber').value = entry && entry.job_number ? entry.job_number : '';
             document.getElementById('peNotes').value = entry && entry.notes ? entry.notes : '';
             document.getElementById('peVendor').innerHTML = '<option value="">Select a client first…</option>';
-            const kind = entry && isTask(entry) ? 'task' : 'job';
+            const kind = entry ? (entry.entry_type || 'job') : 'job';
             selectEntryKind(kind);
+            // Blank unless the entry really runs across days, so the field reads
+            // as "same day" by default.
+            document.getElementById('peEndDate').value = entry && spansDays(entry) ? entryEndDate(entry) : '';
             renderAgentField(kind, entry ? (entry.assigned_agent_id || '') : (currentUser.agent_id || ''));
             selectEntryJobType(entry && entry.job_type ? entry.job_type : '', false);
             document.getElementById('peDeleteBtn').style.display = entry ? '' : 'none';
@@ -1144,17 +1375,27 @@
             const vendorId = document.getElementById('peVendor').value;
             const jobType = document.getElementById('peJobType').value;
             const jobNumber = document.getElementById('peJobNumber').value.trim();
+            const rawEndDate = document.getElementById('peEndDate').value;
 
             if (!plannedDate) { showAlert('Please pick a date', 'error'); return; }
-            if (kind === 'task' && !title) { showAlert('Please give the task a title', 'error'); return; }
+            if (kind !== 'job' && !title) {
+                showAlert(kind === 'misc' ? 'Please say what this is for' : 'Please give the task a title', 'error');
+                return;
+            }
             if (kind === 'job' && (!clientId || !jobNumber)) {
                 showAlert('Client and job number are required for a stock job', 'error');
                 return;
             }
+            if (rawEndDate && rawEndDate < plannedDate) {
+                showAlert('The last day cannot be before the start date', 'error');
+                return;
+            }
+            // Same-day is the default, and it is stored as no range at all.
+            const endDate = (kind !== 'job' && rawEndDate && rawEndDate > plannedDate) ? rawEndDate : null;
 
-            // The agent field is live for managers, and for tasks (where anyone
-            // may leave it unassigned). Otherwise the entry is the caller's own.
-            const assignedAgent = (isManager || kind === 'task')
+            // The agent field is live for managers, and for anything that may be
+            // left unassigned. Otherwise the entry is the caller's own.
+            const assignedAgent = (isManager || kind !== 'job')
                 ? (document.getElementById('peAgent').value || null)
                 : (currentUser.agent_id || null);
             if (kind === 'job' && !assignedAgent) {
@@ -1165,10 +1406,11 @@
             const payload = {
                 entry_type:        kind,
                 planned_date:      plannedDate,
+                end_date:          endDate,
                 planned_time:      plannedTime || null,
                 notes:             notes || null,
                 assigned_agent_id: assignedAgent,
-                title:             kind === 'task' ? title : null,
+                title:             kind === 'job' ? null : title,
                 client_id:         kind === 'job' ? clientId : null,
                 vendor_id:         kind === 'job' ? (vendorId || null) : null,
                 job_type:          kind === 'job' ? (jobType || null) : null,
@@ -1245,6 +1487,7 @@
         async function toggleEntryComplete(id) {
             const entry = entryIndex[id];
             if (!entry) return;
+            if (!canComplete(entry)) return;   // misc entries are markers, not work
             if (!canEdit(entry)) { showAlert('You cannot change another agent\'s entry.', 'warning'); return; }
             try {
                 const update = { is_completed: !entry.is_completed };
@@ -1264,8 +1507,14 @@
             if (!entry || entry.planned_date === dateStr) return;
             if (!canEdit(entry)) { showAlert('You cannot move another agent\'s entry.', 'warning'); return; }
             try {
+                const update = { planned_date: dateStr };
+                // Moving a range shifts it whole — the duration is the point of it.
+                if (spansDays(entry)) {
+                    const span = daysBetween(entry.planned_date, entryEndDate(entry));
+                    update.end_date = localDateString(addDays(parseLocalDate(dateStr), span));
+                }
                 const { error } = await db.from('prefilled_jobs')
-                    .update({ planned_date: dateStr })
+                    .update(update)
                     .eq('id', id);
                 if (error) throw error;
                 selectedDate = dateStr;

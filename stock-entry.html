@@ -1367,9 +1367,13 @@ async function prefillFromPrefilledJob(id) {
             return;
         }
         if (pj.is_completed) { showAlert('This planned job is already completed.', 'info'); return; }
-        // Planner tasks carry no client/vendor/job number — they are ticked off
-        // in the Planner, never through stock entry.
-        if (pj.entry_type === 'task') { showAlert('That planner entry is a task — tick it off in the Planner.', 'info'); return; }
+        // Only a stock job reaches stock entry. Tasks are ticked off in the
+        // Planner and misc entries are markers — neither carries a client or
+        // job number to pre-fill.
+        if (pj.entry_type && pj.entry_type !== 'job') {
+            showAlert(`That planner entry is a ${pj.entry_type === 'misc' ? 'misc marker' : 'task'} — open it in the Planner.`, 'info');
+            return;
+        }
         // The box is created under the logged-in user's agent, so only the
         // assigned agent may complete the job — guard against wrong-agent completion.
         if (pj.assigned_agent_id && pj.assigned_agent_id !== currentAgent) {
