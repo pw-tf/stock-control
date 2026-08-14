@@ -1857,7 +1857,11 @@
             const view = !canSeeDepot ? 'mine' : (user.agent_id ? dailyJobView : 'depot');
             const isDepotView = view === 'depot';
 
-            let query = db.from('prefilled_jobs').select('*').eq('depot_id', user.depot_id);
+            // Misc entries (leave, training) are calendar markers, not work to
+            // do — they belong on the Planner and nowhere near this list.
+            let query = db.from('prefilled_jobs').select('*')
+                .eq('depot_id', user.depot_id)
+                .neq('entry_type', 'misc');
             // "My Jobs" = this agent's entries plus unassigned tasks, which are
             // depot-wide chores. Only tasks may be unassigned, so a null agent
             // is enough to match them.
@@ -1970,9 +1974,27 @@
             return (a.sort_order || 0) - (b.sort_order || 0);
         }
 
-        // Overdue first, then one group per date going forward.
+        // Last day an entry covers — multi-day tasks carry an end_date.
+        function upcomingEndDate(job) {
+            return job.end_date && job.end_date > job.planned_date ? job.end_date : job.planned_date;
+        }
+
+        // "12–16 Aug" for a multi-day entry, empty for a single day.
+        function upcomingRangeLabel(job) {
+            const end = upcomingEndDate(job);
+            if (end === job.planned_date) return '';
+            const start = parseLocalDate(job.planned_date);
+            const endDate = parseLocalDate(end);
+            const sameMonth = start.getMonth() === endDate.getMonth() && start.getFullYear() === endDate.getFullYear();
+            const startFmt = start.toLocaleDateString('en-AU', sameMonth ? { day: 'numeric' } : { day: 'numeric', month: 'short' });
+            return `${startFmt}–${endDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`;
+        }
+
+        // Overdue first, then one group per date going forward. A multi-day entry
+        // is listed once, under the day it starts, and is only late once its last
+        // day has passed.
         function groupUpcoming(list, today) {
-            const overdue = list.filter(j => !j.is_completed && j.planned_date < today);
+            const overdue = list.filter(j => !j.is_completed && upcomingEndDate(j) < today);
             const groups = overdue.length
                 ? [{ key: 'overdue', label: `Overdue (${overdue.length})`, overdue: true, items: overdue }]
                 : [];
@@ -2003,6 +2025,8 @@
             const clientVendorHTML = clientVendor ? `<span class="widget-list-item-sub">${clientVendor}</span>` : '';
             const typeHTML  = typeLabel  ? `<span class="widget-list-item-sub">${escapeHTML(typeLabel)}</span>`  : '';
             const notesHTML = job.notes  ? `<span class="widget-list-item-sub">${escapeHTML(job.notes)}</span>`  : '';
+            const range = upcomingRangeLabel(job);
+            const rangeHTML = range ? `<span class="widget-list-item-sub">${escapeHTML(range)}</span>` : '';
             // Whose entry it is only matters depot-wide, but an unassigned task
             // is worth flagging in either view — it is a shared chore.
             const agentHTML = job.assigned_agent_id
@@ -2027,6 +2051,7 @@
                         <i data-lucide="check-circle-2" width="18" height="18" style="color:var(--success); flex-shrink:0; margin-top:2px;"></i>
                         <div class="widget-list-item-main" style="flex:1; margin-left:8px; text-decoration:line-through;">
                             <span class="widget-list-item-title">${escapeHTML(title)}${taskBadge}</span>
+                            ${rangeHTML}
                             ${clientVendorHTML}
                             ${typeHTML}
                             ${agentHTML}
@@ -2053,6 +2078,7 @@
 
             const mainContent = `
                         <span class="widget-list-item-title" style="white-space:normal;">${escapeHTML(title)}${taskBadge}</span>
+                        ${rangeHTML}
                         ${clientVendorHTML}
                         ${typeHTML}
                         ${agentHTML}
