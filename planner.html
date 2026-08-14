@@ -86,7 +86,7 @@
             column-gap: 6px; row-gap: 3px;
             pointer-events: none;
         }
-        .pl-bar {
+        .pl-spanbar {
             grid-row: var(--lane);
             display: flex; align-items: center; gap: 5px;
             margin: 0 8px; padding: 2px 7px; min-width: 0; height: 19px;
@@ -97,22 +97,22 @@
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             cursor: pointer; pointer-events: auto; text-align: left;
         }
-        .pl-bar:hover { background: var(--bg-hover); }
+        .pl-spanbar:hover { background: var(--bg-hover); }
         /* Square off the edge where the bar is cut by a week boundary, so it
            reads as continuing rather than ending there. */
-        .pl-bar.clip-start { margin-left: 0; border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
-        .pl-bar.clip-end { margin-right: 0; border-right-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-        .pl-bar.task { border-left-color: var(--warning); }
-        .pl-bar.overdue { border-left-color: var(--error); }
-        .pl-bar.done { opacity: 0.5; border-left-color: var(--success); text-decoration: line-through; }
-        .pl-bar.misc {
+        .pl-spanbar.clip-start { margin-left: 0; border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+        .pl-spanbar.clip-end { margin-right: 0; border-right-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+        .pl-spanbar.task { border-left-color: var(--warning); }
+        .pl-spanbar.overdue { border-left-color: var(--error); }
+        .pl-spanbar.done { opacity: 0.5; border-left-color: var(--success); text-decoration: line-through; }
+        .pl-spanbar.misc {
             border-left-color: var(--pl-misc); color: var(--text-secondary);
             background:
                 repeating-linear-gradient(135deg,
                     var(--pl-misc-soft) 0 6px, transparent 6px 12px),
                 var(--bg-secondary);
         }
-        .pl-bar.dragging { opacity: 0.4; }
+        .pl-spanbar.dragging { opacity: 0.4; }
         /* Reserves the vertical band the bars are drawn over */
         .pl-span-space { flex-shrink: 0; }
 
@@ -125,16 +125,15 @@
         }
         .pl-grid.week .pl-day { min-height: 300px; }
         .pl-day:hover { border-color: var(--border-secondary); }
-        /* Day heads are a fixed height so the absolutely-positioned bar layer
-           can sit at a known offset in every week row. */
-        .pl-day-head { height: 18px; }
         .pl-day.other-month { opacity: 0.5; }
         .pl-day.weekend { background: var(--bg-secondary); }
         .pl-day.today { border-color: var(--accent-tertiary); box-shadow: inset 0 0 0 1px var(--accent-tertiary); }
         .pl-day.selected { border-color: var(--accent-tertiary); background: var(--accent-glow); }
         .pl-day.drop-target { border-color: var(--accent-tertiary); background: var(--accent-glow); border-style: dashed; }
 
-        .pl-day-head { display: flex; align-items: baseline; gap: 6px; }
+        /* Fixed height so the absolutely-positioned bar layer can sit at a known
+           offset in every week row. */
+        .pl-day-head { display: flex; align-items: baseline; gap: 6px; height: 18px; }
         .pl-daynum { font-family: var(--font-mono); font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
         .pl-day.today .pl-daynum { color: var(--accent-tertiary); }
         .pl-dow-inline { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -322,7 +321,7 @@
             </button>
         </div>
 
-        <!-- TOOLBAR (hidden on mobile — see the .pl-bar rules in the stylesheet) -->
+        <!-- TOOLBAR (desktop only — hidden below 720px, where #plannerMobileNav takes over) -->
         <div class="card fade-in d2" id="plannerToolbar">
             <div class="pl-bar">
                 <div class="pl-nav">
@@ -989,7 +988,7 @@
 
         function barHTML(bar, weekStart, weekEnd) {
             const { entry, startCol, endCol, lane } = bar;
-            const classes = ['pl-bar'];
+            const classes = ['pl-spanbar'];
             if (isMisc(entry)) classes.push('misc');
             else if (isTask(entry)) classes.push('task');
             if (entry.is_completed) classes.push('done');
@@ -1044,7 +1043,7 @@
             const grid = document.getElementById('calGrid');
 
             grid.addEventListener('click', (e) => {
-                const chip = e.target.closest('.pl-chip, .pl-bar');
+                const chip = e.target.closest('.pl-chip, .pl-spanbar');
                 if (chip) {
                     e.stopPropagation();
                     openEntryModal(chip.dataset.entryId);
@@ -1056,13 +1055,13 @@
 
             // Double-click an empty part of a day to book something on it.
             grid.addEventListener('dblclick', (e) => {
-                if (e.target.closest('.pl-chip, .pl-bar')) return;
+                if (e.target.closest('.pl-chip, .pl-spanbar')) return;
                 const cell = e.target.closest('.pl-day');
                 if (cell) openEntryModal(null, cell.dataset.date);
             });
 
             grid.addEventListener('dragstart', (e) => {
-                const chip = e.target.closest('.pl-chip, .pl-bar');
+                const chip = e.target.closest('.pl-chip, .pl-spanbar');
                 if (!chip) return;
                 dragEntryId = chip.dataset.entryId;
                 chip.classList.add('dragging');
@@ -1072,7 +1071,7 @@
             });
 
             grid.addEventListener('dragend', (e) => {
-                const chip = e.target.closest('.pl-chip, .pl-bar');
+                const chip = e.target.closest('.pl-chip, .pl-spanbar');
                 if (chip) chip.classList.remove('dragging');
                 document.querySelectorAll('.pl-day.drop-target').forEach(c => c.classList.remove('drop-target'));
                 dragEntryId = null;
