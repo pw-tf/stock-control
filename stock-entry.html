@@ -1385,13 +1385,16 @@ async function prefillFromPrefilledJob(id) {
         const alertContainer = document.getElementById('alertContainer');
         const existing = document.getElementById('prefilledJobBanner');
         if (existing) existing.remove();
+        // One compact line: the label, then job · client · notes, truncated
+        // rather than wrapped — the form below is what matters on a phone.
         const banner = document.createElement('div');
         banner.id = 'prefilledJobBanner';
-        banner.className = 'help-box';
-        banner.innerHTML = `<p style="margin:0; display:flex; align-items:center; gap:8px;">
-            <i data-lucide="list-checks" width="16" height="16" style="color:var(--accent-primary); flex-shrink:0;"></i>
-            Pre-filled from planned job: <strong>${escapeHTML(pj.job_number)}</strong> &middot; ${escapeHTML(pj.client_id)}${pj.notes ? ' &middot; ' + escapeHTML(pj.notes) : ''}
-        </p>`;
+        banner.className = 'prefill-bar';
+        const detail = [pj.job_number, pj.client_id, pj.notes].filter(Boolean).map(escapeHTML).join(' &middot; ');
+        banner.innerHTML = `
+            <i data-lucide="list-checks" width="15" height="15"></i>
+            <span class="lbl">Pre-filled</span>
+            <span class="val">${detail}</span>`;
         alertContainer.after(banner);
         lucide.createIcons();
         const clientSelect = document.getElementById('clientSelect');

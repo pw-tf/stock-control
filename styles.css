@@ -2463,6 +2463,46 @@ tr:hover td {
     overflow-y: auto;
 }
 
+/* Pre-filled-from-planner strip (stock-entry). Deliberately one line at every
+   width: it is a note about where the form came from, not content in its own
+   right, so it truncates rather than pushing the form down the page. */
+.prefill-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 7px 12px;
+    margin-bottom: var(--gap, 16px);
+    background: var(--accent-glow);
+    border: 1px solid var(--border-primary);
+    border-left: 3px solid var(--accent-tertiary);
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    line-height: 1.3;
+}
+
+.prefill-bar > svg,
+.prefill-bar > i { color: var(--accent-tertiary); flex-shrink: 0; display: inline-flex; }
+
+.prefill-bar .lbl {
+    flex-shrink: 0;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+}
+
+.prefill-bar .val {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
 /* Upcoming Jobs widget — header row. The scope toggle may wrap above the
    actions, but the actions themselves always stay on one line: below 600px
    the ghost buttons drop their labels and become icon-only rather than
