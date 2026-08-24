@@ -18,11 +18,54 @@ DirectoryIndex index.html
     RewriteCond %{THE_REQUEST} ^[A-Z]{3,9}\ /index\.html\ HTTP/
     RewriteRule ^index\.html$ https://dev.mbsa.com.au/ [R=301,L]
 
-    # 2. (Optional) Force HTTPS
-    # Uncomment the following lines if your server doesn't do this automatically
-    # RewriteCond %{HTTPS} off
-    # RewriteRule ^(.*)$ https://dev.mbsa.com.au/$1 [R=301,L]
+    # 2. Force HTTPS. The app ships a Supabase key and carries a session token in
+    #    localStorage, so it must never be served over plaintext.
+    RewriteCond %{HTTPS} off
+    RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
 
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Security headers
+# ---------------------------------------------------------------------------
+<IfModule mod_headers.c>
+    # Content Security Policy.
+    #
+    # connect-src is the one that earns its keep: it pins outbound XHR/fetch to
+    # the app's own Supabase project, so injected script cannot post depot data
+    # to an attacker's host.
+    #
+    # 'unsafe-inline' is required for both script and style, and is not a
+    # tightening we can make today: the pages carry ~200 onclick attributes,
+    # ~275 style attributes and per-page inline <script> blocks (including the
+    # theme bootstrap in every <head>, which must run before the stylesheet to
+    # avoid a flash). Removing it means moving every handler to
+    # addEventListener and every inline style to a class first. Until then this
+    # CSP restricts *where code and data can come from and go to*, not whether
+    # inline script can run.
+    #
+    # blob: in img-src covers receipt images, which are fetched from private
+    # storage and shown via URL.createObjectURL.
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://lfydtctndrzzdyavmlva.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+
+    # Don't let the browser second-guess declared content types.
+    Header always set X-Content-Type-Options "nosniff"
+
+    # No framing — belt and braces alongside frame-ancestors above, for older
+    # browsers that don't honour it.
+    Header always set X-Frame-Options "DENY"
+
+    # Don't leak deep-link paths (which carry job and box ids) to other origins.
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Nothing here needs camera-adjacent APIs except the receipt capture input,
+    # which uses a file input rather than getUserMedia.
+    Header always set Permissions-Policy "geolocation=(), microphone=(), payment=(), usb=()"
+
+    # HSTS. Only takes effect over HTTPS. Start without preload so it can be
+    # backed out; add `preload` once you're confident every subdomain is HTTPS.
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
 </IfModule>
 
 # Cache static assets
