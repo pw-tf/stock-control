@@ -6,10 +6,15 @@
 -- uniqueness on serials: the insert fails with 23505 / HTTP 409 and the job is
 -- rolled back.
 --
--- Run this ONLY if adding a job with an existing serial still fails after the
--- client-side fix — i.e. the app reports "The database rejected a duplicate
--- value". A repeated serial *within one job* is collapsed by the app and does
--- not need this migration.
+-- APPLIED to the Serial Tracker project (lfydtctndrzzdyavmlva) on 2026-08-24 as
+-- migration 20260824013359_allow_duplicate_serials. It dropped two UNIQUE
+-- constraints that were both live:
+--   serials_serial_depot_unique  UNIQUE (serial_number, depot_id)
+--   unique_serial                UNIQUE (serial_number)
+-- The second was global rather than per-depot, so it had also been blocking the
+-- same serial from existing in two different depots — contrary to the
+-- documented per-depot scoping. Kept here as the record, and for any other
+-- environment that still needs it; the script is idempotent and safe to re-run.
 
 -- 1. Inspect first: what unique constraints/indexes exist on serials?
 --    (Run this on its own and read the output before running step 2.)

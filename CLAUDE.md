@@ -207,7 +207,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 
 ## Key Business Rules
 
-- **Duplicate serials**: checked per-depot scope. Same serial allowed in different depots. On stock entry a duplicate is a confirmable warning, not a hard stop — the tech confirms and the serial is saved; the inventory edit form still rejects duplicates outright. A serial repeated *within one job* (a doubled bulk line or scan) is collapsed before the insert — one batch cannot carry the same serial twice — and the success toast says how many lines were ignored. Logging a duplicate needs the database to allow it: if a unique index on `serials.serial_number` survives, the insert fails with 23505/409, the job rolls back and the app says so — run `sql/allow-duplicate-serials.sql` to drop it
+- **Duplicate serials**: checked per-depot scope. Same serial allowed in different depots. On stock entry a duplicate is a confirmable warning, not a hard stop — the tech confirms and the serial is saved; the inventory edit form still rejects duplicates outright. A serial repeated *within one job* (a doubled bulk line or scan) is collapsed before the insert — one batch cannot carry the same serial twice — and the success toast says how many lines were ignored. Logging a duplicate needs the database to allow it: `serials` carried two UNIQUE constraints (`(serial_number, depot_id)` and a global `(serial_number)`) that made the insert fail with 23505/409, and `sql/allow-duplicate-serials.sql` dropped both. The global one had also been blocking the same serial across two depots, contrary to the per-depot scoping above. If a unique index on `serial_number` is ever restored, the insert 409s, the job rolls back and the app says so
 - **Install jobs**: no serials required or accepted
 - **Nil swap**: entering the serial `nilswap` (exact string) on a swap-upgrade job submits the job with no serials — the sentinel is never saved as a serial and skips the duplicate check. Rejected on other job types
 - **Receipt requirements**: configurable per client per job type (swap-upgrade, install, deinstall) via `depot_clients` toggles
@@ -262,7 +262,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 ├── icons.js                 Lucide icons
 ├── styles.css               Full design system + 9 theme variants
 ├── sql/planner.sql          One-off migration: planner columns, constraints, RLS
-├── sql/allow-duplicate-serials.sql  One-off migration: drop the serials unique index
+├── sql/allow-duplicate-serials.sql  One-off migration: drop the serials unique constraints
 └── .htaccess                Apache routing + cache headers
 ```
 
