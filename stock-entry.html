@@ -1420,6 +1420,7 @@ async function handleAddJob() {
     if (!vendor || !jobNumber) { showAlert('Please fill in all required fields', 'error'); return; }
     let serials = [];
     let isNilSwap = false;
+    let repeatedInEntry = 0;
     if (currentJobType !== 'install') {
         if (bulkModeState) {
             const bulkText = document.getElementById('bulkSerials').value.trim();
@@ -1438,6 +1439,12 @@ async function handleAddJob() {
             isNilSwap = true;
             serials = serials.filter(s => s !== 'nilswap');
         }
+        // The same serial twice in one job is a repeated line or scan, not two units.
+        // Collapse it: the insert is one batch, so a repeat inside it trips the
+        // serials unique index (409) before any duplicate confirm can help.
+        const enteredCount = serials.length;
+        serials = [...new Set(serials)];
+        repeatedInEntry = enteredCount - serials.length;
         if (serials.length === 0 && !isNilSwap) { showAlert('Please enter at least one serial number', 'error'); return; }
         if (serials.length > 0) {
             let duplicates;
@@ -1499,7 +1506,8 @@ async function handleAddJob() {
             ? `✓ ${jobTypeLabel} job ${jobNumber} added`
             : isNilSwap && serials.length === 0
                 ? `✓ ${jobTypeLabel} job ${jobNumber} added (nil swap — no serials)`
-                : `✓ ${jobTypeLabel} job ${jobNumber} added with ${serials.length} serial(s)`;
+                : `✓ ${jobTypeLabel} job ${jobNumber} added with ${serials.length} serial(s)` +
+                  (repeatedInEntry > 0 ? ` (${repeatedInEntry} repeated line(s) ignored)` : '');
         showAlert(message, 'success');
         showSyncStatus('✓ Synced', 'synced');
         if (prefilledJobId) {
@@ -1512,7 +1520,14 @@ async function handleAddJob() {
         }
         clearJobForm();
     } catch (error) {
-        showAlert('Error saving job. Please try again.', 'error');
+        console.error('Error saving job:', error);
+        // 23505 = unique violation (PostgREST answers 409). The duplicate-serial
+        // confirm cannot override a unique index on serials — that needs the
+        // migration in sql/allow-duplicate-serials.sql.
+        const isUniqueViolation = error && (error.code === '23505' || error.status === 409);
+        showAlert(isUniqueViolation
+            ? 'The database rejected a duplicate value, so the job was not saved. A unique constraint on serials has to be removed before duplicates can be logged.'
+            : 'Error saving job. Please try again.', 'error');
         showSyncStatus('✕ Sync failed', 'error');
     } finally { showLoading(false); }
 }
