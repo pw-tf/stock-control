@@ -1352,7 +1352,12 @@ async function handleClientChange() {
         showSyncStatus('✓ Synced', 'synced');
         loadBoxesForAgent();
     } catch (error) {
-        showAlert('Error loading box. Please try again.', 'error');
+        // Box numbers are computed max+1 client-side, so two sessions for the same
+        // agent+client can pick the same one. The DB rejects the loser on
+        // UNIQUE (box_id) / UNIQUE (agent, client, box_number) — a retry succeeds.
+        showAlert(isUniqueViolation(error)
+            ? 'That box number was just taken by another session. Please try again.'
+            : 'Error loading box. Please try again.', 'error');
         showSyncStatus('✕ Sync failed', 'error');
     } finally { showLoading(false); }
 }
@@ -1491,13 +1496,14 @@ async function handleAddJob() {
                 if (serialError) throw serialError;
             }
         } catch (stepError) {
+            // Receipt first: the storage policy resolves the file's depot through
+            // its job row, so the job has to still exist for the delete to pass.
+            if (uploadedReceipt) {
+                const { error: rmError } = await db.storage.from('job-receipts').remove([uploadedReceipt]);
+                if (rmError) console.error('Receipt cleanup failed:', rmError);
+            }
             await db.from('serials').delete().eq('job_id', job.id);
             await db.from('jobs').delete().eq('id', job.id);
-            if (uploadedReceipt) {
-                db.storage.from('job-receipts').remove([uploadedReceipt])
-                    .then(({ error }) => { if (error) console.error('Receipt cleanup failed:', error); })
-                    .catch(err => console.error('Receipt cleanup failed:', err));
-            }
             throw stepError;
         }
         const jobTypeLabels = { 'swap-upgrade': 'Swap/Upgrade', 'install': 'Install', 'deinstall': 'Deinstall' };
@@ -1524,8 +1530,7 @@ async function handleAddJob() {
         // 23505 = unique violation (PostgREST answers 409). The duplicate-serial
         // confirm cannot override a unique index on serials — that needs the
         // migration in sql/allow-duplicate-serials.sql.
-        const isUniqueViolation = error && (error.code === '23505' || error.status === 409);
-        showAlert(isUniqueViolation
+        showAlert(isUniqueViolation(error)
             ? 'The database rejected a duplicate value, so the job was not saved. A unique constraint on serials has to be removed before duplicates can be logged.'
             : 'Error saving job. Please try again.', 'error');
         showSyncStatus('✕ Sync failed', 'error');
@@ -1556,7 +1561,9 @@ async function handleNewBox() {
         showAlert(`✓ New box started: ${currentBox.box_id}`, 'success');
         showSyncStatus('✓ Synced', 'synced');
     } catch (error) {
-        showAlert('Error starting new box. Please try again.', 'error');
+        showAlert(isUniqueViolation(error)
+            ? 'That box number was just taken by another session. Please try again.'
+            : 'Error starting new box. Please try again.', 'error');
         showSyncStatus('✕ Sync failed', 'error');
     } finally { showLoading(false); }
 }

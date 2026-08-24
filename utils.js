@@ -298,6 +298,17 @@ async function fetchAllRows(buildQuery, pageSize = 1000) {
 // ============================================
 
 /**
+ * Is this a Postgres unique-constraint violation?
+ * PostgREST reports 23505 as HTTP 409, and the shape of the error object
+ * differs between the SDK's query and storage paths, so check both.
+ * @param {object} error - Supabase error object
+ * @returns {boolean}
+ */
+function isUniqueViolation(error) {
+    return !!error && (error.code === '23505' || error.status === 409);
+}
+
+/**
  * Check for duplicate serial numbers in the database
  * @param {string[]} serials - Array of serial numbers to check
  * @param {number|null} excludeJobId - Optional job ID to exclude from check
