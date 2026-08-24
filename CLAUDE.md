@@ -85,7 +85,7 @@ The primary work page for technicians.
 - Enter serials (individual fields or bulk textarea toggle) — install jobs skip serials
 - Optional receipt photo (if client requires it for that job type) — compressed to ~100KB JPEG
 - Optional custom timestamp
-- Validates no duplicate serials within depot
+- Checks serials against the depot: an existing serial raises a confirm ("Duplicate serial found … are you sure you want to continue?") rather than blocking, so a duplicate can be logged deliberately. A failed lookup still blocks submission
 - **Pre-fill via URL param**: `?prefilled_job=UUID` fetches a `prefilled_jobs` row and pre-selects client, vendor, job type, and job number. Shows a banner confirming pre-fill. On successful job submit, marks the `prefilled_jobs` row as completed (`is_completed=true`, `completed_job_id=job.id`). Refuses rows that are already completed, assigned to another agent, or not `entry_type='job'` (tasks are ticked off in the Planner, misc entries are markers)
 
 **Box management**:
@@ -207,7 +207,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 
 ## Key Business Rules
 
-- **Duplicate serials**: checked per-depot scope. Same serial allowed in different depots
+- **Duplicate serials**: checked per-depot scope. Same serial allowed in different depots. On stock entry a duplicate is a confirmable warning, not a hard stop — the tech confirms and the serial is saved; the inventory edit form still rejects duplicates outright
 - **Install jobs**: no serials required or accepted
 - **Nil swap**: entering the serial `nilswap` (exact string) on a swap-upgrade job submits the job with no serials — the sentinel is never saved as a serial and skips the duplicate check. Rejected on other job types
 - **Receipt requirements**: configurable per client per job type (swap-upgrade, install, deinstall) via `depot_clients` toggles

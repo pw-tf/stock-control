@@ -1449,7 +1449,15 @@ async function handleAddJob() {
                 showAlert('Could not verify serials are unique. Please check your connection and try again.', 'error');
                 return;
             }
-            if (duplicates.length > 0) { showAlert(`Duplicate serials found: ${duplicates.join(', ')}`, 'warning'); return; }
+            // Duplicates are a warning, not a block — the same serial can legitimately
+            // come back through the depot, so confirm and let the tech decide.
+            const uniqueDuplicates = [...new Set(duplicates)];
+            if (uniqueDuplicates.length > 0) {
+                const one = uniqueDuplicates.length === 1;
+                const label = one ? 'Duplicate serial found' : 'Duplicate serials found';
+                const noun = one ? 'This serial already exists' : 'These serials already exist';
+                if (!confirm(`${label}: ${uniqueDuplicates.join(', ')}\n\n${noun} in the database. Are you sure you want to continue?`)) return;
+            }
         }
     }
     showLoading(true);
