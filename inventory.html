@@ -927,6 +927,20 @@
             }
         }
 
+        // A deep link to something outside this depot — either a stale link or a
+        // guessed id. Never says whose it is, only that it isn't reachable here.
+        function showDrawerNotFound(kind) {
+            document.getElementById('drawerTitle').textContent = 'Not found';
+            document.getElementById('drawerActions').innerHTML = '';
+            document.getElementById('drawerBody').innerHTML = `
+                <div style="padding:48px 24px;text-align:center;color:var(--text-muted)">
+                    <i data-lucide="search-x" width="32" height="32" style="opacity:0.5"></i>
+                    <p style="margin-top:12px">That ${escapeHTML(kind)} doesn't exist in this depot.</p>
+                </div>
+            `;
+            if (window.lucide) lucide.createIcons();
+        }
+
         async function openJobDrawer(jobId) {
             pushDrawerHistoryEntry();
             currentDrawerJobId = jobId;
@@ -934,13 +948,18 @@
             openDrawerShell('Job', '—');
 
             try {
+                // Scoped to the depot: job ids are sequential, so ?job=1..n would
+                // otherwise walk every job in the system. RLS blocks the rows too,
+                // but this turns that into a proper "not found" instead of a throw.
                 const [{ data: job, error: jobError }, { data: serials, error: serialsError }] = await Promise.all([
-                    db.from('jobs').select('*').eq('id', jobId).single(),
+                    db.from('jobs').select('*').eq('id', jobId).eq('depot_id', currentDepotId).maybeSingle(),
                     db.from('serials').select('serial_number').eq('job_id', jobId).order('created_at', { ascending: true })
                 ]);
                 if (jobError) throw jobError;
+                if (!job) { showDrawerNotFound('job'); return; }
 
-                const { data: box } = await db.from('boxes').select('*').eq('id', job.box_id).single();
+                const { data: box } = await db.from('boxes').select('*')
+                    .eq('id', job.box_id).eq('depot_id', currentDepotId).maybeSingle();
 
                 const canEdit = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.agent_id === box?.agent;
                 const owned = currentUser.agent_id === box?.agent;
@@ -1073,10 +1092,11 @@
 
             try {
                 const [{ data: box, error: boxError }, { data: jobs, error: jobsError }] = await Promise.all([
-                    db.from('boxes').select('*').eq('id', boxId).single(),
+                    db.from('boxes').select('*').eq('id', boxId).eq('depot_id', currentDepotId).maybeSingle(),
                     db.from('jobs').select('*').eq('box_id', boxId).order('created_at', { ascending: false })
                 ]);
                 if (boxError) throw boxError;
+                if (!box) { showDrawerNotFound('box'); return; }
 
                 const isOpen = box.status === 'open';
                 document.getElementById('drawerTitle').textContent = box.box_id;
@@ -1242,7 +1262,11 @@
                 if (lastSearchResults) searchJob();
             } catch (error) {
                 console.error('Error closing box:', error);
-                showAlert('Error closing box. Please try again.', 'error');
+                // Same max+1 race as the technician's New Box flow — the DB rejects
+                // the loser on the box unique constraints and a retry succeeds.
+                showAlert(isUniqueViolation(error)
+                    ? 'That box number was just taken by another session. Please try again.'
+                    : 'Error closing box. Please try again.', 'error');
                 showSyncStatus('✕ Sync failed', 'error');
             } finally {
                 showLoading(false);
@@ -1898,18 +1922,28 @@
                 // block the delete (best-effort — RLS may hide other users' rows)
                 await db.from('prefilled_jobs').update({ completed_job_id: null }).eq('completed_job_id', deleteJobId);
 
+                // Remove the receipt BEFORE the job row: the storage policy resolves
+                // the file's depot through its job, so deleting the job first would
+                // leave nothing to check against.
+                let receiptOrphaned = false;
+                if (jobRow?.receipt_url) {
+                    const { error: rmError } = await db.storage.from('job-receipts').remove([jobRow.receipt_url]);
+                    if (rmError) {
+                        console.error('Receipt cleanup failed:', rmError);
+                        receiptOrphaned = true;
+                    }
+                }
+
                 const { error: sErr } = await db.from('serials').delete().eq('job_id', deleteJobId);
                 if (sErr) throw sErr;
                 const { error: jErr } = await db.from('jobs').delete().eq('id', deleteJobId);
                 if (jErr) throw jErr;
 
-                // Remove the receipt file so it doesn't orphan in storage (best-effort)
-                if (jobRow?.receipt_url) {
-                    db.storage.from('job-receipts').remove([jobRow.receipt_url])
-                        .then(({ error }) => { if (error) console.error('Receipt cleanup failed:', error); })
-                        .catch(err => console.error('Receipt cleanup failed:', err));
+                if (receiptOrphaned) {
+                    showAlert('Job deleted, but its receipt image could not be removed from storage.', 'warning');
+                } else {
+                    showAlert('✓ Job deleted successfully', 'success');
                 }
-                showAlert('✓ Job deleted successfully', 'success');
                 showSyncStatus('✓ Deleted', 'synced');
                 closeDeleteJobModal();
                 closeDrawer();

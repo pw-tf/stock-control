@@ -221,7 +221,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Password</label>
-                    <input type="text" id="createUserPassword" class="form-input" required placeholder="Generic password" minlength="6">
+                    <input type="text" id="createUserPassword" class="form-input" required placeholder="Generic password" minlength="8">
                     <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px">User will be forced to change this on first login.</p>
                 </div>
                 <div class="form-group">
@@ -728,15 +728,17 @@
             const password = document.getElementById('createUserPassword').value;
             const role = document.getElementById('createUserRole').value;
             const agentId = document.getElementById('createUserAgent').value || null;
-            if (password.length < 6) { showAlert('Password must be at least 6 characters', 'error'); return; }
+            if (password.length < 8) { showAlert('Password must be at least 8 characters', 'error'); return; }
 
             const { data: { session: adminSession } } = await db.auth.getSession();
             if (!adminSession) { showAlert('Session expired. Please refresh the page.', 'error'); return; }
 
+            let authAccountCreated = false;
             try {
                 const { data: signUpData, error: signUpError } = await db.auth.signUp({ email, password });
                 if (signUpError) throw signUpError;
                 if (!signUpData.user) throw new Error('Failed to create user');
+                authAccountCreated = true;
                 const newUserId = signUpData.user.id;
                 await db.auth.signOut();
                 await db.auth.setSession({ access_token: adminSession.access_token, refresh_token: adminSession.refresh_token });
@@ -750,7 +752,15 @@
                 await loadDepots();
                 await refreshSystemStats();
             } catch (error) {
-                showAlert('Error creating user. Please try again.', 'error');
+                console.error('Error creating user:', error);
+                // If signUp() succeeded but the user_roles insert did not, the auth
+                // account survives with no role. It can sign in, but getCurrentUser()
+                // signs it straight back out — and this page never shows it, because
+                // the table it lists is user_roles. Say so explicitly: clearing it
+                // needs the Authentication section of the Supabase dashboard.
+                showAlert(authAccountCreated
+                    ? `Could not finish creating ${email} — a login was created without a role. Remove it under Authentication in the Supabase dashboard before retrying.`
+                    : 'Error creating user. Please try again.', 'error');
                 try {
                     await db.auth.signOut();
                     await db.auth.setSession({ access_token: adminSession.access_token, refresh_token: adminSession.refresh_token });

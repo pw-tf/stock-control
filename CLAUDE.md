@@ -28,7 +28,7 @@ A multi-tenant inventory management platform for field technicians who swap/inst
 | Page | Purpose |
 |------|---------|
 | **index.html** | Login. Routes merchants → guides.html, others → home.html. Forces password change if `must_change_password=true` |
-| **signup.html** | Token-based registration via `invitation_tokens` table. Creates user with role=technician, no agent |
+| **signup.html** | Token-based registration. **Currently broken** — it still reads `invitation_tokens` directly, and `anon` lost table access in `sql/rls-hardening.sql`. The replacement is server-side and already deployed: `validate_invitation_token(p_token)` to check a link, then `redeem_invitation_token(p_token)` to spend it and create the `user_roles` row in one statement, taking the depot from the token rather than the browser. Until signup.html calls those two RPCs, a new invitation link will not work |
 | **change-password.html** | Mandatory first-login password change |
 | **forgot-password.html** | Sends Supabase password reset email |
 | **reset-password.html** | Completes password reset from email link (listens for PASSWORD_RECOVERY event) |
@@ -63,7 +63,7 @@ Post-login landing page for all non-merchant roles. Displays a customisable widg
 | All Depots Overview | `all-depots` | super_admin | Table of all depots with user/agent/open box/jobs-today counts |
 | System Stats | `system-stats` | super_admin | System-wide totals: total users, open boxes, jobs today |
 
-**Deep-linking**: `inventory.html?box=UUID` auto-opens box detail. `inventory.html?job=UUID` auto-opens job detail. Both handled in inventory.html's DOMContentLoaded by reading `URLSearchParams`.
+**Deep-linking**: `inventory.html?box=ID` auto-opens box detail. `inventory.html?job=ID` auto-opens job detail. Both are bigints, both handled in inventory.html's DOMContentLoaded by reading `URLSearchParams`, and both are scoped to the caller's depot — an id from another depot renders "doesn't exist in this depot" rather than the record.
 
 **Open Boxes filtering**: Only shows boxes whose client still exists in `depot_clients` for the depot (prevents showing historically deleted clients).
 
@@ -125,13 +125,13 @@ Calendar for booking work onto dates. Open to technicians, managers and super_ad
 - Filter by: agent, client, date range (quick filters or custom)
 - Text search: job number or serial number (min 3 chars, supports * wildcards, uses SQL ILIKE)
 - Results grouped by: boxes, jobs, serials — each expandable
-- Actions: view/download receipt, edit job (manager or owning tech), delete job (manager or owning tech). Deleting a job also removes its receipt from storage and detaches any `prefilled_jobs.completed_job_id` reference
+- Actions: view/download receipt, edit job (manager or owning tech), delete job (manager or owning tech). Deleting a job detaches any `prefilled_jobs.completed_job_id` reference and removes its receipt from storage — the receipt is deleted *before* the job row, because the storage policy resolves a file's depot through its job. A receipt that cannot be removed is reported in the success toast rather than swallowed
 - **Close box on behalf** (manager/super_admin): box drawer has a "Close box" action for open boxes — closes the box and auto-opens the next box for the same agent+client (mirrors the technician's New Box flow, including the ≥1-job requirement)
 - Print: generates PDF with serials and CODE128 barcodes, uses `page-break-inside: avoid` on job sections
-- **Deep-link params**: `?box=UUID` auto-opens box detail view; `?job=UUID` auto-opens job detail modal on page load; `?shift=UUID` loads every job logged against that shift (plus their serials) as results, with a removable "Shift" filter chip and the shift's date/agent/time window in the page subtitle. Clearing the chip or running a new search drops the shift scope and strips the URL param
+- **Deep-link params** (all bigint ids, all depot-scoped): `?box=ID` auto-opens box detail view; `?job=ID` auto-opens job detail modal on page load; `?shift=ID` loads every job logged against that shift (plus their serials) as results, with a removable "Shift" filter chip and the shift's date/agent/time window in the page subtitle. Clearing the chip or running a new search drops the shift scope and strips the URL param
 
 #### user.html — Profile & Shift History
-- **Shift Reports tab**: date-filtered list of own shifts with summary stats (total shifts, hours, km, jobs). CSV export with dynamic client columns. Shift detail modal actions: Close, View jobs (→ `inventory.html?shift=UUID`), Copy
+- **Shift Reports tab**: date-filtered list of own shifts with summary stats (total shifts, hours, km, jobs). CSV export with dynamic client columns. Shift detail modal actions: Close, View jobs (→ `inventory.html?shift=ID`), Copy
 - **Settings tab**: view email/role/agent, change password, sign out
 - **Appearance card**: theme picker (themes: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand, Perry's Beach) × Dark/Light mode. Saved to localStorage (`theme`, `mode`) for instant flash-free apply, AND synced to `user_widget_config.theme` / `theme_mode` in Supabase for cross-device persistence. On every page load, `initAuth()` (in auth.js) fetches the saved values and updates localStorage + DOM if different. Applied site-wide via `data-theme` and `data-mode` attributes on `<html>`
 
@@ -147,7 +147,7 @@ Four tabs:
 #### shifts.html — Shift Reports (manager+)
 - Filter by technician and date range
 - Summary stats + shift cards with click-to-detail
-- Shift detail modal actions: Close, View jobs (→ `inventory.html?shift=UUID`), Copy, Edit
+- Shift detail modal actions: Close, View jobs (→ `inventory.html?shift=ID`), Copy, Edit
 - Edit any shift (end_time, end_kms, extra_jobs, notes)
 - Copy report text or download CSV
 
@@ -174,10 +174,11 @@ Four tabs:
 depots:           depot_id (PK), depot_name, created_at
 agents:           agent_id (PK, e.g. "804"), depot_id
 user_roles:       user_id (FK auth), email, role, agent_id, depot_id, shifts_enabled, must_change_password, created_at
-boxes:            id (UUID), box_id ("804-AMT-001"), agent, client, box_number, status (open/closed), depot_id, created_at, closed_at
+boxes:            id (bigint), box_id ("804-AMT-001"), agent, client, box_number, status (open/closed), depot_id, created_at, closed_at
 jobs:             id (bigint), job_number, vendor, job_type, box_id (FK), receipt_url, shift_id (FK), depot_id, created_at
-serials:          id (UUID), serial_number, job_id (FK), box_id (FK), depot_id, created_at
-shifts:           id (UUID), user_id, agent_id, start_time, end_time, start_kms, end_kms, extra_jobs, shift_notes, status (active/completed), depot_id
+serials:          id (bigint), serial_number, job_id (FK), box_id (FK), depot_id, created_at
+shifts:           id (bigint), user_id, agent_id, start_time, end_time, start_kms, end_kms, extra_jobs, shift_notes, status (active/completed), depot_id
+clients:          client_id (PK) — global registry of client names, shared across depots
 depot_clients:    client_id + depot_id (composite PK), receipt_swap_upgrade_enabled, receipt_install_enabled, receipt_deinstall_enabled
 clients_vendors:  client_id + vendor_id + depot_id (composite PK)
 vendors:          vendor_id (PK)
@@ -186,9 +187,9 @@ prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, entry_type ('job'|'tas
 user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidden (JSONB), widget_spans (JSONB), quick_links (JSONB), theme (text), theme_mode (text), updated_at
 ```
 
-**Key relationships**: All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `user_widget_config` is scoped per user (RLS: auth.uid() = user_id). `prefilled_jobs` is depot-scoped, then agent-scoped for reads *and* writes alike: managers and super_admins reach anything in their depot, technicians only entries assigned to their own agent plus unassigned tasks and misc entries (`can_write_planner_entry()`).
+**Key relationships**: `clients` and `vendors` are global catalogues; which of them a depot uses is decided by `depot_clients` and `clients_vendors`, both of which are depot-scoped. All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `user_widget_config` is scoped per user (RLS: auth.uid() = user_id). `prefilled_jobs` is depot-scoped, then agent-scoped for reads *and* writes alike: managers and super_admins reach anything in their depot, technicians only entries assigned to their own agent plus unassigned tasks and misc entries (`can_write_planner_entry()`).
 
-**Migration**: `sql/planner.sql` adds the planner columns (`entry_type`, `title`, `planned_time`, `end_date`), relaxes `client_id`/`job_number` to nullable for tasks, adds shape/integrity constraints, indexes the date lookups, and installs the RLS policies above. Run it once in the Supabase SQL editor before deploying the Planner.
+**Migrations**: `sql/rls-hardening.sql` installs the RLS model described under Security — run it before anything else if you are standing up a new environment. `sql/planner.sql` adds the planner columns (`entry_type`, `title`, `planned_time`, `end_date`), relaxes `client_id`/`job_number` to nullable for tasks, adds shape/integrity constraints, indexes the date lookups, and installs the RLS policies above. Run it once in the Supabase SQL editor before deploying the Planner.
 
 ---
 
@@ -197,7 +198,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 | File | Purpose | Key Exports |
 |------|---------|-------------|
 | **auth.js** | Supabase client init (`db` global), auth functions | `checkAuth()`, `getCurrentUser()`, `initAuth(requiredRoles)`, `logout()`, `hasRole()`, `restrictByRole()` |
-| **utils.js** | Shared utilities | `escapeHTML()`, `showAlert()`, `showLoading()`, `formatDateTime()`, `checkDuplicateSerials()` (throws on query failure — fail closed), `fetchAllRows()` (pages past Supabase's 1000-row cap), `formatBoxId()`, `downloadCSV()`, `escapeCSV()` (quotes + guards spreadsheet formula injection), `localDateString()` / `parseLocalDate()` / `addDays()` / `startOfWeek()` (calendar maths in the browser's timezone — never `toISOString()` for a date), `getTheme()`, `setTheme()`, `applyTheme()` |
+| **utils.js** | Shared utilities | `escapeHTML()`, `showAlert()`, `showLoading()`, `formatDateTime()`, `checkDuplicateSerials()` (throws on query failure — fail closed), `isUniqueViolation()` (23505 / HTTP 409, used for the serials and box-id races), `fetchAllRows()` (pages past Supabase's 1000-row cap), `formatBoxId()`, `downloadCSV()`, `escapeCSV()` (quotes + guards spreadsheet formula injection), `localDateString()` / `parseLocalDate()` / `addDays()` / `startOfWeek()` (calendar maths in the browser's timezone — never `toISOString()` for a date), `getTheme()`, `setTheme()`, `applyTheme()` |
 | **sidebar.js** | Navigation sidebar component | `initSidebar(user)`, `setActivePage()` — role-based menu items, mobile hamburger |
 | **icons.js** | Lucide icon initialization | Called after DOM updates to render `<i data-lucide="...">` elements |
 
@@ -263,6 +264,12 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 ├── styles.css               Full design system + 9 theme variants
 ├── sql/planner.sql          One-off migration: planner columns, constraints, RLS
 ├── sql/allow-duplicate-serials.sql  One-off migration: drop the serials unique constraints
+├── sql/rls-hardening.sql    One-off migration: depot/role RLS on every table, storage
+│                              policies, anon revoke, invitation-token RPCs
+├── sql/rls-hardening-rollback.sql   Restores the pre-hardening state (insecure —
+│                              escape hatch only)
+├── sql/indexes-and-fk-coverage.sql  FK covering indexes, and why the "unused"
+│                              indexes were left in place
 └── .htaccess                Apache routing + cache headers
 ```
 
@@ -272,9 +279,17 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 
 - **XSS prevention**: `escapeHTML()` applied to all database-sourced values in innerHTML templates
 - **Auth**: Supabase session-based, role enforced on page load via `initAuth()`
-- **Data isolation**: all queries scoped by `depot_id`
+- **Data isolation**: all queries scoped by `depot_id` in the client, and enforced again by RLS (below)
 - **File uploads**: image/* only, compressed client-side, sanitized filenames (`{timestamp}-{jobId}`)
 - **Error messages**: generic user-facing messages, detailed errors only in console.error()
 - **Passwords**: minimum 8 characters, forced change on first login
-- **RLS is the real enforcement boundary**: all role/ownership checks in the UI are advisory — with a public anon key, Supabase Row Level Security policies must enforce depot scoping and role permissions on every table (jobs, serials, boxes, shifts, prefilled_jobs, user_widget_config) and the `job-receipts` bucket
-- **Recommended DB constraint**: `UNIQUE (depot_id, box_id)` on `boxes` — box numbers are computed client-side (max+1), so concurrent sessions for the same agent+client can race; only a DB constraint fully prevents duplicate box IDs
+- **RLS is the real enforcement boundary**: every role and ownership check in the UI is advisory — the anon key is public, so the policies are what actually hold. `sql/rls-hardening.sql` installs them on every table and on the `job-receipts` bucket. The model is:
+  - **super_admin** — unrestricted across all depots
+  - **manager** — anything within their own `depot_id`
+  - **technician** — reads within their own depot; writes only rows under their own agent
+  Reads are depot-wide rather than agent-wide by design: the duplicate-serial check is per-depot, and inventory search offers every agent in the depot to technicians too. Ownership bites on writes, mirroring the `canEdit` checks in inventory.html.
+- **`anon` has no table access at all**: no grants, and no policy names it. The only things it may call are `validate_invitation_token()` and `redeem_invitation_token()`, which signup needs before a session exists
+- **Privileged columns**: only a super_admin may change `user_roles.role` or `user_roles.depot_id`. Managers may edit `agent_id`, `shifts_enabled` and `must_change_password` within their depot; any user may clear their own `must_change_password`. This is what stops a manager promoting themselves
+- **Helper functions are not RPC-exposed**: PostgREST publishes everything in `public` as `/rest/v1/rpc/<name>`, so the RLS helpers are `REVOKE`d from `anon` and granted to `authenticated` only — `authenticated` needs `EXECUTE` because policy expressions run as the querying role
+- **HTTP headers**: `.htaccess` sets CSP, HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy`, and forces HTTPS. The CSP still needs `'unsafe-inline'` for script and style (~200 `onclick` attributes, ~275 `style` attributes, and the per-page theme bootstrap); its real value is `connect-src`, which pins outbound requests to the app's own Supabase project
+- **Box ID uniqueness**: `boxes` carries `UNIQUE (box_id)` *and* `UNIQUE (agent, client, box_number)`. Box numbers are computed client-side (max+1), so concurrent sessions for the same agent+client do race — the database rejects the loser with 23505 and the UI asks the tech to retry

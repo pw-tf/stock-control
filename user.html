@@ -679,13 +679,13 @@
                 <form id="changePasswordForm" style="max-width:440px;display:flex;flex-direction:column;gap:6px" autocomplete="off">
                     <div class="field-new">
                         <label for="newPassword">New password</label>
-                        <input class="input-pw" type="password" id="newPassword" required minlength="6" placeholder="At least 6 characters">
+                        <input class="input-pw" type="password" id="newPassword" required minlength="8" placeholder="At least 8 characters">
                         <div class="strength-meter" id="strength" data-level="0"><span></span><span></span><span></span><span></span></div>
                         <div class="strength-label" id="strengthLabel">Enter a password to see strength</div>
                     </div>
                     <div class="field-new">
                         <label for="confirmPassword">Confirm new password</label>
-                        <input class="input-pw" type="password" id="confirmPassword" required minlength="6" placeholder="Re-enter new password">
+                        <input class="input-pw" type="password" id="confirmPassword" required minlength="8" placeholder="Re-enter new password">
                     </div>
                     <div style="display:flex;gap:8px;margin-top:6px">
                         <button type="submit" class="btn-new primary">Update password</button>
@@ -966,8 +966,8 @@
                 showAlert('Passwords do not match', 'error');
                 return;
             }
-            if (newPassword.length < 6) {
-                showAlert('Password must be at least 6 characters', 'error');
+            if (newPassword.length < 8) {
+                showAlert('Password must be at least 8 characters', 'error');
                 return;
             }
 
