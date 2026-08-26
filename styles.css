@@ -5558,6 +5558,68 @@ table.tbl td.num { font-family: var(--font-mono); font-variant-numeric: tabular-
   letter-spacing: 0.05em;
 }
 
+/* Bulk receipt download (Inventory > Advanced) */
+.inv-bulk {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-primary);
+}
+.inv-bulk-hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+.inv-bulk .textarea { min-height: 96px; }
+.inv-bulk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.inv-bulk-count {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+.inv-bulk-summary {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+/* Scoped names on purpose: a bare .row here would pick up the clickable
+   search-result card styling defined further down this file. */
+.inv-bulk-line { margin-bottom: 8px; }
+.inv-bulk-line:last-child { margin-bottom: 0; }
+.inv-bulk-line-head { display: flex; gap: 8px; align-items: baseline; }
+.inv-bulk-n {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  min-width: 2.5em;
+  text-align: right;
+}
+.inv-bulk-n.ok   { color: var(--success); }
+.inv-bulk-n.warn { color: var(--warning); }
+.inv-bulk-n.bad  { color: var(--error); }
+.inv-bulk-items {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  word-break: break-word;
+  user-select: all;
+  margin: 3px 0 0 calc(2.5em + 8px);
+}
+.inv-bulk-note { color: var(--text-secondary); }
+.inv-bulk-note.bad { color: var(--error); }
+
+
 /* Filters row (chips + date quick) */
 .filters-row {
   display: flex; align-items: center; gap: 8px;
