@@ -205,13 +205,18 @@
     <div id="printContent" style="display:none"></div>
 
     <!-- DRAWER OVERLAY -->
-    <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+    <div class="drawer-overlay" id="drawerOverlay" onclick="dismissDrawer()"></div>
 
     <!-- DETAIL DRAWER -->
     <div class="drawer" id="detailDrawer">
         <div class="drawer-head">
-            <button class="close" id="drawerClose" onclick="closeDrawer()">
+            <button class="close" id="drawerClose" onclick="closeDrawer()" aria-label="Close">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+            <!-- Only shown on a job that was opened from a box, so the close
+                 button keeps its position and this appears beside it. -->
+            <button class="close" id="drawerBack" onclick="drawerBack()" style="display:none">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
             </button>
             <div class="dtitle">
                 <div class="kind" id="drawerKind">—</div>
@@ -284,6 +289,10 @@
         let shiftContext = null;
         let drawerHasHistoryEntry = false;
         let closingFromPopstate = false;
+        // The box to peel back to when a job was opened from inside a box
+        // drawer. Null when the job was reached from the search results or a
+        // deep link, where there is nothing behind it.
+        let drawerReturnBoxId = null;
 
         // ============================================================
         // INIT
@@ -319,12 +328,18 @@
 
             window.addEventListener('popstate', () => {
                 const drawerOpen = document.getElementById('detailDrawer').classList.contains('open');
-                if (drawerOpen) {
-                    closingFromPopstate = true;
+                if (!drawerOpen) return;
+                // Viewing a job that came from a box: step back to the box and
+                // re-arm a history entry so the next back still closes cleanly.
+                if (drawerReturnBoxId) {
                     drawerHasHistoryEntry = false;
-                    closeDrawer();
-                    closingFromPopstate = false;
+                    openBoxDrawer(drawerReturnBoxId);
+                    return;
                 }
+                closingFromPopstate = true;
+                drawerHasHistoryEntry = false;
+                closeDrawer();
+                closingFromPopstate = false;
             });
 
             showLoading(false);
@@ -931,6 +946,9 @@
         }
 
         function closeDrawer() {
+            // Cleared before history.back() so the popstate this triggers takes
+            // the close path rather than peeling back to the box.
+            drawerReturnBoxId = null;
             if (drawerHasHistoryEntry && !closingFromPopstate) {
                 history.back();
                 return;
@@ -939,7 +957,33 @@
             document.getElementById('drawerOverlay').classList.remove('open');
             currentDrawerJobId = null;
             currentDrawerBoxId = null;
+            drawerReturnBoxId = null;
             drawerHasHistoryEntry = false;
+            setDrawerBackTarget(null);
+        }
+
+        // Step back to the box a job was opened from, rather than closing the
+        // whole drawer. Used by the back button, by clicking the overlay, and by
+        // the browser's own back — all three should peel one layer, not two.
+        function drawerBack() {
+            if (!drawerReturnBoxId) return closeDrawer();
+            openBoxDrawer(drawerReturnBoxId);
+        }
+
+        // Clicking away from the drawer: peel back to the box if there is one
+        // behind this job, otherwise close.
+        function dismissDrawer() {
+            if (drawerReturnBoxId) return drawerBack();
+            closeDrawer();
+        }
+
+        function setDrawerBackTarget(boxId, boxLabel) {
+            const btn = document.getElementById('drawerBack');
+            if (!btn) return;
+            btn.style.display = boxId ? '' : 'none';
+            const label = boxLabel ? `Back to box ${boxLabel}` : 'Back to box';
+            btn.title = label;
+            btn.setAttribute('aria-label', label);
         }
 
         function pushDrawerHistoryEntry() {
@@ -963,10 +1007,17 @@
             if (window.lucide) lucide.createIcons();
         }
 
-        async function openJobDrawer(jobId) {
+        // `keepReturn` is for re-opening the same job after an edit — the box we
+        // came from should survive the refresh. Otherwise the box currently in
+        // the drawer, if any, becomes what we peel back to: the only way to
+        // reach a job while a box is open is by clicking it in that box's list.
+        async function openJobDrawer(jobId, { keepReturn = false } = {}) {
+            const returnBoxId = keepReturn ? drawerReturnBoxId : currentDrawerBoxId;
             pushDrawerHistoryEntry();
             currentDrawerJobId = jobId;
             currentDrawerBoxId = null;
+            drawerReturnBoxId = returnBoxId;
+            setDrawerBackTarget(returnBoxId);
             openDrawerShell('Job', '—');
 
             try {
@@ -982,6 +1033,9 @@
 
                 const { data: box } = await db.from('boxes').select('*')
                     .eq('id', job.box_id).eq('depot_id', currentDepotId).maybeSingle();
+
+                // Now the box id string is known, name it on the back button.
+                if (returnBoxId) setDrawerBackTarget(returnBoxId, box?.box_id);
 
                 const canEdit = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.agent_id === box?.agent;
                 const owned = currentUser.agent_id === box?.agent;
@@ -1110,6 +1164,8 @@
             pushDrawerHistoryEntry();
             currentDrawerBoxId = boxId;
             currentDrawerJobId = null;
+            drawerReturnBoxId = null;   // a box is the bottom of the stack
+            setDrawerBackTarget(null);
             openDrawerShell('Box', '—');
 
             try {
@@ -1904,7 +1960,7 @@
                 showSyncStatus('✓ Saved', 'synced');
                 closeEditJobModal();
                 // Refresh drawer
-                if (currentDrawerJobId) openJobDrawer(currentDrawerJobId);
+                if (currentDrawerJobId) openJobDrawer(currentDrawerJobId, { keepReturn: true });
                 else if (currentDrawerBoxId) openBoxDrawer(currentDrawerBoxId);
                 // Re-run search to refresh results list
                 if (lastSearchResults) searchJob();
