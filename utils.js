@@ -257,16 +257,146 @@ function escapeCSV(value) {
  * @param {string} filename - Filename for download
  */
 function downloadCSV(content, filename) {
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    triggerDownload(new Blob([content], { type: 'text/csv;charset=utf-8;' }), filename);
+}
+
+/**
+ * Save a Blob to the user's downloads.
+ * @param {Blob} blob - The data to save
+ * @param {string} filename - Suggested filename
+ */
+function triggerDownload(blob, filename) {
     const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    // Revoked on a timer rather than immediately: Safari aborts the save if the
+    // object URL disappears before it has read it.
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// ============================================
+// ZIP (STORE)
+// ============================================
+
+/**
+ * CRC-32 as ZIP requires it (reflected, polynomial 0xEDB88320).
+ * Table built once on first use.
+ * @param {Uint8Array} bytes
+ * @returns {number} unsigned 32-bit checksum
+ */
+let _crcTable = null;
+function crc32(bytes) {
+    if (!_crcTable) {
+        _crcTable = new Uint32Array(256);
+        for (let i = 0; i < 256; i++) {
+            let c = i;
+            for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+            _crcTable[i] = c >>> 0;
+        }
+    }
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) {
+        crc = (crc >>> 8) ^ _crcTable[(crc ^ bytes[i]) & 0xFF];
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+/**
+ * Build a ZIP archive with no compression (STORE).
+ *
+ * STORE rather than DEFLATE on purpose: the only thing this packages is receipt
+ * JPEGs, which are already compressed client-side, so deflating them would buy
+ * about 1% for a large amount of code (or a third-party dependency on a page
+ * that deliberately has none).
+ *
+ * No ZIP64, so the caller must stay under 65,535 entries and 4GB total — both
+ * enforced here rather than left to produce a silently corrupt archive.
+ *
+ * @param {{name: string, data: Uint8Array}[]} files - Entries, in order
+ * @returns {Blob} application/zip
+ */
+function createZipBlob(files) {
+    if (files.length > 65535) throw new Error('Too many files for a ZIP archive');
+
+    const encoder = new TextEncoder();
+    const now = new Date();
+    // MS-DOS packed time/date: 2-second resolution, epoch 1980.
+    const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+
+    const entries = files.map(f => {
+        const nameBytes = encoder.encode(f.name);
+        return { nameBytes, data: f.data, crc: crc32(f.data), offset: 0 };
+    });
+
+    const total = entries.reduce((n, e) => n + 30 + e.nameBytes.length + e.data.length, 0);
+    if (total > 0xFFFFFFFF) throw new Error('Archive too large for a ZIP without ZIP64');
+
+    const chunks = [];
+    let offset = 0;
+
+    // Bit 11 marks the filename as UTF-8, which is what TextEncoder produced.
+    const FLAGS = 0x0800;
+
+    for (const e of entries) {
+        e.offset = offset;
+        const header = new DataView(new ArrayBuffer(30));
+        header.setUint32(0,  0x04034b50, true);   // local file header signature
+        header.setUint16(4,  20, true);           // version needed
+        header.setUint16(6,  FLAGS, true);
+        header.setUint16(8,  0, true);            // method: store
+        header.setUint16(10, dosTime, true);
+        header.setUint16(12, dosDate, true);
+        header.setUint32(14, e.crc, true);
+        header.setUint32(18, e.data.length, true); // compressed size
+        header.setUint32(22, e.data.length, true); // uncompressed size
+        header.setUint16(26, e.nameBytes.length, true);
+        header.setUint16(28, 0, true);            // extra field length
+        chunks.push(new Uint8Array(header.buffer), e.nameBytes, e.data);
+        offset += 30 + e.nameBytes.length + e.data.length;
+    }
+
+    const cdStart = offset;
+    for (const e of entries) {
+        const cd = new DataView(new ArrayBuffer(46));
+        cd.setUint32(0,  0x02014b50, true);       // central directory signature
+        cd.setUint16(4,  20, true);               // version made by
+        cd.setUint16(6,  20, true);               // version needed
+        cd.setUint16(8,  FLAGS, true);
+        cd.setUint16(10, 0, true);                // method: store
+        cd.setUint16(12, dosTime, true);
+        cd.setUint16(14, dosDate, true);
+        cd.setUint32(16, e.crc, true);
+        cd.setUint32(20, e.data.length, true);
+        cd.setUint32(24, e.data.length, true);
+        cd.setUint16(28, e.nameBytes.length, true);
+        cd.setUint16(30, 0, true);                // extra field length
+        cd.setUint16(32, 0, true);                // comment length
+        cd.setUint16(34, 0, true);                // disk number start
+        cd.setUint16(36, 0, true);                // internal attributes
+        cd.setUint32(38, 0, true);                // external attributes
+        cd.setUint32(42, e.offset, true);         // offset of local header
+        chunks.push(new Uint8Array(cd.buffer), e.nameBytes);
+        offset += 46 + e.nameBytes.length;
+    }
+
+    const eocd = new DataView(new ArrayBuffer(22));
+    eocd.setUint32(0,  0x06054b50, true);         // end of central directory
+    eocd.setUint16(4,  0, true);                  // this disk
+    eocd.setUint16(6,  0, true);                  // disk with central directory
+    eocd.setUint16(8,  entries.length, true);     // entries on this disk
+    eocd.setUint16(10, entries.length, true);     // entries total
+    eocd.setUint32(12, offset - cdStart, true);   // central directory size
+    eocd.setUint32(16, cdStart, true);            // central directory offset
+    eocd.setUint16(20, 0, true);                  // comment length
+    chunks.push(new Uint8Array(eocd.buffer));
+
+    return new Blob(chunks, { type: 'application/zip' });
 }
 
 // ============================================

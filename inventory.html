@@ -130,6 +130,28 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Bulk receipt download. Independent of the filters above: the
+                 pasted list is the whole scope. -->
+            <div class="inv-bulk">
+                <div class="inv-field">
+                    <label for="bulkReceiptNumbers">
+                        Bulk receipt download
+                        <span class="inv-bulk-hint">one job number per line — receipts are zipped together</span>
+                    </label>
+                    <textarea class="textarea mono" id="bulkReceiptNumbers" rows="5"
+                              placeholder="WO-03762400&#10;4625219&#10;20260100972"
+                              oninput="updateBulkReceiptCount()"></textarea>
+                </div>
+                <div class="inv-bulk-actions">
+                    <span class="inv-bulk-count" id="bulkReceiptCount">No job numbers entered</span>
+                    <button class="cmdbar-btn primary" id="bulkReceiptBtn" onclick="downloadBulkReceipts()" disabled>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                        Download receipts
+                    </button>
+                </div>
+                <div class="inv-bulk-summary" id="bulkReceiptSummary" style="display:none"></div>
+            </div>
         </div>
 
         <!-- FILTERS ROW -->
@@ -1960,14 +1982,16 @@
         // ============================================================
         // RECEIPTS
         // ============================================================
-        async function getReceiptBlob(filename) {
+        // `silent` is for the bulk path: forty failures should produce one
+        // summary, not forty toasts.
+        async function getReceiptBlob(filename, { silent = false } = {}) {
             try {
                 const { data, error } = await db.storage.from('job-receipts').download(filename);
                 if (error) throw error;
                 return data;
             } catch (error) {
                 console.error('Error downloading receipt:', error);
-                showAlert('Error loading receipt. Please try again.', 'error');
+                if (!silent) showAlert('Error loading receipt. Please try again.', 'error');
                 return null;
             }
         }
@@ -1989,12 +2013,206 @@
             showLoading(true);
             const blob = await getReceiptBlob(filename);
             showLoading(false);
-            if (blob) {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = filename; a.click();
-                setTimeout(() => URL.revokeObjectURL(url), 100);
+            if (blob) triggerDownload(blob, filename);
+        }
+
+        // ============================================================
+        // BULK RECEIPT DOWNLOAD
+        // ============================================================
+        // Paste job numbers, get one zip of every receipt that exists. The
+        // Agent/Client/date filters above deliberately do not apply — the
+        // pasted list is the whole scope, so a filter left set from an earlier
+        // search can't silently shrink the result.
+
+        const BULK_RECEIPT_MAX = 500;   // keeps the zip in memory a sane size
+        const BULK_LOOKUP_CHUNK = 100;  // job numbers per query, to bound URL length
+        const BULK_FETCH_CONCURRENCY = 5;
+        let bulkReceiptRunning = false;
+
+        // Accepts a pasted column, a comma list, or tab-separated cells.
+        function parseBulkJobNumbers(raw) {
+            const seen = new Map();  // lowercased -> first spelling entered
+            for (const part of String(raw).split(/[\n,\t;]+/)) {
+                const value = part.trim();
+                if (!value) continue;
+                const key = value.toLowerCase();
+                if (!seen.has(key)) seen.set(key, value);
             }
+            return [...seen.values()];
+        }
+
+        function updateBulkReceiptCount() {
+            const numbers = parseBulkJobNumbers(document.getElementById('bulkReceiptNumbers').value);
+            const label = document.getElementById('bulkReceiptCount');
+            const btn = document.getElementById('bulkReceiptBtn');
+            if (!numbers.length) {
+                label.textContent = 'No job numbers entered';
+            } else if (numbers.length > BULK_RECEIPT_MAX) {
+                label.textContent = `${numbers.length} job numbers — over the limit of ${BULK_RECEIPT_MAX}`;
+            } else {
+                label.textContent = `${numbers.length} job number${numbers.length === 1 ? '' : 's'}`;
+            }
+            btn.disabled = bulkReceiptRunning || !numbers.length || numbers.length > BULK_RECEIPT_MAX;
+        }
+
+        function setBulkSummary(html) {
+            const el = document.getElementById('bulkReceiptSummary');
+            el.innerHTML = html;
+            el.style.display = '';
+        }
+
+        function bulkSummaryRow(cls, n, label, items) {
+            if (!n) return '';
+            const list = items && items.length
+                ? `<div class="inv-bulk-items">${escapeHTML(items.join(', '))}</div>` : '';
+            return `<div class="inv-bulk-line">
+                        <div class="inv-bulk-line-head">
+                            <span class="inv-bulk-n ${cls}">${n}</span>
+                            <span>${escapeHTML(label)}</span>
+                        </div>${list}
+                    </div>`;
+        }
+
+        // Strip anything awkward in a filename; the job number is user-entered.
+        function safeFilePart(value) {
+            return String(value).replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'job';
+        }
+
+        async function downloadBulkReceipts() {
+            if (bulkReceiptRunning) return;
+            const numbers = parseBulkJobNumbers(document.getElementById('bulkReceiptNumbers').value);
+            if (!numbers.length || numbers.length > BULK_RECEIPT_MAX) return;
+
+            bulkReceiptRunning = true;
+            document.getElementById('bulkReceiptBtn').disabled = true;
+            setBulkSummary('<div class="inv-bulk-note">Looking up jobs…</div>');
+            showSyncStatus('Looking up jobs...', 'syncing');
+
+            try {
+                // Match exactly, but send each number's uppercase form too so a
+                // lowercased paste of an uppercase job number still resolves.
+                const wanted = new Map();  // lowercased -> as the user typed it
+                const probes = new Set();
+                for (const n of numbers) {
+                    wanted.set(n.toLowerCase(), n);
+                    probes.add(n);
+                    probes.add(n.toUpperCase());
+                }
+
+                const probeList = [...probes];
+                const jobsByNumber = new Map();  // lowercased -> [job, …]
+                for (let i = 0; i < probeList.length; i += BULK_LOOKUP_CHUNK) {
+                    const chunk = probeList.slice(i, i + BULK_LOOKUP_CHUNK);
+                    const { data, error } = await db.from('jobs')
+                        .select('id, job_number, receipt_url, created_at')
+                        .in('job_number', chunk)
+                        .eq('depot_id', currentDepotId);
+                    if (error) throw error;
+                    for (const job of data || []) {
+                        const key = String(job.job_number).toLowerCase();
+                        if (!wanted.has(key)) continue;           // uppercase probe hit something else
+                        if (!jobsByNumber.has(key)) jobsByNumber.set(key, []);
+                        const bucket = jobsByNumber.get(key);
+                        if (!bucket.some(j => j.id === job.id)) bucket.push(job);
+                    }
+                }
+
+                // Three outcomes per pasted number.
+                const notFound = [], noReceipt = [], toFetch = [];
+                for (const [key, typed] of wanted) {
+                    const jobs = jobsByNumber.get(key);
+                    if (!jobs || !jobs.length) { notFound.push(typed); continue; }
+                    const withReceipt = jobs.filter(j => j.receipt_url);
+                    if (!withReceipt.length) { noReceipt.push(typed); continue; }
+                    withReceipt.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+                    withReceipt.forEach((job, idx) => toFetch.push({
+                        typed, job,
+                        // Named from the stored job_number, not what was pasted, so
+                        // a lowercased paste still yields a correctly-cased file.
+                        // The same job number can legitimately cover several jobs
+                        // (DOA and friends), so only suffix once there is a clash.
+                        name: `${safeFilePart(job.job_number)}${withReceipt.length > 1 ? `-${idx + 1}` : ''}.jpg`
+                    }));
+                }
+
+                if (!toFetch.length) {
+                    setBulkSummary(
+                        bulkSummaryRow('warn', noReceipt.length, 'no receipt on file', noReceipt) +
+                        bulkSummaryRow('bad', notFound.length, 'not found in this depot', notFound) +
+                        '<div class="inv-bulk-note">Nothing to download.</div>');
+                    showSyncStatus('Nothing to download', 'error');
+                    return;
+                }
+
+                // Fetch with a small concurrency — enough to be quick, not enough
+                // to hammer storage with 400 parallel requests.
+                const files = [], failed = [];
+                let done = 0;
+                const queue = toFetch.slice();
+                async function worker() {
+                    for (;;) {
+                        const item = queue.shift();
+                        if (!item) return;
+                        const blob = await getReceiptBlob(item.job.receipt_url, { silent: true });
+                        done++;
+                        setBulkSummary(`<div class="inv-bulk-note">Fetching receipt ${done} of ${toFetch.length}…</div>`);
+                        if (!blob) { failed.push(item.typed); continue; }
+                        files.push({ name: item.name, data: new Uint8Array(await blob.arrayBuffer()) });
+                    }
+                }
+                await Promise.all(Array.from({ length: Math.min(BULK_FETCH_CONCURRENCY, queue.length) }, worker));
+
+                if (!files.length) {
+                    setBulkSummary(bulkSummaryRow('bad', failed.length, 'could not be downloaded', failed));
+                    showSyncStatus('✕ Download failed', 'error');
+                    return;
+                }
+
+                // Keep entry order stable regardless of which fetch finished first.
+                const order = new Map(toFetch.map((it, i) => [it.name, i]));
+                files.sort((a, b) => order.get(a.name) - order.get(b.name));
+
+                // Built before the manifest joins the list, so it describes the
+                // receipts rather than counting itself.
+                const stamp = localDateString();
+                const manifest = buildBulkManifest({ stamp, numbers, files, noReceipt, notFound, failed });
+                files.push({ name: '_manifest.txt', data: new TextEncoder().encode(manifest) });
+
+                triggerDownload(createZipBlob(files), `receipts-${stamp}.zip`);
+
+                setBulkSummary(
+                    bulkSummaryRow('ok', files.length - 1, 'receipts downloaded') +
+                    bulkSummaryRow('warn', noReceipt.length, 'no receipt on file', noReceipt) +
+                    bulkSummaryRow('bad', notFound.length, 'not found in this depot', notFound) +
+                    bulkSummaryRow('bad', failed.length, 'could not be downloaded', failed));
+                showSyncStatus('✓ Downloaded', 'synced');
+
+            } catch (error) {
+                console.error('Bulk receipt download failed:', error);
+                setBulkSummary('<div class="inv-bulk-note bad">Could not complete the download. Please try again.</div>');
+                showAlert('Error downloading receipts. Please try again.', 'error');
+                showSyncStatus('✕ Failed', 'error');
+            } finally {
+                bulkReceiptRunning = false;
+                updateBulkReceiptCount();
+            }
+        }
+
+        // Goes into the zip so the result is still readable once the summary on
+        // screen is gone.
+        function buildBulkManifest({ stamp, numbers, files, noReceipt, notFound, failed }) {
+            const section = (title, items) =>
+                items.length ? `${title} (${items.length})\n${items.map(v => `  ${v}`).join('\n')}` : null;
+            return [
+                [`Receipt export — ${stamp}`,
+                 `Depot: ${currentDepotId}`,
+                 `Job numbers requested: ${numbers.length}`,
+                 `Receipts included: ${files.length}`].join('\n'),
+                section('Downloaded', files.map(f => f.name)),
+                section('No receipt on file', noReceipt),
+                section('Not found in this depot', notFound),
+                section('Failed to download', failed),
+            ].filter(Boolean).join('\n\n') + '\n';
         }
 
     </script>
