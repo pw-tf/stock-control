@@ -8,8 +8,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
     <script>(function(){
-        var t=localStorage.getItem("theme")||"ocean";
-        var m=localStorage.getItem("mode")||"dark";
+        var T=["ocean","forest","sunset","slate","cherry","lavender","teal","sand","midnight","nord","indigo"];
+        var t=localStorage.getItem("theme");
+        if(T.indexOf(t)<0){t="ocean";localStorage.setItem("theme",t);}
+        var m=localStorage.getItem("mode");
+        if(m!=="dark"&&m!=="light"){m="dark";localStorage.setItem("mode",m);}
         var d=localStorage.getItem("density")||"comfortable";
         document.documentElement.setAttribute("data-theme",t);
         document.documentElement.setAttribute("data-mode",m);

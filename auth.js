@@ -10,6 +10,15 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Make db available globally for storage operations
 window.db = db;
 
+// Canonical theme ids — the CSS blocks in styles.css are the source of truth.
+// Lives here rather than utils.js because auth.js loads first on every page and is
+// the only shared script on guides.html. The inline <head> bootstrap on each page
+// carries its own copy; it has to run before any script file loads.
+const THEME_IDS = ['ocean', 'forest', 'sunset', 'slate', 'cherry', 'lavender', 'teal', 'sand', 'midnight', 'nord', 'indigo'];
+const THEME_MODES = ['dark', 'light'];
+const DEFAULT_THEME = 'ocean';
+const DEFAULT_MODE = 'dark';
+
 // Check if user is authenticated
 async function checkAuth() {
     const { data: { session } } = await db.auth.getSession();
@@ -147,11 +156,14 @@ async function initAuth(requiredRoles = null) {
         .maybeSingle()
         .then(({ data }) => {
             if (!data) return;
-            if (data.theme) {
+            // Ignore a retired or unknown id rather than letting it overwrite the
+            // working local value on every page load — it is corrected in the DB the
+            // next time the user picks a theme.
+            if (THEME_IDS.includes(data.theme)) {
                 localStorage.setItem('theme', data.theme);
                 document.documentElement.setAttribute('data-theme', data.theme);
             }
-            if (data.theme_mode) {
+            if (THEME_MODES.includes(data.theme_mode)) {
                 localStorage.setItem('mode', data.theme_mode);
                 document.documentElement.setAttribute('data-mode', data.theme_mode);
             }

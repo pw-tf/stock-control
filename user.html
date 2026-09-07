@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
-    <script>(function(){var t=localStorage.getItem("theme")||"ocean";var m=localStorage.getItem("mode")||"dark";var d=localStorage.getItem("density")||"comfortable";document.documentElement.setAttribute("data-theme",t);document.documentElement.setAttribute("data-mode",m);document.documentElement.setAttribute("data-density",d);})();</script>
+    <script>(function(){var T=["ocean","forest","sunset","slate","cherry","lavender","teal","sand","midnight","nord","indigo"];var t=localStorage.getItem("theme");if(T.indexOf(t)<0){t="ocean";localStorage.setItem("theme",t);}var m=localStorage.getItem("mode");if(m!=="dark"&&m!=="light"){m="dark";localStorage.setItem("mode",m);}var d=localStorage.getItem("density")||"comfortable";document.documentElement.setAttribute("data-theme",t);document.documentElement.setAttribute("data-mode",m);document.documentElement.setAttribute("data-density",d);})();</script>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/lucide@0.460.0"></script>
@@ -649,7 +649,7 @@
                 <div style="margin-bottom:18px">
                     <div style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
                         <span>Theme</span>
-                        <span style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">9 palettes</span>
+                        <span style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">11 palettes</span>
                     </div>
                     <div class="swatches" id="swatches"></div>
                 </div>
@@ -717,15 +717,17 @@
         let selectedShiftDetail = null;
 
         const THEMES = [
-            { id: 'ocean',        name: 'Ocean',        palette: ['#0c1417','#1c2936','#3d6b80','#5a8a9e','#f0f4f7'] },
-            { id: 'forest',       name: 'Forest',       palette: ['#0c1510','#1c3626','#3d8a5e','#5aaa7a','#f0f7f2'] },
-            { id: 'sunset',       name: 'Sunset',       palette: ['#1a1010','#382020','#d97757','#f0a487','#f7f0ec'] },
-            { id: 'slate',        name: 'Slate',        palette: ['#101418','#222a35','#64748b','#cbd5e1','#f1f5f9'] },
-            { id: 'cherry',       name: 'Cherry',       palette: ['#1a0c12','#382030','#c53670','#e87aa0','#fcecf3'] },
-            { id: 'lavender',     name: 'Lavender',     palette: ['#15101a','#2e2440','#8a6bb8','#bca5e0','#f0eaf7'] },
-            { id: 'teal',         name: 'Teal',         palette: ['#0a1416','#1c3336','#14b8a6','#5eead4','#ecfdfa'] },
-            { id: 'sand',         name: 'Sand',         palette: ['#181410','#3a3024','#b89968','#e8cea2','#f5efe4'] },
-            { id: 'perrys-beach', name: "Perry's Beach", palette: ['#1a1a2e','#FF6F69','#FFCC5C','#88D8B0','#F4F1DE'] },
+            { id: 'ocean',     name: 'Ocean',     palette: ['#0c1417','#1c2936','#3d6b80','#5a8a9e','#f0f4f7'] },
+            { id: 'forest',    name: 'Forest',    palette: ['#0c1510','#1c3626','#3d8a5e','#5aaa7a','#f0f7f2'] },
+            { id: 'sunset',    name: 'Sunset',    palette: ['#171010','#36221e','#c2410c','#ea580c','#f7f0ec'] },
+            { id: 'slate',     name: 'Slate',     palette: ['#121416','#282c30','#727d8c','#8e9aab','#e8eaed'] },
+            { id: 'cherry',    name: 'Cherry',    palette: ['#14090c','#321a22','#be185d','#ec4899','#f7f0f2'] },
+            { id: 'lavender',  name: 'Lavender',  palette: ['#100e16','#262236','#8568c8','#a388e0','#f2f0f7'] },
+            { id: 'teal',      name: 'Teal',      palette: ['#0a1314','#1a3032','#25aaa8','#40c8c4','#f0f7f7'] },
+            { id: 'sand',      name: 'Sand',      palette: ['#141210','#322c20','#a16207','#ca8a04','#f7f4f0'] },
+            { id: 'midnight',  name: 'Midnight',  palette: ['#0b0e13','#171c24','#2563eb','#3b82f6','#e8edf5'] },
+            { id: 'nord',      name: 'Nord',      palette: ['#242933','#3b4252','#52749d','#81a1c1','#eceff4'] },
+            { id: 'indigo',    name: 'Indigo',    palette: ['#16161e','#24283b','#3d59a1','#7aa2f7','#c0caf5'] },
         ];
 
         function saveThemeToSupabase(theme, mode) {
