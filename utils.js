@@ -43,14 +43,22 @@ function getAvatarInitials(input) {
 // THEME MANAGEMENT
 // ============================================
 
+// THEME_IDS / THEME_MODES / DEFAULT_THEME / DEFAULT_MODE come from auth.js, which
+// every page loads first. A retired or unknown id falls back to the default rather
+// than reaching the DOM, where it would match no CSS block and leave a "light" user
+// rendering in :root's dark colours.
 function getTheme() {
+    const theme = localStorage.getItem('theme');
+    const mode = localStorage.getItem('mode');
     return {
-        theme: localStorage.getItem('theme') || 'ocean',
-        mode: localStorage.getItem('mode') || 'dark'
+        theme: THEME_IDS.includes(theme) ? theme : DEFAULT_THEME,
+        mode: THEME_MODES.includes(mode) ? mode : DEFAULT_MODE
     };
 }
 
 function setTheme(theme, mode) {
+    if (!THEME_IDS.includes(theme)) theme = DEFAULT_THEME;
+    if (!THEME_MODES.includes(mode)) mode = DEFAULT_MODE;
     localStorage.setItem('theme', theme);
     localStorage.setItem('mode', mode);
     document.documentElement.setAttribute('data-theme', theme);

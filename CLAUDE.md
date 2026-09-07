@@ -135,7 +135,7 @@ Calendar for booking work onto dates. Open to technicians, managers and super_ad
 #### user.html — Profile & Shift History
 - **Shift Reports tab**: date-filtered list of own shifts with summary stats (total shifts, hours, km, jobs). CSV export with dynamic client columns. Shift detail modal actions: Close, View jobs (→ `inventory.html?shift=ID`), Copy
 - **Settings tab**: view email/role/agent, change password, sign out
-- **Appearance card**: theme picker (themes: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand, Perry's Beach) × Dark/Light mode. Saved to localStorage (`theme`, `mode`) for instant flash-free apply, AND synced to `user_widget_config.theme` / `theme_mode` in Supabase for cross-device persistence. On every page load, `initAuth()` (in auth.js) fetches the saved values and updates localStorage + DOM if different. Applied site-wide via `data-theme` and `data-mode` attributes on `<html>`
+- **Appearance card**: theme picker (themes: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand, Midnight, Nord, Indigo) × Dark/Light mode. Saved to localStorage (`theme`, `mode`) for instant flash-free apply, AND synced to `user_widget_config.theme` / `theme_mode` in Supabase for cross-device persistence. On every page load, `initAuth()` (in auth.js) fetches the saved values and updates localStorage + DOM if different. Applied site-wide via `data-theme` and `data-mode` attributes on `<html>`
 
 ### Admin Pages
 
@@ -229,7 +229,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 
 ## Design System
 
-**Themes**: 9 themes × 2 modes (dark/light) = 18 combinations. Default: Ocean Dark. Theme applied via `data-theme` + `data-mode` attributes on `<html>`, driven by CSS `[data-theme][data-mode]` variable overrides. Each page has an inline `<script>` in `<head>` that reads localStorage and sets attributes before the stylesheet loads (prevents flash). Theme names: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand, Perry's Beach.
+**Themes**: 11 themes × 2 modes (dark/light) = 22 combinations. Default: Ocean Dark. Theme applied via `data-theme` + `data-mode` attributes on `<html>`, driven by CSS `[data-theme][data-mode]` variable overrides. Each page has an inline `<script>` in `<head>` that reads localStorage and sets attributes before the stylesheet loads (prevents flash). Theme names: Ocean, Forest, Sunset, Slate, Cherry, Lavender, Teal, Sand, Midnight, Nord, Indigo. The canonical id list is `THEME_IDS` in auth.js (mirrored inline in each page's bootstrap, which has to run before any script loads) — a retired or unknown id falls back to Ocean Dark instead of reaching the DOM, where it would match no CSS block and leave a "light" user in `:root`'s dark colours.
 
 **Fonts**: Inter (UI), JetBrains Mono (IDs, codes, numbers)
 
@@ -263,7 +263,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 ├── utils.js                 Shared utilities + theme functions
 ├── sidebar.js               Navigation (Workspace: Home, Planner, Stock Entry, Inventory)
 ├── icons.js                 Lucide icons
-├── styles.css               Full design system + 9 theme variants
+├── styles.css               Full design system + 11 theme variants
 ├── sql/planner.sql          One-off migration: planner columns, constraints, RLS
 ├── sql/allow-duplicate-serials.sql  One-off migration: drop the serials unique constraints
 ├── sql/rls-hardening.sql    One-off migration: depot/role RLS on every table, storage
