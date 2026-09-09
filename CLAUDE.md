@@ -123,20 +123,24 @@ Calendar for booking work onto dates. Open to technicians, managers and super_ad
 #### guides.html — Technician Guides
 Terminal configuration procedures, stored as rows in `guides` rather than hardcoded markup so a manager can fix a menu path or phone number without a deploy. Open to technicians, managers and super_admins; **merchants are excluded** — `initAuth` bounces them and the RLS read policy (`is_staff()`) returns them nothing.
 
-**Structure**: grouped **client first, then vendor** — which in this schema means Ingenico/Verifone (who dispatched the work) → the bank (CBA, NAB, WPB, SUN, HJK) → the terminal model. Note this is the reverse of the trade documents' wording, which calls the banks "clients".
-- `client_id` null + `vendor_id` null — a General guide, pinned above everything
-- `client_id` set + `vendor_id` null — that client's **common procedures** (C1–C3 Ingenico, C4–C5 Verifone), which the model guides link into rather than repeating
-- both set — one bank's terminal model
+**Every guide is self-contained.** An earlier revision factored the shared setup steps into five "common procedure" entries that the device guides linked into. That reads badly in the field — a tech halfway through a swap should not be sent to open something else — so those steps are now written out in full in each guide that needs them. The cost is deliberate and worth knowing before editing: a change to a shared step (the Bluetooth menu path, say) has to be made in **each** guide that carries it. No guide body cross-references another.
 
-**Layout**: left rail holds the collapsible tree plus a search box that matches title, subtitle and body text; the right pane renders the guide. Below 960px the rail folds into a "Browse guides" accordion above the content and re-folds whenever you pick a guide, so you land on the guide rather than the navigation.
+**Drill-down**: client → vendor → device → guide. In this schema that means Ingenico/Verifone (who dispatched the work) → the bank (CBA, NAB, WPB, SUN, HJK) → the terminal model (Move5000, QT850, CM5P, P630, T650P, P400) → the variant (Standalone, Integrated, Cloud). Note this is the reverse of the trade documents' wording, which calls the banks "clients".
+- Each level replaces the last in the page body, with a breadcrumb back up and cards carrying a count sub-line ("2 vendors", "3 guides")
+- **A device with only one guide opens it directly**, skipping a one-item list
+- Every level `history.pushState`s, so the browser back button walks back up; `popstate` re-renders from the URL
+- A guide with no client is a General guide, linked below the client cards on the home screen
+- `sanitiseView()` trims a path back to the deepest level that still exists, so a stale URL or a just-deleted guide lands somewhere real rather than on an empty level
 
-**Markdown**: bodies are markdown rendered by `markdown.js`. It is deliberately dependency-free and **escape-first** — the source is run through `escapeHTML()` before a single block is parsed, so the only tags that reach the DOM are ones the renderer emitted and author HTML is inert by construction. Supports headings, nested lists, bold/italic/code, GFM tables (wrapped in an `overflow-x:auto` div so they scroll rather than break the layout), rules, and links restricted to `http(s)` plus the internal `?guide=` form. The **CRITICAL / NOTE / ADMIN** warning tiers render as coloured callouts — that's what makes a guide scannable on a phone.
+**Sidebar**: on this page the shared sidebar is taken over by a full expandable guides tree (client ▸ vendor ▸ device ▸ guide) via `setSidebarAltNav()` / `setSidebarMode()` in sidebar.js. A `← Menu` item at the top swaps back to the app menu **in place** — a DOM toggle, no navigation, so the guide stays on screen — and the Guides item in that menu swaps back. The sidebar is an off-canvas drawer at every width in this app, so the same applies on mobile. Ancestors of the open guide are expanded by default; `treeCollapsed` remembers anything the user folds by hand.
 
-**Cross-references**: stored as ordinary markdown links, `[C1](?guide=c1-move5000-core-configuration)`. Clicks resolve in-page via `history.pushState`, so the back button steps between guides instead of leaving the page.
+**Markdown**: bodies are rendered by `markdown.js` — dependency-free and **escape-first**, so the source is run through `escapeHTML()` before a single block is parsed and author HTML is inert by construction. Supports headings, nested lists, bold/italic/code, GFM tables (wrapped in an `overflow-x:auto` div so they scroll rather than break the layout), rules, and links restricted to `http(s)` plus the internal `?guide=` form. The **CRITICAL / NOTE / ADMIN** warning tiers render as coloured callouts — that is what makes a guide scannable on a phone.
 
-**Editing** (manager/super_admin): "New guide" plus Edit/Delete on the open guide, in one modal keyed on `editingGuideId` — title, slug (auto-derived from the title while creating, never touched afterwards because other guides link to it), client, vendor (disabled until a client is picked, mirroring the DB check constraint), subtitle, sort order, published toggle, and a body textarea with an Edit/Preview toggle running the real renderer. Unpublished guides stay visible to managers, flagged "draft", and hidden from technicians.
+**Editing** (manager/super_admin): "New guide" plus Edit on the open guide, in one modal keyed on `editingGuideId` — title (the variant name), subtitle, client, vendor, device, slug, sort order, published toggle, and a body textarea with an Edit/Preview toggle running the real renderer. Vendor is disabled until a client is picked and device until a vendor is, mirroring the two DB check constraints. The device field is a text input backed by a `<datalist>` of devices already used under that vendor, so picking an existing one is a click and a new one is just typing. Creating from inside a device pre-fills that path. The slug auto-derives from client-vendor-device-title while creating and is never touched afterwards, because it is a URL people may have shared. Unpublished guides stay visible to managers, flagged "draft", and hidden from technicians.
 
-**Deep-link**: `?guide=<slug>` opens that guide directly.
+**Search**: a box on every level matches title, subtitle, device, client, vendor and body text (via `markdownToText()`), and jumps straight to a guide.
+
+**Deep-links**: `?guide=<slug>` opens a guide; `?client=`, `?client=&vendor=`, `?client=&vendor=&device=` open a browse level.
 
 #### inventory.html — Search & Browse
 - Filter by: agent, client, date range (quick filters or custom)
@@ -204,12 +208,12 @@ vendors:          vendor_id (PK), display_name
 invitation_tokens: token (PK), email, depot_id, used, used_at, expires_at
 prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, entry_type ('job'|'task'|'misc'), title, client_id, vendor_id, job_type, job_number, notes, planned_date (date, NOT NULL), end_date (date, nullable — task/misc only), planned_time (time, nullable), assigned_agent_id, is_completed, completed_job_id (FK jobs.id bigint), sort_order (int), created_at
 user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidden (JSONB), widget_spans (JSONB), quick_links (JSONB), theme (text), theme_mode (text), updated_at
-guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nullable), vendor_id (FK vendors, nullable), title, subtitle, body_md, sort_order (int), is_published (bool), updated_by (FK auth), created_at, updated_at — global, NOT depot-scoped
+guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nullable), vendor_id (FK vendors, nullable), device (text, nullable), title, subtitle, body_md, sort_order (int), is_published (bool), updated_by (FK auth), created_at, updated_at — global, NOT depot-scoped
 ```
 
 **Key relationships**: `clients` and `vendors` are global catalogues; which of them a depot uses is decided by `depot_clients` and `clients_vendors`, both of which are depot-scoped. All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `user_widget_config` is scoped per user (RLS: auth.uid() = user_id). `guides` is global like the catalogues it hangs off — terminal procedures are national, so every depot reads the same rows. `prefilled_jobs` is depot-scoped, then agent-scoped for reads *and* writes alike: managers and super_admins reach anything in their depot, technicians only entries assigned to their own agent plus unassigned tasks and misc entries (`can_write_planner_entry()`).
 
-**Migrations**: `sql/rls-hardening.sql` installs the RLS model described under Security — run it before anything else if you are standing up a new environment. `sql/planner.sql` adds the planner columns (`entry_type`, `title`, `planned_time`, `end_date`), relaxes `client_id`/`job_number` to nullable for tasks, adds shape/integrity constraints, indexes the date lookups, and installs the RLS policies above. Run it once in the Supabase SQL editor before deploying the Planner. `sql/guides.sql` creates the `guides` table with its constraints, indexes, `updated_at` trigger and RLS, adds the nullable `display_name` column to `clients` and `vendors`, and seeds the 2026 guides — its inserts are `ON CONFLICT (slug) DO NOTHING`, so re-running it never clobbers an edit made since.
+**Migrations**: `sql/rls-hardening.sql` installs the RLS model described under Security — run it before anything else if you are standing up a new environment. `sql/planner.sql` adds the planner columns (`entry_type`, `title`, `planned_time`, `end_date`), relaxes `client_id`/`job_number` to nullable for tasks, adds shape/integrity constraints, indexes the date lookups, and installs the RLS policies above. Run it once in the Supabase SQL editor before deploying the Planner. `sql/guides.sql` creates the `guides` table with its constraints, indexes, `updated_at` trigger and RLS, adds the nullable `display_name` column to `clients` and `vendors`, and seeds the 16 self-contained 2026 guides — its inserts are `ON CONFLICT (slug) DO NOTHING`, so re-running it never clobbers an edit made since.
 
 ---
 
@@ -219,7 +223,8 @@ guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nul
 |------|---------|-------------|
 | **auth.js** | Supabase client init (`db` global), auth functions | `checkAuth()`, `getCurrentUser()`, `initAuth(requiredRoles)`, `logout()`, `hasRole()`, `restrictByRole()` |
 | **utils.js** | Shared utilities | `escapeHTML()`, `showAlert()`, `showLoading()`, `formatDateTime()`, `checkDuplicateSerials()` (throws on query failure — fail closed), `isUniqueViolation()` (23505 / HTTP 409, used for the serials and box-id races), `fetchAllRows()` (pages past Supabase's 1000-row cap), `formatBoxId()`, `downloadCSV()`, `triggerDownload()` (Blob → save), `createZipBlob()` / `crc32()` (STORE zip, no dependency — receipts are already-compressed JPEGs so DEFLATE would buy ~1%), `escapeCSV()` (quotes + guards spreadsheet formula injection), `localDateString()` / `parseLocalDate()` / `addDays()` / `startOfWeek()` (calendar maths in the browser's timezone — never `toISOString()` for a date), `getTheme()`, `setTheme()`, `applyTheme()` |
-| **sidebar.js** | Navigation sidebar component | `initSidebar(user)`, `setActivePage()` — role-based menu items, mobile hamburger |
+| **sidebar.js** | Navigation sidebar component | `initSidebar(user)`, `setActivePage()` — role-based menu items, hamburger drawer. `setSidebarAltNav(html, label)` / `setSidebarMode('app'\|'alt')` let a page (guides.html) swap its own navigation tree into the sidebar and back, without navigating |
+| **markdown.js** | Escape-first markdown renderer for guide bodies | `renderMarkdown(src)`, `markdownToText(src)` — no dependencies; escapes before parsing so author HTML is inert |
 | **icons.js** | Lucide icon initialization | Called after DOM updates to render `<i data-lucide="...">` elements |
 
 **Global variable**: `db` (Supabase client) — initialized in auth.js, used by all pages for queries
@@ -239,8 +244,10 @@ guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nul
 - **Date ranges**: only a task or misc entry may carry an `end_date`, and never one earlier than `planned_date` (DB constraint). A job is single-day — one job is worked on one day, under one box
 - **Misc entries**: markers, not work. Never completed, never overdue, never in the home widget. Colour-coded slate with a diagonal hatch rather than a saturated hue, because every saturated colour collides with one of the nine theme accents
 - **Who may change an entry**: the assigned agent, or any manager/super_admin in the depot. Only the assigned agent can complete a stock job through stock entry, because the box is opened under the logged-in user's agent
-- **Guide grouping**: a guide is either general (no client, no vendor), a client's common procedure (client, no vendor) or a bank's terminal model (both). A vendor without a client is rejected by `guides_vendor_needs_client_check` — there would be no branch to render it on
-- **Guide slugs**: lowercase letters, digits and hyphens (DB check constraint), because the slug travels as a `?guide=` URL parameter and is the target of cross-references in other guides' bodies. Renaming one breaks every link to it
+- **Guide grouping**: a guide is either general (no client, vendor or device) or a full path — client, vendor and device. A vendor without a client is rejected by `guides_vendor_needs_client_check` and a device without a vendor by `guides_device_needs_vendor_check`: neither would have a branch to render on
+- **Guide devices**: the level between vendor and guide. Several guides share one device when it has variants (Move5000 → Standalone / Integrated / Cloud); a device with a single guide is opened directly rather than showing a one-item list. Devices are ordered by the lowest `sort_order` among their guides
+- **Guide bodies are self-contained**: no body refers the reader to another guide. Shared steps are duplicated on purpose, so editing one means editing every guide that carries it
+- **Guide slugs**: lowercase letters, digits and hyphens (DB check constraint), because the slug travels as a `?guide=` URL parameter. Renaming one breaks every link anyone has shared
 - **Shift time multipliers**: Mon-Fri 1x, Sat 1.5x, Sun 2x — used in shift reports and CSV exports
 - **Image compression**: client-side canvas resize (max 1200px), iterative quality reduction until < 100KB, saved as JPEG to `job-receipts` Supabase storage bucket
 - **Stale shifts**: active shift from a previous day must be completed before starting a new one
@@ -270,7 +277,7 @@ guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nul
 ├── forgot-password.html     Request reset email
 ├── reset-password.html      Complete reset
 ├── pending.html             Awaiting agent assignment → home.html
-├── guides.html              Technician guides — client → vendor tree (?guide=)
+├── guides.html              Technician guides — client → vendor → device drill-down
 ├── home.html                Landing page + analytics widgets (post-login)
 ├── planner.html             Calendar planner — book jobs + tasks (?date= ?view= ?entry=)
 ├── stock-entry.html         Stock entry + shifts (supports ?prefilled_job= param)
@@ -287,7 +294,7 @@ guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nul
 ├── styles.css               Full design system + 11 theme variants
 ├── sql/planner.sql          One-off migration: planner columns, constraints, RLS
 ├── sql/guides.sql           One-off migration: guides table, RLS, catalogue display
-│                              names, and the 19 seeded 2026 guides
+│                              names, and the 16 seeded 2026 guides
 ├── sql/allow-duplicate-serials.sql  One-off migration: drop the serials unique constraints
 ├── sql/rls-hardening.sql    One-off migration: depot/role RLS on every table, storage
 │                              policies, anon revoke, invitation-token RPCs

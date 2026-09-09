@@ -120,7 +120,7 @@ function injectSidebarHTML(user) {
             <span class="kbd">⌘ K</span>
         </form>
 
-        <nav class="sb-nav">
+        <nav class="sb-nav" id="sbNavApp">
 
             <div class="sb-section">
                 <div class="sb-section-label">Workspace</div>
@@ -176,6 +176,8 @@ function injectSidebarHTML(user) {
 
         </nav>
 
+        <nav class="sb-nav" id="sbNavAlt" style="display:none"></nav>
+
         <div class="sb-foot">
             <div class="sb-user" id="sbUserCard" onclick="location.href='user.html'" title="My Profile">
                 <span class="sb-av" id="sbAvatar">${typeof escapeHTML === 'function' ? escapeHTML(initials) : initials}</span>
@@ -189,6 +191,49 @@ function injectSidebarHTML(user) {
             </div>
         </div>
     `;
+}
+
+/**
+ * Alternate sidebar navigation.
+ *
+ * A page with a navigation tree of its own (guides.html) can take the sidebar
+ * over rather than adding a second column beside it. The panel lives alongside
+ * the app menu and the two are swapped, so switching back is a DOM toggle with
+ * no navigation — whatever the page is showing stays on screen.
+ *
+ * `html` is inserted as-is: the caller is responsible for escaping, exactly as
+ * it would be building any other innerHTML in this codebase.
+ */
+function setSidebarAltNav(html, label) {
+    const alt = document.getElementById('sbNavAlt');
+    if (!alt) return;
+    alt.innerHTML =
+        '<button type="button" class="sb-item sb-back" onclick="setSidebarMode(\'app\')">' +
+        '<span class="sb-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></span>' +
+        '<span class="sb-label">' +
+        (typeof escapeHTML === 'function' ? escapeHTML(label || 'Menu') : (label || 'Menu')) +
+        '</span></button>' + html;
+}
+
+/**
+ * 'app' shows the normal menu, 'alt' shows whatever setSidebarAltNav() holds.
+ * The inventory search box is hidden in alt mode — a page that has taken the
+ * sidebar over has its own search, and two search boxes side by side is a trap.
+ */
+function setSidebarMode(mode) {
+    const app = document.getElementById('sbNavApp');
+    const alt = document.getElementById('sbNavAlt');
+    const search = document.getElementById('sbSearchForm');
+    if (!app || !alt) return;
+    const useAlt = mode === 'alt' && alt.innerHTML !== '';
+    app.style.display = useAlt ? 'none' : '';
+    alt.style.display = useAlt ? '' : 'none';
+    if (search) search.style.display = useAlt ? 'none' : '';
+    document.documentElement.setAttribute('data-sidebar-mode', useAlt ? 'alt' : 'app');
+}
+
+function getSidebarMode() {
+    return document.documentElement.getAttribute('data-sidebar-mode') === 'alt' ? 'alt' : 'app';
 }
 
 function _sbSearch(e) {
