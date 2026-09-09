@@ -14,7 +14,7 @@ A multi-tenant inventory management platform for field technicians who swap/inst
 |------|-------------|
 | **technician** | Field worker — enters jobs, serials, shifts. Can only see/edit own data |
 | **manager** | Depot admin — manages users/agents/clients/vendors, views all shift reports, edits any shift/job in their depot |
-| **merchant** | External partner — only sees guides.html (placeholder) |
+| **merchant** | External partner — no workspace page. Guides are internal, so a merchant is routed to pending.html and the `guides` read policy returns them nothing |
 | **super_admin** | Full access — creates depots, manages users across all depots, assigns roles |
 
 **Access control**: `initAuth(requiredRoles)` in auth.js enforces role on page load. Users without an agent_id (except super_admin) are redirected to pending.html until assigned.
@@ -27,13 +27,12 @@ A multi-tenant inventory management platform for field technicians who swap/inst
 
 | Page | Purpose |
 |------|---------|
-| **index.html** | Login. Routes merchants → guides.html, others → home.html. Forces password change if `must_change_password=true` |
+| **index.html** | Login. Routes merchants → pending.html, others → home.html. Forces password change if `must_change_password=true` |
 | **signup.html** | Token-based registration. **Currently broken** — it still reads `invitation_tokens` directly, and `anon` lost table access in `sql/rls-hardening.sql`. The replacement is server-side and already deployed: `validate_invitation_token(p_token)` to check a link, then `redeem_invitation_token(p_token)` to spend it and create the `user_roles` row in one statement, taking the depot from the token rather than the browser. Until signup.html calls those two RPCs, a new invitation link will not work |
 | **change-password.html** | Mandatory first-login password change |
 | **forgot-password.html** | Sends Supabase password reset email |
 | **reset-password.html** | Completes password reset from email link (listens for PASSWORD_RECOVERY event) |
-| **pending.html** | Holding page for users awaiting agent assignment. "Check Status" polls `user_roles` |
-| **guides.html** | Merchant-only placeholder ("Coming Soon") |
+| **pending.html** | Holding page for users awaiting agent assignment. "Check Status" polls `user_roles`. Also the landing page for merchants, who get "No workspace access" copy and no Check Status button — they are not waiting on anything. It never bounces a merchant to home.html, which would ping-pong because home.html rejects them too |
 
 ### Core Pages
 
@@ -94,7 +93,7 @@ The primary work page for technicians.
 - "New Box" closes current box and creates next one
 
 #### planner.html — Calendar Planner
-Calendar for booking work onto dates. Open to technicians, managers and super_admins (merchants bounce to home). Every entry is a `prefilled_jobs` row:
+Calendar for booking work onto dates. Open to technicians, managers and super_admins (merchants bounce to pending.html). Every entry is a `prefilled_jobs` row:
 
 - **Stock job** (`entry_type='job'`) — client, vendor, job type, job number. Completed through stock entry, exactly like the old planned jobs. **Always needs an agent**, because stock entry opens the box under that agent, and always **single-day**
 - **Task** (`entry_type='task'`) — a title and notes only, for work that needs no stock entry. Ticked off in the Planner or the home widget; never opens stock entry
@@ -120,6 +119,24 @@ Calendar for booking work onto dates. Open to technicians, managers and super_ad
 **Deep-link params**: `?date=YYYY-MM-DD` opens on that day, `?view=month|week|day` picks a view, `?entry=UUID` jumps to the entry's date and opens its modal (used by the home widget when editing a task).
 
 **Mobile**: the toolbar card (`#plannerToolbar`) is hidden and replaced by a compact stepper (`#plannerMobileNav`) above the calendar — ‹ month name › to page through months, tap the name to jump back to today. The view and scope toggles stay desktop-only. Month cells collapse to coloured dots (accent = job, amber = task, slate = misc, red = overdue, green = done — a ranged entry contributes a dot to every day it covers, since there is no bar layer at this width), week view stacks into one column, and modal actions reflow full-width.
+
+#### guides.html — Technician Guides
+Terminal configuration procedures, stored as rows in `guides` rather than hardcoded markup so a manager can fix a menu path or phone number without a deploy. Open to technicians, managers and super_admins; **merchants are excluded** — `initAuth` bounces them and the RLS read policy (`is_staff()`) returns them nothing.
+
+**Structure**: grouped **client first, then vendor** — which in this schema means Ingenico/Verifone (who dispatched the work) → the bank (CBA, NAB, WPB, SUN, HJK) → the terminal model. Note this is the reverse of the trade documents' wording, which calls the banks "clients".
+- `client_id` null + `vendor_id` null — a General guide, pinned above everything
+- `client_id` set + `vendor_id` null — that client's **common procedures** (C1–C3 Ingenico, C4–C5 Verifone), which the model guides link into rather than repeating
+- both set — one bank's terminal model
+
+**Layout**: left rail holds the collapsible tree plus a search box that matches title, subtitle and body text; the right pane renders the guide. Below 960px the rail folds into a "Browse guides" accordion above the content and re-folds whenever you pick a guide, so you land on the guide rather than the navigation.
+
+**Markdown**: bodies are markdown rendered by `markdown.js`. It is deliberately dependency-free and **escape-first** — the source is run through `escapeHTML()` before a single block is parsed, so the only tags that reach the DOM are ones the renderer emitted and author HTML is inert by construction. Supports headings, nested lists, bold/italic/code, GFM tables (wrapped in an `overflow-x:auto` div so they scroll rather than break the layout), rules, and links restricted to `http(s)` plus the internal `?guide=` form. The **CRITICAL / NOTE / ADMIN** warning tiers render as coloured callouts — that's what makes a guide scannable on a phone.
+
+**Cross-references**: stored as ordinary markdown links, `[C1](?guide=c1-move5000-core-configuration)`. Clicks resolve in-page via `history.pushState`, so the back button steps between guides instead of leaving the page.
+
+**Editing** (manager/super_admin): "New guide" plus Edit/Delete on the open guide, in one modal keyed on `editingGuideId` — title, slug (auto-derived from the title while creating, never touched afterwards because other guides link to it), client, vendor (disabled until a client is picked, mirroring the DB check constraint), subtitle, sort order, published toggle, and a body textarea with an Edit/Preview toggle running the real renderer. Unpublished guides stay visible to managers, flagged "draft", and hidden from technicians.
+
+**Deep-link**: `?guide=<slug>` opens that guide directly.
 
 #### inventory.html — Search & Browse
 - Filter by: agent, client, date range (quick filters or custom)
@@ -180,18 +197,19 @@ boxes:            id (bigint), box_id ("804-AMT-001"), agent, client, box_number
 jobs:             id (bigint), job_number, vendor, job_type, box_id (FK), receipt_url, shift_id (FK), depot_id, created_at
 serials:          id (bigint), serial_number, job_id (FK), box_id (FK), depot_id, created_at
 shifts:           id (bigint), user_id, agent_id, start_time, end_time, start_kms, end_kms, extra_jobs, shift_notes, status (active/completed), depot_id
-clients:          client_id (PK) — global registry of client names, shared across depots
+clients:          client_id (PK), display_name — global registry of client names, shared across depots
 depot_clients:    client_id + depot_id (composite PK), receipt_swap_upgrade_enabled, receipt_install_enabled, receipt_deinstall_enabled
 clients_vendors:  client_id + vendor_id + depot_id (composite PK)
-vendors:          vendor_id (PK)
+vendors:          vendor_id (PK), display_name
 invitation_tokens: token (PK), email, depot_id, used, used_at, expires_at
 prefilled_jobs:   id (UUID), user_id (FK auth), depot_id, entry_type ('job'|'task'|'misc'), title, client_id, vendor_id, job_type, job_number, notes, planned_date (date, NOT NULL), end_date (date, nullable — task/misc only), planned_time (time, nullable), assigned_agent_id, is_completed, completed_job_id (FK jobs.id bigint), sort_order (int), created_at
 user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidden (JSONB), widget_spans (JSONB), quick_links (JSONB), theme (text), theme_mode (text), updated_at
+guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nullable), vendor_id (FK vendors, nullable), title, subtitle, body_md, sort_order (int), is_published (bool), updated_by (FK auth), created_at, updated_at — global, NOT depot-scoped
 ```
 
-**Key relationships**: `clients` and `vendors` are global catalogues; which of them a depot uses is decided by `depot_clients` and `clients_vendors`, both of which are depot-scoped. All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `user_widget_config` is scoped per user (RLS: auth.uid() = user_id). `prefilled_jobs` is depot-scoped, then agent-scoped for reads *and* writes alike: managers and super_admins reach anything in their depot, technicians only entries assigned to their own agent plus unassigned tasks and misc entries (`can_write_planner_entry()`).
+**Key relationships**: `clients` and `vendors` are global catalogues; which of them a depot uses is decided by `depot_clients` and `clients_vendors`, both of which are depot-scoped. All operational data scoped by `depot_id`. Boxes belong to an agent+client. Jobs belong to a box. Serials belong to a job+box. Shifts belong to a user. `user_widget_config` is scoped per user (RLS: auth.uid() = user_id). `guides` is global like the catalogues it hangs off — terminal procedures are national, so every depot reads the same rows. `prefilled_jobs` is depot-scoped, then agent-scoped for reads *and* writes alike: managers and super_admins reach anything in their depot, technicians only entries assigned to their own agent plus unassigned tasks and misc entries (`can_write_planner_entry()`).
 
-**Migrations**: `sql/rls-hardening.sql` installs the RLS model described under Security — run it before anything else if you are standing up a new environment. `sql/planner.sql` adds the planner columns (`entry_type`, `title`, `planned_time`, `end_date`), relaxes `client_id`/`job_number` to nullable for tasks, adds shape/integrity constraints, indexes the date lookups, and installs the RLS policies above. Run it once in the Supabase SQL editor before deploying the Planner.
+**Migrations**: `sql/rls-hardening.sql` installs the RLS model described under Security — run it before anything else if you are standing up a new environment. `sql/planner.sql` adds the planner columns (`entry_type`, `title`, `planned_time`, `end_date`), relaxes `client_id`/`job_number` to nullable for tasks, adds shape/integrity constraints, indexes the date lookups, and installs the RLS policies above. Run it once in the Supabase SQL editor before deploying the Planner. `sql/guides.sql` creates the `guides` table with its constraints, indexes, `updated_at` trigger and RLS, adds the nullable `display_name` column to `clients` and `vendors`, and seeds the 2026 guides — its inserts are `ON CONFLICT (slug) DO NOTHING`, so re-running it never clobbers an edit made since.
 
 ---
 
@@ -221,6 +239,8 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 - **Date ranges**: only a task or misc entry may carry an `end_date`, and never one earlier than `planned_date` (DB constraint). A job is single-day — one job is worked on one day, under one box
 - **Misc entries**: markers, not work. Never completed, never overdue, never in the home widget. Colour-coded slate with a diagonal hatch rather than a saturated hue, because every saturated colour collides with one of the nine theme accents
 - **Who may change an entry**: the assigned agent, or any manager/super_admin in the depot. Only the assigned agent can complete a stock job through stock entry, because the box is opened under the logged-in user's agent
+- **Guide grouping**: a guide is either general (no client, no vendor), a client's common procedure (client, no vendor) or a bank's terminal model (both). A vendor without a client is rejected by `guides_vendor_needs_client_check` — there would be no branch to render it on
+- **Guide slugs**: lowercase letters, digits and hyphens (DB check constraint), because the slug travels as a `?guide=` URL parameter and is the target of cross-references in other guides' bodies. Renaming one breaks every link to it
 - **Shift time multipliers**: Mon-Fri 1x, Sat 1.5x, Sun 2x — used in shift reports and CSV exports
 - **Image compression**: client-side canvas resize (max 1200px), iterative quality reduction until < 100KB, saved as JPEG to `job-receipts` Supabase storage bucket
 - **Stale shifts**: active shift from a previous day must be completed before starting a new one
@@ -250,7 +270,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 ├── forgot-password.html     Request reset email
 ├── reset-password.html      Complete reset
 ├── pending.html             Awaiting agent assignment → home.html
-├── guides.html              Merchant placeholder
+├── guides.html              Technician guides — client → vendor tree (?guide=)
 ├── home.html                Landing page + analytics widgets (post-login)
 ├── planner.html             Calendar planner — book jobs + tasks (?date= ?view= ?entry=)
 ├── stock-entry.html         Stock entry + shifts (supports ?prefilled_job= param)
@@ -261,10 +281,13 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 ├── manage-depots.html       Multi-depot admin (super_admin)
 ├── auth.js                  Supabase auth
 ├── utils.js                 Shared utilities + theme functions
-├── sidebar.js               Navigation (Workspace: Home, Planner, Stock Entry, Inventory)
+├── sidebar.js               Navigation (Workspace: Home, Stock Entry, Inventory, Planner, Guides)
 ├── icons.js                 Lucide icons
+├── markdown.js              Escape-first markdown renderer for guide bodies
 ├── styles.css               Full design system + 11 theme variants
 ├── sql/planner.sql          One-off migration: planner columns, constraints, RLS
+├── sql/guides.sql           One-off migration: guides table, RLS, catalogue display
+│                              names, and the 19 seeded 2026 guides
 ├── sql/allow-duplicate-serials.sql  One-off migration: drop the serials unique constraints
 ├── sql/rls-hardening.sql    One-off migration: depot/role RLS on every table, storage
 │                              policies, anon revoke, invitation-token RPCs
@@ -279,7 +302,8 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
 
 ## Security
 
-- **XSS prevention**: `escapeHTML()` applied to all database-sourced values in innerHTML templates
+- **XSS prevention**: `escapeHTML()` applied to all database-sourced values in innerHTML templates. Guide bodies go through `renderMarkdown()` (markdown.js), which escapes the whole source *before* parsing, so a manager-authored body cannot inject markup; its link rule emits anchors only for `http(s)` and internal `?guide=` hrefs, so `javascript:` and `data:` render as plain text
+- **Values interpolated into inline `onclick` attributes** must be escaped for JS *first*, then for HTML — HTML-escaping alone is useless there, because the parser decodes `&#39;` back to a quote before the JS is compiled. See `jsStr()` in guides.html
 - **Auth**: Supabase session-based, role enforced on page load via `initAuth()`
 - **Data isolation**: all queries scoped by `depot_id` in the client, and enforced again by RLS (below)
 - **File uploads**: image/* only, compressed client-side, sanitized filenames (`{timestamp}-{jobId}`)
@@ -289,6 +313,7 @@ user_widget_config: user_id (UUID PK FK auth), widget_order (JSONB), widget_hidd
   - **super_admin** — unrestricted across all depots
   - **manager** — anything within their own `depot_id`
   - **technician** — reads within their own depot; writes only rows under their own agent
+  The one table that narrows by *role* rather than depot is `guides`: its read policy is `is_staff()`, which is technician/manager/super_admin, so a merchant reads nothing. Writes are `is_manager()`, matching `clients_write`/`vendors_write`. It is the only place in the schema where the merchant role is excluded outright — every other table lets a merchant with a depot_id read that depot.
   Reads are depot-wide rather than agent-wide by design: the duplicate-serial check is per-depot, and inventory search offers every agent in the depot to technicians too. Ownership bites on writes, mirroring the `canEdit` checks in inventory.html.
 - **`anon` has no table access at all**: no grants, and no policy names it. The only things it may call are `validate_invitation_token()` and `redeem_invitation_token()`, which signup needs before a session exists
 - **Privileged columns**: only a super_admin may change `user_roles.role` or `user_roles.depot_id`. Managers may edit `agent_id`, `shifts_enabled` and `must_change_password` within their depot; any user may clear their own `must_change_password`. This is what stops a manager promoting themselves
