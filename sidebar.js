@@ -140,6 +140,10 @@ function injectSidebarHTML(user) {
                     <span class="sb-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span>
                     <span class="sb-label">Planner</span>
                 </a>
+                <a class="sb-item" href="guides.html" data-page="guides">
+                    <span class="sb-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/></svg></span>
+                    <span class="sb-label">Guides</span>
+                </a>
             </div>
 
             <div class="sb-section" data-section="admin">
@@ -210,6 +214,7 @@ function setActivePage() {
     const pageMap = {
         'home.html': 'home',
         'planner.html': 'planner',
+        'guides.html': 'guides',
         'stock-entry.html': 'stock-entry',
         'inventory.html': 'inventory',
         'boxes.html': 'inventory',

@@ -142,7 +142,10 @@ async function initAuth(requiredRoles = null) {
     // Check if user has required role
     if (requiredRoles && !hasRole(user.role, requiredRoles)) {
         alert('You do not have permission to access this page.');
-        window.location.href = 'home.html';
+        // Merchants have no workspace page to fall back to — home.html rejects
+        // them too, so sending them there would bounce them between the two
+        // forever. pending.html is the one page that accepts any signed-in user.
+        window.location.href = user.role === 'merchant' ? 'pending.html' : 'home.html';
         return null;
     }
     

@@ -32,16 +32,16 @@
             <div class="content">
                 <div class="card">
                     <div style="text-align: center; padding: 20px;">
-                        <div style="font-size: 64px; margin-bottom: 20px;">⏳</div>
-                        <h2 style="color: var(--text-primary); margin-bottom: 12px;">Your Account is Being Set Up</h2>
-                        <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;">
+                        <div style="font-size: 64px; margin-bottom: 20px;" id="pendingIcon">⏳</div>
+                        <h2 style="color: var(--text-primary); margin-bottom: 12px;" id="pendingTitle">Your Account is Being Set Up</h2>
+                        <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;" id="pendingMessage">
                             Your account has been created successfully, but you need to be assigned to an agent before you can access the system.
                         </p>
-                        <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 24px;">
+                        <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 24px;" id="pendingMessage2">
                             Please contact your administrator to complete your account setup. Once assigned, you'll be able to access the dashboard.
                         </p>
                         <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-                            <button class="btn btn-primary" onclick="checkStatus()">
+                            <button class="btn btn-primary" id="checkStatusBtn" onclick="checkStatus()">
                                 Check Status
                             </button>
                             <button class="btn btn-ghost" onclick="logout()">
@@ -74,18 +74,39 @@
             // on transient failures — stay on this page in that case.
             try {
                 const user = await getCurrentUser();
-                if (user && user.agent_id) {
+                if (user && user.agent_id && user.role !== 'merchant') {
                     // User has been assigned, redirect to dashboard
                     window.location.href = 'home.html';
                 }
+                if (user && user.role === 'merchant') showMerchantCopy();
             } catch (_) {}
         });
         
+        // A merchant is not waiting on an agent assignment — nothing is coming.
+        // Say so plainly rather than leaving them watching a status that will
+        // never change, and drop the Check Status button that implies it will.
+        function showMerchantCopy() {
+            const set = (id, text) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            };
+            set('pendingIcon', '\u{1F512}');
+            set('pendingTitle', 'No workspace access');
+            set('pendingMessage', 'Your account is registered as a merchant. The technician '
+                + 'workspace and its guides are internal, so there is nothing here for you to open.');
+            set('pendingMessage2', 'Contact your administrator if you think this is wrong.');
+            const btn = document.getElementById('checkStatusBtn');
+            if (btn) btn.style.display = 'none';
+        }
+
         async function checkStatus() {
             try {
                 const user = await getCurrentUser();
                 
-                if (user && user.agent_id) {
+                if (user && user.role === 'merchant') {
+                    showMerchantCopy();
+                    showAlert('Your account does not have access to the technician workspace.', 'info');
+                } else if (user && user.agent_id) {
                     // User has been assigned!
                     showAlert('✓ Your account has been activated!', 'success');
                     setTimeout(() => {

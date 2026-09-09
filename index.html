@@ -73,7 +73,8 @@
             if (session) {
                 const { data } = await db.from('user_roles').select('role')
                     .eq('user_id', session.user.id).maybeSingle();
-                window.location.href = (data && data.role === 'merchant') ? 'guides.html' : 'home.html';
+                // guides.html is staff-only; a merchant has no workspace page.
+                window.location.href = (data && data.role === 'merchant') ? 'pending.html' : 'home.html';
             }
         });
 
@@ -126,7 +127,8 @@
                 // Redirect based on role
                 setTimeout(() => {
                     if (roleData.role === 'merchant') {
-                        window.location.href = 'guides.html';
+                        // guides.html is staff-only; a merchant has no workspace page.
+                        window.location.href = 'pending.html';
                     } else {
                         window.location.href = 'home.html';
                     }
