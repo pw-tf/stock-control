@@ -17,56 +17,55 @@
     <script src="utils.js"></script>
     <script src="markdown.js"></script>
     <style>
-        /* Card header — mirrors analytics.html / planner.html, which each carry
-           their own copy because styles.css only defines .widget-card-new .card-head */
-        .card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
-        .card-title { display:flex; align-items:center; gap:8px; font-size:.95rem; font-weight:700; color:var(--text-primary); }
-        .card-title .ico { display:inline-flex; color:var(--accent-primary); }
+        /* ---- breadcrumb ---------------------------------------------------- */
+        .gd-crumbs { display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin-bottom:14px; font-size:.8rem; }
+        .gd-crumb-link { background:none; border:0; padding:3px 6px; border-radius:6px; cursor:pointer;
+            font-family:inherit; font-size:inherit; color:var(--accent-primary); font-weight:600; }
+        .gd-crumb-link:hover { background:var(--bg-tertiary); }
+        .gd-crumb-sep { color:var(--text-secondary); opacity:.6; }
+        .gd-crumb-now { padding:3px 2px; color:var(--text-secondary); font-weight:600; }
 
-        /* ---- two-pane layout ---------------------------------------------- */
-        .gd-layout { display:grid; grid-template-columns:290px 1fr; gap:18px; align-items:start; }
-        /* Grid items default to min-width:auto, which lets a wide table stretch
-           the column and scroll the whole page sideways instead of scrolling
-           inside its own wrapper. min-width:0 is what allows them to shrink. */
-        .gd-layout > * { min-width:0; }
-        .gd-rail { position:sticky; top:12px; }
-        .gd-rail-search { margin-bottom:10px; }
-        .gd-tree { max-height:calc(100vh - 210px); overflow-y:auto; padding-right:4px; }
+        /* ---- drill-down cards ---------------------------------------------- */
+        .gd-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; }
+        .gd-card {
+            display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+            padding:16px; border:1px solid var(--bg-tertiary); border-radius:12px;
+            background:var(--bg-secondary); cursor:pointer; font-family:inherit;
+            transition:border-color .12s ease, transform .12s ease;
+        }
+        .gd-card:hover { border-color:var(--accent-primary); transform:translateY(-1px); }
+        .gd-card-mark {
+            display:flex; align-items:center; justify-content:center; flex-shrink:0;
+            width:38px; height:38px; border-radius:10px;
+            background:var(--bg-tertiary); color:var(--accent-primary);
+            font-weight:800; font-size:.8rem; letter-spacing:.02em;
+        }
+        .gd-card-text { min-width:0; }
+        .gd-card-name { display:block; font-weight:650; font-size:.92rem; color:var(--text-primary); }
+        .gd-card-sub  { display:block; font-size:.75rem; color:var(--text-secondary); margin-top:2px; }
 
-        .gd-group { margin-bottom:6px; }
-        .gd-group-label {
-            display:flex; align-items:center; gap:6px; width:100%;
-            padding:7px 8px; border:0; background:transparent; cursor:pointer;
-            font-family:inherit; font-size:.7rem; font-weight:800; letter-spacing:.09em;
-            text-transform:uppercase; color:var(--text-secondary); text-align:left;
-            border-radius:8px;
+        /* ---- guide list (device with variants) ----------------------------- */
+        .gd-list { display:flex; flex-direction:column; gap:8px; }
+        .gd-row {
+            display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+            padding:14px 16px; border:1px solid var(--bg-tertiary); border-radius:10px;
+            background:var(--bg-secondary); cursor:pointer; font-family:inherit;
         }
-        .gd-group-label:hover { background:var(--bg-tertiary); color:var(--text-primary); }
-        .gd-caret { transition:transform .15s ease; flex-shrink:0; }
-        .gd-group.collapsed .gd-caret { transform:rotate(-90deg); }
-        .gd-group.collapsed .gd-group-body { display:none; }
-        .gd-group-count { margin-left:auto; font-size:.68rem; font-weight:700; opacity:.65; letter-spacing:0; }
+        .gd-row:hover { border-color:var(--accent-primary); }
+        .gd-row-text { min-width:0; flex:1; }
+        .gd-row-name { display:block; font-weight:650; font-size:.9rem; color:var(--text-primary); }
+        .gd-row-sub  { display:block; font-size:.75rem; color:var(--text-secondary); margin-top:2px; }
+        .gd-chev { color:var(--text-secondary); flex-shrink:0; }
+        .gd-unpub { font-size:.66rem; font-weight:700; color:var(--warning); margin-left:6px; }
 
-        .gd-sub-label {
-            padding:6px 8px 3px 20px; font-size:.68rem; font-weight:700;
-            letter-spacing:.05em; text-transform:uppercase; color:var(--text-secondary); opacity:.8;
-        }
-        .gd-link {
-            display:block; width:100%; text-align:left; padding:7px 10px 7px 20px;
-            border:0; background:transparent; border-radius:8px; cursor:pointer;
-            font-family:inherit; font-size:.83rem; color:var(--text-secondary);
-            border-left:2px solid transparent; line-height:1.35;
-        }
-        .gd-link:hover { background:var(--bg-tertiary); color:var(--text-primary); }
-        .gd-link.active {
-            background:var(--bg-tertiary); color:var(--text-primary);
-            font-weight:650; border-left-color:var(--accent-primary);
-        }
-        .gd-link .gd-unpub { font-size:.66rem; font-weight:700; opacity:.7; margin-left:5px; }
+        /* ---- search -------------------------------------------------------- */
+        .gd-search-row { display:flex; gap:10px; margin-bottom:16px; }
+        .gd-search-row .input { flex:1; }
+        .gd-results { display:flex; flex-direction:column; gap:8px; }
+        .gd-result-path { font-size:.72rem; color:var(--text-secondary); margin-top:2px; }
 
-        /* ---- rendered guide ----------------------------------------------- */
+        /* ---- rendered guide ------------------------------------------------ */
         .gd-doc-head { border-bottom:1px solid var(--bg-tertiary); padding-bottom:14px; margin-bottom:18px; }
-        .gd-crumb { font-size:.72rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent-primary); margin-bottom:6px; }
         .gd-doc-head h2 { margin:0; font-size:1.35rem; font-weight:700; color:var(--text-primary); }
         .gd-doc-sub { margin-top:5px; font-size:.85rem; color:var(--text-secondary); }
         .gd-doc-meta { margin-top:10px; font-size:.72rem; color:var(--text-secondary); opacity:.8; }
@@ -82,8 +81,7 @@
         .gd-body hr { border:0; border-top:1px solid var(--bg-tertiary); margin:22px 0; }
         .gd-body code {
             font-family:'JetBrains Mono', monospace; font-size:.83em;
-            background:var(--bg-tertiary); padding:1px 5px; border-radius:4px;
-            word-break:break-word;
+            background:var(--bg-tertiary); padding:1px 5px; border-radius:4px; word-break:break-word;
         }
         .gd-body a { color:var(--accent-primary); text-decoration:underline; text-underline-offset:2px; }
         .gd-body strong { font-weight:700; }
@@ -113,6 +111,33 @@
         .gd-tier.gd-note { background:var(--accent-primary); color:#fff; }
         .gd-tier.gd-admin { background:var(--warning); color:#241a00; }
 
+        /* ---- sidebar tree (injected into the shared sidebar) ---------------- */
+        #sbNavAlt .sb-back { width:100%; border:0; background:transparent; cursor:pointer; font-family:inherit; }
+        #sbNavAlt .gd-tree-group { margin-bottom:2px; }
+        #sbNavAlt .gd-tw {
+            display:flex; align-items:center; gap:6px; width:100%; padding:6px 10px;
+            border:0; background:transparent; cursor:pointer; border-radius:8px;
+            font-family:inherit; text-align:left; color:var(--text-secondary); font-size:.8rem;
+        }
+        #sbNavAlt .gd-tw:hover { background:var(--bg-tertiary); color:var(--text-primary); }
+        #sbNavAlt .gd-tw.lvl-client  { font-weight:750; font-size:.72rem; letter-spacing:.07em; text-transform:uppercase; }
+        #sbNavAlt .gd-tw.lvl-vendor  { padding-left:22px; font-weight:650; }
+        #sbNavAlt .gd-tw.lvl-device  { padding-left:36px; }
+        #sbNavAlt .gd-leaf {
+            display:block; width:100%; padding:5px 10px 5px 50px; border:0; background:transparent;
+            cursor:pointer; border-radius:8px; font-family:inherit; text-align:left;
+            color:var(--text-secondary); font-size:.79rem; line-height:1.3;
+            border-left:2px solid transparent;
+        }
+        #sbNavAlt .gd-leaf:hover { background:var(--bg-tertiary); color:var(--text-primary); }
+        #sbNavAlt .gd-leaf.active {
+            background:var(--bg-tertiary); color:var(--text-primary);
+            font-weight:650; border-left-color:var(--accent-primary);
+        }
+        #sbNavAlt .gd-caret { transition:transform .15s ease; flex-shrink:0; opacity:.7; }
+        #sbNavAlt .collapsed > .gd-tw .gd-caret { transform:rotate(-90deg); }
+        #sbNavAlt .collapsed > .gd-tree-body { display:none; }
+
         /* ---- editor -------------------------------------------------------- */
         .gd-editor-tabs { display:flex; gap:6px; margin-bottom:8px; }
         .gd-preview {
@@ -125,18 +150,8 @@
         .modal-actions.split { display:flex; justify-content:space-between; align-items:center; gap:10px; }
         .modal-actions.split .grp { display:flex; gap:10px; }
 
-        /* ---- mobile --------------------------------------------------------
-           The rail becomes a collapsible drawer above the content: a sticky
-           290px column has nowhere to live on a phone. */
-        @media (max-width: 960px) {
-            .gd-layout { grid-template-columns:1fr; gap:12px; }
-            .gd-rail { position:static; }
-            .gd-tree { max-height:none; }
-            .gd-rail-card.collapsed .gd-tree { display:none; }
-            .gd-rail-toggle { display:flex !important; }
-        }
-        .gd-rail-toggle { display:none; align-items:center; gap:8px; width:100%; padding:10px 12px; border:0; background:var(--bg-tertiary); border-radius:10px; cursor:pointer; font-family:inherit; font-size:.85rem; font-weight:650; color:var(--text-primary); margin-bottom:10px; }
         @media (max-width: 600px) {
+            .gd-grid { grid-template-columns:1fr; }
             .gd-doc-head h2 { font-size:1.15rem; }
             .gd-body { font-size:.88rem; }
             .modal-actions.split { flex-direction:column-reverse; align-items:stretch; }
@@ -174,7 +189,7 @@
                 </span>
                 <div class="page-title">
                     <h1>Guides</h1>
-                    <div class="page-title-sub" id="pageSubtitle">Terminal configuration procedures by client and vendor</div>
+                    <div class="page-title-sub" id="pageSubtitle">Terminal configuration procedures</div>
                 </div>
             </div>
             <div class="page-actions">
@@ -185,27 +200,13 @@
             </div>
         </div>
 
-        <div class="gd-layout fade-in d2">
-
-            <!-- RAIL -->
-            <div class="gd-rail">
-                <div class="card gd-rail-card" id="gdRailCard">
-                    <button class="gd-rail-toggle" onclick="toggleRail()" type="button">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-                        <span id="gdRailToggleLabel">Browse guides</span>
-                    </button>
-                    <div class="gd-rail-search">
-                        <input type="text" id="gdSearch" class="input" placeholder="Search guides…"
-                               oninput="onSearchInput()" autocomplete="off">
-                    </div>
-                    <div class="gd-tree" id="gdTree"></div>
-                </div>
+        <div class="card fade-in d2">
+            <div class="gd-crumbs" id="gdCrumbs"></div>
+            <div class="gd-search-row">
+                <input type="text" id="gdSearch" class="input" placeholder="Search all guides…"
+                       oninput="onSearchInput()" autocomplete="off">
             </div>
-
-            <!-- DOCUMENT -->
-            <div class="card" id="gdDocCard">
-                <div id="gdDoc"></div>
-            </div>
+            <div id="gdMain"></div>
         </div>
 
     </div><!-- /.app -->
@@ -223,9 +224,9 @@
             </div>
             <form id="guideForm">
                 <div class="field">
-                    <label for="gdTitleInput">Title <span class="req">*</span></label>
+                    <label for="gdTitleInput">Title <span class="req">*</span> <span class="hint">the variant, e.g. "Standalone"</span></label>
                     <input type="text" id="gdTitleInput" class="input" required
-                           placeholder="e.g. Move5000 Standalone" oninput="onTitleInput()">
+                           placeholder="e.g. Standalone" oninput="onTitleInput()">
                 </div>
 
                 <div class="field">
@@ -235,23 +236,29 @@
                 </div>
 
                 <div class="field">
-                    <label for="gdClientInput">Client <span class="hint">the manufacturer this sits under</span></label>
+                    <label for="gdClientInput">Client <span class="hint">the manufacturer</span></label>
                     <select id="gdClientInput" class="select" onchange="onClientChange()"></select>
                 </div>
 
                 <div class="field">
-                    <label for="gdVendorInput">Vendor <span class="hint">the bank; leave blank for a common procedure</span></label>
-                    <select id="gdVendorInput" class="select"></select>
+                    <label for="gdVendorInput">Vendor <span class="hint">the bank</span></label>
+                    <select id="gdVendorInput" class="select" onchange="onVendorChange()"></select>
                 </div>
 
                 <div class="field">
-                    <label for="gdSlugInput">Slug <span class="req">*</span> <span class="hint">used by ?guide= links between guides</span></label>
+                    <label for="gdDeviceInput">Device <span class="hint">terminal model, e.g. Move5000</span></label>
+                    <input type="text" id="gdDeviceInput" class="input" list="gdDeviceList" placeholder="Move5000">
+                    <datalist id="gdDeviceList"></datalist>
+                </div>
+
+                <div class="field">
+                    <label for="gdSlugInput">Slug <span class="req">*</span> <span class="hint">used by ?guide= links</span></label>
                     <input type="text" id="gdSlugInput" class="input mono" required
                            pattern="[a-z0-9][a-z0-9\-]*" placeholder="lowercase-with-hyphens">
                 </div>
 
                 <div class="field">
-                    <label for="gdSortInput">Sort order <span class="hint">lower appears first within its group</span></label>
+                    <label for="gdSortInput">Sort order <span class="hint">lower appears first; also orders the devices</span></label>
                     <input type="number" id="gdSortInput" class="input mono" value="0" step="1">
                 </div>
 
@@ -291,21 +298,20 @@
     <script>
         let currentUser = null;
         let isManager = false;
-        let guides = [];                 // every guide the caller may read
-        let guideIndex = {};             // slug -> guide
-        let activeSlug = null;
+        let guides = [];
+        let guideIndex = {};          // slug -> guide
+        let clientNames = {};
+        let vendorNames = {};
         let editingGuideId = null;
-        let clientNames = {};            // client_id -> display name
-        let vendorNames = {};            // vendor_id -> display name
         let searchTerm = '';
-        let collapsed = {};              // group key -> true when folded shut
+        let treeCollapsed = {};       // tree node key -> true when folded shut
 
-        const GENERAL_KEY = '__general__';
+        // Where we are in the drill-down. A guide slug wins over the browse path.
+        let view = { client: null, vendor: null, device: null, slug: null };
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // Merchants are deliberately excluded: these are internal
-            // procedures, and the guides_select RLS policy (is_staff()) returns
-            // them nothing anyway.
+            // Merchants are deliberately excluded: these are internal procedures,
+            // and the guides_select RLS policy (is_staff()) returns them nothing.
             currentUser = await initAuth(['technician', 'manager', 'super_admin']);
             if (!currentUser) return;
 
@@ -313,21 +319,25 @@
 
             initSidebar(currentUser);
             setAvatarInitials(currentUser);
-
             if (isManager) document.getElementById('gdNewBtn').style.display = '';
 
-            // On a phone the rail starts folded so the guide itself is what you
-            // land on, not a wall of navigation.
-            if (window.matchMedia('(max-width: 960px)').matches) {
-                document.getElementById('gdRailCard').classList.add('collapsed');
+            // The Guides item in the app menu should bring the guides tree back
+            // rather than reload the page we are already on.
+            const navGuides = document.querySelector('#sidebar a[data-page="guides"]');
+            if (navGuides) {
+                navGuides.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    setSidebarMode('alt');
+                    closeSidebar();
+                });
             }
 
             await loadCatalogues();
             await loadGuides();
 
-            const params = new URLSearchParams(window.location.search);
-            const wanted = params.get('guide');
-            selectGuide(wanted && guideIndex[wanted] ? wanted : defaultSlug(), false);
+            readUrl();
+            render();
+            setSidebarMode('alt');
 
             lucide.createIcons();
         });
@@ -348,8 +358,8 @@
                 (clients.data || []).forEach(c => { clientNames[c.client_id] = c.display_name || c.client_id; });
                 (vendors.data || []).forEach(v => { vendorNames[v.vendor_id] = v.display_name || v.vendor_id; });
             } catch (error) {
-                // A missing display_name column (migration not yet run) must not
-                // take the page down — the ids still read fine as labels.
+                // A missing display_name column must not take the page down — the
+                // ids still read acceptably as labels.
                 console.error('Catalogue load failed:', error);
             }
         }
@@ -359,11 +369,10 @@
             try {
                 guides = await fetchAllRows(() => db
                     .from('guides')
-                    .select('id, slug, client_id, vendor_id, title, subtitle, body_md, sort_order, is_published, updated_at')
+                    .select('id, slug, client_id, vendor_id, device, title, subtitle, body_md, sort_order, is_published, updated_at')
                     .order('client_id', { ascending: true, nullsFirst: true })
                     .order('vendor_id', { ascending: true, nullsFirst: true })
                     .order('sort_order', { ascending: true }));
-
                 guideIndex = {};
                 guides.forEach(g => { guideIndex[g.slug] = g; });
             } catch (error) {
@@ -374,7 +383,6 @@
             } finally {
                 showLoading(false);
             }
-            renderTree();
         }
 
         // Technicians never see unpublished guides; managers do, flagged.
@@ -382,214 +390,391 @@
             return guides.filter(g => g.is_published || isManager);
         }
 
-        function defaultSlug() {
-            const list = matchingGuides();
-            return list.length ? list[0].slug : null;
+        function clientLabel(id) { return clientNames[id] || id; }
+        function vendorLabel(id) { return vendorNames[id] || id; }
+
+        function generalGuides()          { return visibleGuides().filter(g => !g.client_id); }
+        function clientsWithGuides()      { return uniq(visibleGuides().filter(g => g.client_id).map(g => g.client_id)); }
+        function vendorsOf(client)        { return uniq(visibleGuides().filter(g => g.client_id === client && g.vendor_id).map(g => g.vendor_id)); }
+        function devicesOf(client, vendor) {
+            const rows = visibleGuides().filter(g => g.client_id === client && g.vendor_id === vendor && g.device);
+            const order = {};
+            rows.forEach(g => {
+                if (order[g.device] === undefined || g.sort_order < order[g.device]) order[g.device] = g.sort_order;
+            });
+            return Object.keys(order).sort((a, b) => order[a] - order[b] || a.localeCompare(b));
+        }
+        function guidesOf(client, vendor, device) {
+            return visibleGuides()
+                .filter(g => g.client_id === client && g.vendor_id === vendor && g.device === device)
+                .sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title));
         }
 
-        function clientLabel(id) {
-            if (!id) return 'General';
-            return clientNames[id] || id;
+        function uniq(list) {
+            return Array.from(new Set(list)).sort((a, b) => String(a).localeCompare(String(b)));
         }
 
-        function vendorLabel(id) {
-            return vendorNames[id] || id;
+        // ---- routing --------------------------------------------------------
+
+        // Trim a path back to the deepest level that still exists, so a stale URL
+        // or a just-deleted guide lands somewhere real instead of on an empty
+        // level with no way out but the breadcrumb.
+        function sanitiseView(v) {
+            const out = { client: v.client || null, vendor: v.vendor || null, device: v.device || null, slug: v.slug || null };
+            if (out.slug && !guideIndex[out.slug]) out.slug = null;
+            if (out.client && clientsWithGuides().indexOf(out.client) === -1) {
+                return { client: null, vendor: null, device: null, slug: null };
+            }
+            if (out.vendor && vendorsOf(out.client).indexOf(out.vendor) === -1) { out.vendor = null; out.device = null; }
+            if (out.device && devicesOf(out.client, out.vendor).indexOf(out.device) === -1) out.device = null;
+            return out;
+        }
+
+        function readUrl() {
+            const p = new URLSearchParams(window.location.search);
+            const slug = p.get('guide');
+            if (slug && guideIndex[slug]) {
+                const g = guideIndex[slug];
+                view = { client: g.client_id, vendor: g.vendor_id, device: g.device, slug: g.slug };
+                return;
+            }
+            view = sanitiseView({
+                client: p.get('client'),
+                vendor: p.get('vendor'),
+                device: p.get('device')
+            });
+        }
+
+        function urlFor(v) {
+            if (v.slug) return '?guide=' + encodeURIComponent(v.slug);
+            const p = new URLSearchParams();
+            if (v.client) p.set('client', v.client);
+            if (v.vendor) p.set('vendor', v.vendor);
+            if (v.device) p.set('device', v.device);
+            const q = p.toString();
+            return q ? ('?' + q) : window.location.pathname;
+        }
+
+        function go(next, push = true) {
+            view = next && next.slug
+                ? Object.assign({ client: null, vendor: null, device: null, slug: null }, next)
+                : sanitiseView(next || {});
+            if (push) history.pushState(view, '', urlFor(view));
+            document.getElementById('gdSearch').value = '';
+            searchTerm = '';
+            render();
+            closeSidebar();
+        }
+
+        function openGuide(slug, push = true) {
+            const g = guideIndex[slug];
+            if (!g) { showAlert('That guide is no longer available.', 'warning'); return; }
+            go({ client: g.client_id, vendor: g.vendor_id, device: g.device, slug: g.slug }, push);
+        }
+
+        // A device with a single guide has nothing to choose between, so open it.
+        function openDevice(client, vendor, device) {
+            const list = guidesOf(client, vendor, device);
+            if (list.length === 1) return openGuide(list[0].slug);
+            go({ client: client, vendor: vendor, device: device });
+        }
+
+        window.addEventListener('popstate', () => {
+            readUrl();
+            render();
+        });
+
+        // ---- render ---------------------------------------------------------
+
+        function render() {
+            renderCrumbs();
+            renderMain();
+            renderSidebarTree();
+            lucide.createIcons();
+        }
+
+        function renderCrumbs() {
+            const host = document.getElementById('gdCrumbs');
+            const parts = [];
+            const atHome = !view.client && !view.slug;
+
+            if (atHome) { host.innerHTML = '<span class="gd-crumb-now">All guides</span>'; return; }
+
+            parts.push('<button class="gd-crumb-link" type="button" onclick="go({})">Guides</button>');
+
+            const g = view.slug ? guideIndex[view.slug] : null;
+            if (g && !g.client_id) {
+                parts.push('<span class="gd-crumb-sep">›</span><span class="gd-crumb-now">' + escapeHTML(g.title) + '</span>');
+                host.innerHTML = parts.join('');
+                return;
+            }
+
+            if (view.client) {
+                const last = !view.vendor && !view.slug;
+                parts.push('<span class="gd-crumb-sep">›</span>' + crumb(clientLabel(view.client), last, { client: view.client }));
+            }
+            if (view.vendor) {
+                const last = !view.device && !view.slug;
+                parts.push('<span class="gd-crumb-sep">›</span>' + crumb(vendorLabel(view.vendor), last, { client: view.client, vendor: view.vendor }));
+            }
+            if (view.device) {
+                const last = !view.slug;
+                parts.push('<span class="gd-crumb-sep">›</span>' + crumb(view.device, last, { client: view.client, vendor: view.vendor, device: view.device }));
+            }
+            if (view.slug && g) {
+                parts.push('<span class="gd-crumb-sep">›</span><span class="gd-crumb-now">' + escapeHTML(g.title) + '</span>');
+            }
+            host.innerHTML = parts.join('');
+        }
+
+        function crumb(label, isLast, target) {
+            if (isLast) return '<span class="gd-crumb-now">' + escapeHTML(label) + '</span>';
+            return '<button class="gd-crumb-link" type="button" onclick=\'go(' + jsonAttr(target) + ')\'>'
+                + escapeHTML(label) + '</button>';
+        }
+
+        function renderMain() {
+            const host = document.getElementById('gdMain');
+
+            if (searchTerm) { host.innerHTML = searchResultsHTML(); return; }
+            if (view.slug)  { host.innerHTML = guideHTML(guideIndex[view.slug]); host.scrollTop = 0; return; }
+
+            if (!view.client) {
+                document.getElementById('pageSubtitle').textContent = 'Pick a client to start';
+                host.innerHTML = clientCardsHTML();
+                return;
+            }
+            if (!view.vendor) {
+                document.getElementById('pageSubtitle').textContent = clientLabel(view.client);
+                host.innerHTML = cardsHTML(vendorsOf(view.client).map(v => ({
+                    label: vendorLabel(v),
+                    mark: initialsOf(vendorLabel(v)),
+                    sub: countLabel(devicesOf(view.client, v).length, 'device'),
+                    target: { client: view.client, vendor: v }
+                })));
+                return;
+            }
+            if (!view.device) {
+                document.getElementById('pageSubtitle').textContent = clientLabel(view.client) + ' › ' + vendorLabel(view.vendor);
+                const devices = devicesOf(view.client, view.vendor);
+                host.innerHTML = '<div class="gd-grid">' + devices.map(d => {
+                    const n = guidesOf(view.client, view.vendor, d).length;
+                    return deviceCard(d, n);
+                }).join('') + '</div>';
+                return;
+            }
+
+            document.getElementById('pageSubtitle').textContent = view.device;
+            host.innerHTML = '<div class="gd-list">'
+                + guidesOf(view.client, view.vendor, view.device).map(g => guideRow(g)).join('')
+                + '</div>';
+        }
+
+        function clientCardsHTML() {
+            const cards = clientsWithGuides().map(c => ({
+                label: clientLabel(c),
+                mark: initialsOf(clientLabel(c)),
+                sub: countLabel(vendorsOf(c).length, 'vendor'),
+                target: { client: c }
+            }));
+            let html = cardsHTML(cards);
+
+            const general = generalGuides();
+            if (general.length) {
+                html += '<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--bg-tertiary)">'
+                    + general.map(g =>
+                        '<button class="gd-crumb-link" type="button" style="padding:6px 0" onclick="openGuide(' + jsStr(g.slug) + ')">'
+                        + escapeHTML(g.title) + '</button>').join(' · ')
+                    + '</div>';
+            }
+            return html;
+        }
+
+        function cardsHTML(cards) {
+            if (!cards.length) return emptyHTML('Nothing here yet.');
+            return '<div class="gd-grid">' + cards.map(c =>
+                '<button class="gd-card" type="button" onclick=\'go(' + jsonAttr(c.target) + ')\'>'
+                + '<span class="gd-card-mark">' + escapeHTML(c.mark) + '</span>'
+                + '<span class="gd-card-text"><span class="gd-card-name">' + escapeHTML(c.label) + '</span>'
+                + '<span class="gd-card-sub">' + escapeHTML(c.sub) + '</span></span></button>'
+            ).join('') + '</div>';
+        }
+
+        function deviceCard(device, guideCount) {
+            return '<button class="gd-card" type="button" onclick="openDevice(' + jsStr(view.client) + ',' + jsStr(view.vendor) + ',' + jsStr(device) + ')">'
+                + '<span class="gd-card-mark">'
+                + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>'
+                + '</span>'
+                + '<span class="gd-card-text"><span class="gd-card-name">' + escapeHTML(device) + '</span>'
+                + '<span class="gd-card-sub">' + escapeHTML(countLabel(guideCount, 'guide')) + '</span></span></button>';
+        }
+
+        function guideRow(g) {
+            return '<button class="gd-row" type="button" onclick="openGuide(' + jsStr(g.slug) + ')">'
+                + '<span class="gd-row-text"><span class="gd-row-name">' + escapeHTML(g.title)
+                + (g.is_published ? '' : '<span class="gd-unpub">draft</span>') + '</span>'
+                + (g.subtitle ? '<span class="gd-row-sub">' + escapeHTML(g.subtitle) + '</span>' : '')
+                + '</span>'
+                + '<svg class="gd-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>'
+                + '</button>';
+        }
+
+        function guideHTML(g) {
+            if (!g) return emptyHTML('That guide is no longer available.');
+
+            let html = '<div class="gd-doc-head"><h2>' + escapeHTML(g.title) + '</h2>'
+                + (g.subtitle ? '<div class="gd-doc-sub">' + escapeHTML(g.subtitle) + '</div>' : '');
+            if (!g.is_published) {
+                html += '<div class="gd-doc-sub" style="color:var(--warning);font-weight:650">Draft — not visible to technicians</div>';
+            }
+            html += '<div class="gd-doc-meta">Updated ' + escapeHTML(formatDateTime(g.updated_at)) + '</div>';
+            if (isManager) {
+                html += '<div class="page-actions" style="margin-top:12px">'
+                    + '<button class="btn btn-secondary btn-sm" onclick="openGuideModal(' + jsStr(g.id) + ')">Edit</button></div>';
+            }
+            html += '</div>';
+            // renderMarkdown escapes before parsing, so body_md cannot inject markup.
+            html += '<div class="gd-body">' + renderMarkdown(g.body_md) + '</div>';
+            return html;
+        }
+
+        function emptyHTML(message) {
+            return '<div class="empty-state" style="padding:50px 20px">'
+                + '<div class="empty-state-icon"><i data-lucide="book-open"></i></div>'
+                + '<p style="color:var(--text-secondary);margin:12px 0 0">' + escapeHTML(message) + '</p></div>';
+        }
+
+        function countLabel(n, noun) { return n + ' ' + noun + (n === 1 ? '' : 's'); }
+
+        function initialsOf(label) {
+            const words = String(label).trim().split(/\s+/);
+            if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+            return words.map(w => w[0]).join('').slice(0, 3).toUpperCase();
         }
 
         // ---- search ---------------------------------------------------------
 
         function onSearchInput() {
             searchTerm = document.getElementById('gdSearch').value.trim().toLowerCase();
-            renderTree();
+            renderCrumbs();
+            renderMain();
+            lucide.createIcons();
         }
 
-        function matchingGuides() {
-            const list = visibleGuides();
-            if (!searchTerm) return list;
-            return list.filter(g => {
-                const haystack = [
-                    g.title, g.subtitle, clientLabel(g.client_id),
+        function searchResultsHTML() {
+            const hits = visibleGuides().filter(g => {
+                const hay = [
+                    g.title, g.subtitle, g.device,
+                    g.client_id ? clientLabel(g.client_id) : '',
                     g.vendor_id ? vendorLabel(g.vendor_id) : '',
                     markdownToText(g.body_md)
                 ].join(' ').toLowerCase();
-                return haystack.indexOf(searchTerm) !== -1;
+                return hay.indexOf(searchTerm) !== -1;
             });
+            if (!hits.length) return emptyHTML('No guides match that search.');
+
+            return '<div class="gd-results">' + hits.map(g => {
+                const path = [
+                    g.client_id ? clientLabel(g.client_id) : 'General',
+                    g.vendor_id ? vendorLabel(g.vendor_id) : null,
+                    g.device
+                ].filter(Boolean).join(' › ');
+                return '<button class="gd-row" type="button" onclick="openGuide(' + jsStr(g.slug) + ')">'
+                    + '<span class="gd-row-text"><span class="gd-row-name">' + escapeHTML(g.title)
+                    + (g.is_published ? '' : '<span class="gd-unpub">draft</span>') + '</span>'
+                    + '<span class="gd-result-path">' + escapeHTML(path) + '</span></span>'
+                    + '<svg class="gd-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>'
+                    + '</button>';
+            }).join('') + '</div>';
         }
 
-        // ---- tree -----------------------------------------------------------
+        // ---- sidebar tree ---------------------------------------------------
 
-        function renderTree() {
-            const host = document.getElementById('gdTree');
-            const list = matchingGuides();
-
-            if (!list.length) {
-                host.innerHTML = '<div class="empty-state" style="padding:28px 10px">'
-                    + '<p style="color:var(--text-secondary);font-size:.85rem;margin:0">'
-                    + (searchTerm ? 'No guides match that search.' : 'No guides yet.')
-                    + '</p></div>';
-                return;
-            }
-
-            // Group by client, then vendor. A null client is the pinned General
-            // group; a null vendor inside a client is its common procedures.
-            const byClient = new Map();
-            list.forEach(g => {
-                const ck = g.client_id || GENERAL_KEY;
-                if (!byClient.has(ck)) byClient.set(ck, new Map());
-                const vk = g.vendor_id || '';
-                const vendors = byClient.get(ck);
-                if (!vendors.has(vk)) vendors.set(vk, []);
-                vendors.get(vk).push(g);
-            });
-
-            const clientKeys = Array.from(byClient.keys()).sort((a, b) => {
-                if (a === GENERAL_KEY) return -1;
-                if (b === GENERAL_KEY) return 1;
-                return clientLabel(a).localeCompare(clientLabel(b));
-            });
-
+        function renderSidebarTree() {
             let html = '';
-            clientKeys.forEach(ck => {
-                const vendors = byClient.get(ck);
-                const count = Array.from(vendors.values()).reduce((n, arr) => n + arr.length, 0);
-                // A search collapses nothing — you want to see every hit.
-                const isCollapsed = !searchTerm && collapsed[ck];
 
-                html += '<div class="gd-group' + (isCollapsed ? ' collapsed' : '') + '">'
-                    + '<button class="gd-group-label" type="button" onclick="toggleGroup(' + jsStr(ck) + ')">'
-                    + '<svg class="gd-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
-                    + escapeHTML(ck === GENERAL_KEY ? 'General' : clientLabel(ck))
-                    + '<span class="gd-group-count">' + count + '</span>'
-                    + '</button><div class="gd-group-body">';
+            generalGuides().forEach(g => {
+                html += '<button class="gd-leaf' + (view.slug === g.slug ? ' active' : '') + '" type="button" '
+                    + 'style="padding-left:16px" onclick="openGuide(' + jsStr(g.slug) + ')">'
+                    + escapeHTML(g.title) + '</button>';
+            });
 
-                const vendorKeys = Array.from(vendors.keys()).sort((a, b) => {
-                    if (!a) return -1;             // common procedures head the client
-                    if (!b) return 1;
-                    return vendorLabel(a).localeCompare(vendorLabel(b));
-                });
+            clientsWithGuides().forEach(c => {
+                const ck = 'c:' + c;
+                // Ancestors of whatever is open stay expanded; everything else
+                // remembers whatever the user last did to it.
+                const open = treeCollapsed[ck] === undefined ? (view.client === c) : !treeCollapsed[ck];
+                html += '<div class="gd-tree-group' + (open ? '' : ' collapsed') + '">'
+                    + treeToggle(ck, clientLabel(c), 'lvl-client')
+                    + '<div class="gd-tree-body">';
 
-                vendorKeys.forEach(vk => {
-                    if (vk) {
-                        html += '<div class="gd-sub-label">' + escapeHTML(vendorLabel(vk)) + '</div>';
-                    } else if (ck !== GENERAL_KEY) {
-                        html += '<div class="gd-sub-label">Common procedures</div>';
-                    }
-                    vendors.get(vk).forEach(g => {
-                        html += '<button class="gd-link' + (g.slug === activeSlug ? ' active' : '') + '" '
-                            + 'type="button" onclick="selectGuide(' + jsStr(g.slug) + ')">'
-                            + escapeHTML(g.title)
-                            + (g.is_published ? '' : '<span class="gd-unpub">· draft</span>')
-                            + '</button>';
+                vendorsOf(c).forEach(v => {
+                    const vk = ck + '|v:' + v;
+                    const vOpen = treeCollapsed[vk] === undefined ? (view.client === c && view.vendor === v) : !treeCollapsed[vk];
+                    html += '<div class="gd-tree-group' + (vOpen ? '' : ' collapsed') + '">'
+                        + treeToggle(vk, vendorLabel(v), 'lvl-vendor')
+                        + '<div class="gd-tree-body">';
+
+                    devicesOf(c, v).forEach(d => {
+                        const dk = vk + '|d:' + d;
+                        const dOpen = treeCollapsed[dk] === undefined ? (view.client === c && view.vendor === v && view.device === d) : !treeCollapsed[dk];
+                        html += '<div class="gd-tree-group' + (dOpen ? '' : ' collapsed') + '">'
+                            + treeToggle(dk, d, 'lvl-device')
+                            + '<div class="gd-tree-body">';
+                        guidesOf(c, v, d).forEach(g => {
+                            html += '<button class="gd-leaf' + (view.slug === g.slug ? ' active' : '') + '" '
+                                + 'type="button" onclick="openGuide(' + jsStr(g.slug) + ')">'
+                                + escapeHTML(g.title) + '</button>';
+                        });
+                        html += '</div></div>';
                     });
+
+                    html += '</div></div>';
                 });
 
                 html += '</div></div>';
             });
 
-            host.innerHTML = html;
+            if (typeof setSidebarAltNav === 'function') setSidebarAltNav(html, 'Menu');
         }
+
+        function treeToggle(key, label, cls) {
+            return '<button class="gd-tw ' + cls + '" type="button" onclick="toggleTree(' + jsStr(key) + ')">'
+                + '<svg class="gd-caret" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
+                + escapeHTML(label) + '</button>';
+        }
+
+        function toggleTree(key) {
+            // undefined means "follow the open guide"; resolve that to a real
+            // boolean before flipping, or the first click can appear to do nothing.
+            const current = treeCollapsed[key];
+            if (current === undefined) {
+                const openByPath = key === 'c:' + view.client
+                    || key === 'c:' + view.client + '|v:' + view.vendor
+                    || key === 'c:' + view.client + '|v:' + view.vendor + '|d:' + view.device;
+                treeCollapsed[key] = openByPath;
+            } else {
+                treeCollapsed[key] = !current;
+            }
+            renderSidebarTree();
+        }
+
+        // ---- inline-attribute helpers ---------------------------------------
 
         // Safe single-quoted JS string literal for an inline onclick attribute.
         // Order matters: escape for JS first, then for HTML. Escaping only for
         // HTML would be useless here — the parser decodes &#39; back to a quote
         // before the JS is compiled, so the value could close the string.
         function jsStr(value) {
-            const js = String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const js = String(value == null ? '' : value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             return "'" + escapeHTML(js) + "'";
         }
 
-        function toggleGroup(key) {
-            collapsed[key] = !collapsed[key];
-            renderTree();
+        // An object literal for a single-quoted onclick attribute. JSON gives us
+        // the quoting; escapeHTML then makes it safe inside the attribute.
+        function jsonAttr(obj) {
+            return escapeHTML(JSON.stringify(obj));
         }
-
-        function toggleRail() {
-            document.getElementById('gdRailCard').classList.toggle('collapsed');
-        }
-
-        // ---- document -------------------------------------------------------
-
-        function selectGuide(slug, pushUrl = true) {
-            const guide = slug ? guideIndex[slug] : null;
-            activeSlug = guide ? guide.slug : null;
-
-            if (pushUrl) {
-                const url = guide ? ('?guide=' + encodeURIComponent(guide.slug)) : window.location.pathname;
-                history.pushState({ slug: activeSlug }, '', url);
-            }
-
-            renderTree();
-            renderDoc(guide);
-
-            // On a phone, picking a guide should reveal it, not leave you
-            // staring at the open rail.
-            if (window.matchMedia('(max-width: 960px)').matches) {
-                document.getElementById('gdRailCard').classList.add('collapsed');
-                document.getElementById('gdDocCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        }
-
-        function renderDoc(guide) {
-            const host = document.getElementById('gdDoc');
-
-            if (!guide) {
-                host.innerHTML = '<div class="empty-state" style="padding:60px 20px">'
-                    + '<div class="empty-state-icon"><i data-lucide="book-open"></i></div>'
-                    + '<h3 style="color:var(--text-primary);margin:14px 0 8px">No guide selected</h3>'
-                    + '<p style="color:var(--text-secondary);max-width:380px;margin:0 auto">'
-                    + 'Pick a guide from the list to read it.</p></div>';
-                lucide.createIcons();
-                return;
-            }
-
-            const crumb = [
-                guide.client_id ? clientLabel(guide.client_id) : 'General',
-                guide.vendor_id ? vendorLabel(guide.vendor_id) : (guide.client_id ? 'Common procedures' : null)
-            ].filter(Boolean).join(' › ');
-
-            let html = '<div class="gd-doc-head">'
-                + '<div class="gd-crumb">' + escapeHTML(crumb) + '</div>'
-                + '<h2>' + escapeHTML(guide.title) + '</h2>'
-                + (guide.subtitle ? '<div class="gd-doc-sub">' + escapeHTML(guide.subtitle) + '</div>' : '');
-
-            if (!guide.is_published) {
-                html += '<div class="gd-doc-sub" style="color:var(--warning);font-weight:650">'
-                    + 'Draft — not visible to technicians</div>';
-            }
-
-            html += '<div class="gd-doc-meta">Updated ' + escapeHTML(formatDateTime(guide.updated_at)) + '</div>';
-
-            if (isManager) {
-                html += '<div class="page-actions" style="margin-top:12px">'
-                    + '<button class="btn btn-secondary btn-sm" onclick="openGuideModal(' + jsStr(guide.id) + ')">Edit</button>'
-                    + '</div>';
-            }
-
-            html += '</div>';
-
-            // renderMarkdown escapes before parsing, so body_md cannot inject markup.
-            html += '<div class="gd-body">' + renderMarkdown(guide.body_md) + '</div>';
-
-            host.innerHTML = html;
-            host.scrollTop = 0;
-            lucide.createIcons();
-        }
-
-        // Cross-references between guides resolve in-page instead of reloading.
-        document.addEventListener('click', (e) => {
-            const link = e.target.closest && e.target.closest('a.gd-xref');
-            if (!link) return;
-            const slug = (link.getAttribute('href') || '').replace('?guide=', '');
-            if (!guideIndex[slug]) return;   // unknown target: let the browser handle it
-            e.preventDefault();
-            selectGuide(slug);
-        });
-
-        window.addEventListener('popstate', (e) => {
-            const slug = (e.state && e.state.slug)
-                || new URLSearchParams(window.location.search).get('guide');
-            selectGuide(guideIndex[slug] ? slug : defaultSlug(), false);
-        });
 
         // ---- editor ---------------------------------------------------------
 
@@ -606,27 +791,30 @@
         }
 
         function slugify(text) {
-            return String(text).toLowerCase()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-+|-+$/g, '')
-                .slice(0, 100);
+            return String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '').slice(0, 100);
         }
 
         // Only auto-fill the slug while creating, and only until it is touched —
-        // an existing slug is a URL other guides link to, so it must not drift.
+        // an existing slug is a URL people may have shared, so it must not drift.
         function onTitleInput() {
             if (editingGuideId) return;
             const slugField = document.getElementById('gdSlugInput');
             if (slugField.dataset.touched === '1') return;
-            slugField.value = slugify(document.getElementById('gdTitleInput').value);
+            const parts = [
+                document.getElementById('gdClientInput').value,
+                document.getElementById('gdVendorInput').value,
+                document.getElementById('gdDeviceInput').value,
+                document.getElementById('gdTitleInput').value
+            ].filter(Boolean).join('-');
+            slugField.value = slugify(parts);
         }
 
         function populateClientSelect(selected) {
             const sel = document.getElementById('gdClientInput');
             const ids = Object.keys(clientNames).sort((a, b) => clientLabel(a).localeCompare(clientLabel(b)));
             sel.innerHTML = '<option value="">General — no client</option>'
-                + ids.map(id => '<option value="' + escapeHTML(id) + '"'
-                    + (id === selected ? ' selected' : '') + '>'
+                + ids.map(id => '<option value="' + escapeHTML(id) + '"' + (id === selected ? ' selected' : '') + '>'
                     + escapeHTML(clientLabel(id)) + '</option>').join('');
         }
 
@@ -634,9 +822,8 @@
             const sel = document.getElementById('gdVendorInput');
             const hasClient = !!document.getElementById('gdClientInput').value;
             const ids = Object.keys(vendorNames).sort((a, b) => vendorLabel(a).localeCompare(vendorLabel(b)));
-            sel.innerHTML = '<option value="">None — common procedure</option>'
-                + ids.map(id => '<option value="' + escapeHTML(id) + '"'
-                    + (id === selected ? ' selected' : '') + '>'
+            sel.innerHTML = '<option value="">None</option>'
+                + ids.map(id => '<option value="' + escapeHTML(id) + '"' + (id === selected ? ' selected' : '') + '>'
                     + escapeHTML(vendorLabel(id)) + '</option>').join('');
             // A vendor without a client has no branch to render on, and the DB
             // check constraint rejects it — so mirror that in the form.
@@ -644,27 +831,48 @@
             if (!hasClient) sel.value = '';
         }
 
+        function populateDeviceField(selected) {
+            const input = document.getElementById('gdDeviceInput');
+            const client = document.getElementById('gdClientInput').value;
+            const vendor = document.getElementById('gdVendorInput').value;
+            input.value = selected || '';
+            // Same rule one level down: a device belongs to a bank.
+            input.disabled = !vendor;
+            if (!vendor) input.value = '';
+
+            const known = uniq(guides.filter(g => g.client_id === client && g.vendor_id === vendor && g.device).map(g => g.device));
+            document.getElementById('gdDeviceList').innerHTML =
+                known.map(d => '<option value="' + escapeHTML(d) + '"></option>').join('');
+        }
+
         function onClientChange() {
             populateVendorSelect(document.getElementById('gdVendorInput').value);
+            populateDeviceField(document.getElementById('gdDeviceInput').value);
+        }
+
+        function onVendorChange() {
+            populateDeviceField(document.getElementById('gdDeviceInput').value);
         }
 
         function openGuideModal(guideId) {
             if (!isManager) return;
-            const guide = guideId ? guides.find(g => g.id === guideId) : null;
-            editingGuideId = guide ? guide.id : null;
+            const g = guideId ? guides.find(x => x.id === guideId) : null;
+            editingGuideId = g ? g.id : null;
 
-            document.getElementById('guideModalTitle').textContent = guide ? 'Edit guide' : 'New guide';
-            document.getElementById('gdTitleInput').value = guide ? guide.title : '';
-            document.getElementById('gdSubtitleInput').value = guide && guide.subtitle ? guide.subtitle : '';
-            document.getElementById('gdSlugInput').value = guide ? guide.slug : '';
-            document.getElementById('gdSlugInput').dataset.touched = guide ? '1' : '';
-            document.getElementById('gdSortInput').value = guide ? guide.sort_order : 0;
-            document.getElementById('gdPublishedInput').checked = guide ? guide.is_published : true;
-            document.getElementById('gdBodyInput').value = guide ? guide.body_md : '';
-            document.getElementById('gdDeleteBtn').style.display = guide ? '' : 'none';
+            document.getElementById('guideModalTitle').textContent = g ? 'Edit guide' : 'New guide';
+            document.getElementById('gdTitleInput').value = g ? g.title : '';
+            document.getElementById('gdSubtitleInput').value = g && g.subtitle ? g.subtitle : '';
+            document.getElementById('gdSlugInput').value = g ? g.slug : '';
+            document.getElementById('gdSlugInput').dataset.touched = g ? '1' : '';
+            document.getElementById('gdSortInput').value = g ? g.sort_order : 0;
+            document.getElementById('gdPublishedInput').checked = g ? g.is_published : true;
+            document.getElementById('gdBodyInput').value = g ? g.body_md : '';
+            document.getElementById('gdDeleteBtn').style.display = g ? '' : 'none';
 
-            populateClientSelect(guide ? guide.client_id : '');
-            populateVendorSelect(guide ? guide.vendor_id : '');
+            // Creating from inside a device pre-fills where you already are.
+            populateClientSelect(g ? g.client_id : (view.client || ''));
+            populateVendorSelect(g ? g.vendor_id : (view.vendor || ''));
+            populateDeviceField(g ? g.device : (view.device || ''));
 
             setEditorTab('edit');
             document.getElementById('guideModal').classList.add('active');
@@ -688,6 +896,7 @@
             const slug = document.getElementById('gdSlugInput').value.trim().toLowerCase();
             const clientId = document.getElementById('gdClientInput').value || null;
             const vendorId = document.getElementById('gdVendorInput').value || null;
+            const device = document.getElementById('gdDeviceInput').value.trim() || null;
 
             if (!title) { showAlert('A guide needs a title.', 'warning'); return; }
             if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
@@ -695,14 +904,17 @@
                 return;
             }
             if (vendorId && !clientId) {
-                showAlert('Pick a client before a vendor — a guide cannot sit under a bank alone.', 'warning');
-                return;
+                showAlert('Pick a client before a vendor.', 'warning'); return;
+            }
+            if (device && !vendorId) {
+                showAlert('Pick a vendor before a device.', 'warning'); return;
             }
 
             const payload = {
                 slug: slug,
                 client_id: clientId,
                 vendor_id: vendorId,
+                device: device,
                 title: title,
                 subtitle: document.getElementById('gdSubtitleInput').value.trim() || null,
                 body_md: document.getElementById('gdBodyInput').value,
@@ -720,11 +932,11 @@
                     const { error } = await db.from('guides').insert([payload]);
                     if (error) throw error;
                 }
-
+                const wasEditing = editingGuideId;
                 closeGuideModal();
                 await loadGuides();
-                selectGuide(guideIndex[slug] ? slug : defaultSlug(), true);
-                showAlert(editingGuideId ? 'Guide updated' : 'Guide created', 'success');
+                openGuide(slug);
+                showAlert(wasEditing ? 'Guide updated' : 'Guide created', 'success');
             } catch (error) {
                 console.error('Guide save failed:', error);
                 if (isUniqueViolation(error)) {
@@ -740,21 +952,23 @@
         function deleteGuideFromModal() {
             const id = editingGuideId;
             if (!id) return;
-            const guide = guides.find(g => g.id === id);
-            if (!guide) return;
-            if (!confirm('Delete "' + guide.title + '"? Other guides linking to it will stop resolving.')) return;
-
+            const g = guides.find(x => x.id === id);
+            if (!g) return;
+            if (!confirm('Delete "' + g.title + '"?')) return;
             closeGuideModal();
             deleteGuide(id);
         }
 
         async function deleteGuide(id) {
+            const g = guides.find(x => x.id === id);
             showLoading(true);
             try {
                 const { error } = await db.from('guides').delete().eq('id', id);
                 if (error) throw error;
                 await loadGuides();
-                selectGuide(defaultSlug(), true);
+                // Step back to the device the guide lived under, which may itself
+                // now be gone.
+                go(g ? { client: g.client_id, vendor: g.vendor_id, device: g.device } : {});
                 showAlert('Guide deleted', 'success');
             } catch (error) {
                 console.error('Guide delete failed:', error);
@@ -763,6 +977,16 @@
                 showLoading(false);
             }
         }
+
+        // A body may still carry a ?guide= link even though nothing seeded does.
+        document.addEventListener('click', (e) => {
+            const link = e.target.closest && e.target.closest('a.gd-xref');
+            if (!link) return;
+            const slug = (link.getAttribute('href') || '').replace('?guide=', '');
+            if (!guideIndex[slug]) return;
+            e.preventDefault();
+            openGuide(slug);
+        });
 
         document.addEventListener('click', (e) => {
             if (e.target && e.target.id === 'guideModal') closeGuideModal();
