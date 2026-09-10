@@ -67,7 +67,13 @@
            mixes artwork and fallbacks still has one card height. */
         .gd-art-chip {
             background:var(--bg-tertiary); color:var(--accent-primary);
-            font-weight:800; font-size:.8rem; letter-spacing:.02em;
+            font-family:'JetBrains Mono', monospace;
+            font-weight:700; font-size:.92rem; letter-spacing:.04em;
+        }
+        /* A device fallback is a truncated model name, not a catalogue code, so
+           it keeps the UI face and a size that fits the narrower slot. */
+        .gd-art-chip.gd-art-device-shape {
+            font-family:inherit; font-weight:800; font-size:.8rem; letter-spacing:.02em;
         }
         .gd-art-chip.gd-art-device-shape { width:48px; height:64px; border-radius:10px; }
         .gd-card-text { min-width:0; }
@@ -590,7 +596,7 @@
             if (!view.vendor) {
                 host.innerHTML = cardsHTML(vendorsOf(view.client).map(v => ({
                     label: vendorLabel(v),
-                    mark: initialsOf(vendorLabel(v)),
+                    mark: catalogueMark(v),
                     art: logoArt(v),
                     sub: countLabel(devicesOf(view.client, v).length, 'device'),
                     target: { client: view.client, vendor: v }
@@ -614,7 +620,7 @@
         function clientCardsHTML() {
             const cards = clientsWithGuides().map(c => ({
                 label: clientLabel(c),
-                mark: initialsOf(clientLabel(c)),
+                mark: catalogueMark(c),
                 art: logoArt(c),
                 sub: countLabel(vendorsOf(c).length, 'vendor'),
                 target: { client: c }
@@ -783,6 +789,18 @@
         }
 
         function countLabel(n, noun) { return n + ' ' + noun + (n === 1 ? '' : 's'); }
+
+        /*
+         * Chip text for a client or vendor card. The catalogue id IS the code a
+         * technician knows — vendors are stored as three-letter ids (CBA, NAB,
+         * WPB, SUN, HJK) and those are what appear on job sheets. Deriving
+         * initials from the display name instead produced "WG" for Westpac
+         * Group, a code that exists nowhere.
+         */
+        function catalogueMark(id) {
+            const s = String(id || '').trim().toUpperCase();
+            return s.length <= 4 ? s : s.slice(0, 3);
+        }
 
         function initialsOf(label) {
             const words = String(label).trim().split(/\s+/);
