@@ -17,13 +17,15 @@
     <script src="utils.js"></script>
     <script src="markdown.js"></script>
     <style>
-        /* ---- breadcrumb ---------------------------------------------------- */
-        .gd-crumbs { display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin-bottom:14px; font-size:.8rem; }
-        .gd-crumb-link { background:none; border:0; padding:3px 6px; border-radius:6px; cursor:pointer;
+        /* ---- breadcrumb -----------------------------------------------------
+           Sits in the page head as the subtitle, so where you are and how you get
+           back are one control rather than two things saying the same thing. */
+        .gd-crumbs { display:flex; align-items:center; flex-wrap:wrap; gap:2px; margin-left:-5px; }
+        .gd-crumb-link { background:none; border:0; padding:2px 5px; border-radius:6px; cursor:pointer;
             font-family:inherit; font-size:inherit; color:var(--accent-primary); font-weight:600; }
         .gd-crumb-link:hover { background:var(--bg-tertiary); }
         .gd-crumb-sep { color:var(--text-secondary); opacity:.6; }
-        .gd-crumb-now { padding:3px 2px; color:var(--text-secondary); font-weight:600; }
+        .gd-crumb-now { padding:2px 3px; font-weight:600; }
 
         /* ---- drill-down cards ---------------------------------------------- */
         .gd-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px; }
@@ -35,8 +37,9 @@
         }
         .gd-card:hover { border-color:var(--accent-primary); transform:translateY(-1px); }
         /* ---- card artwork ---------------------------------------------------
-           A landscape slot, because the device photos and the logo wordmarks are
-           both wide; a square chip would letterbox both. */
+           Two slot shapes, because the artwork is two shapes: the logo wordmarks
+           are wide, the device photos are upright terminals. The two never appear
+           on the same screen, so each level gets the slot that fits it. */
         .gd-card-art {
             display:flex; align-items:center; justify-content:center; flex-shrink:0;
             width:72px; height:44px; border-radius:9px; overflow:hidden;
@@ -46,7 +49,7 @@
         /* Device photos are mostly black hardware and the card is dark in nine of
            the eleven themes, so the photo gets a light stage to sit on. In light
            themes the same tile reads as a faint panel rather than disappearing. */
-        .gd-art-device { background:#eef1f4; padding:3px; }
+        .gd-art-device { width:48px; height:64px; background:#eef1f4; padding:4px; border-radius:10px; }
         [data-mode="light"] .gd-art-device { background:#f2f4f6; }
 
         /* Both wordmarks are dark-on-transparent, so neither survives a dark
@@ -59,11 +62,14 @@
                     mask:var(--art) center/contain no-repeat;
         }
 
-        /* Fallback when no artwork exists for a card — the original lettered chip. */
+        /* Fallback when no artwork exists for a card — the original lettered chip.
+           It takes the shape of whichever slot it is standing in, so a row that
+           mixes artwork and fallbacks still has one card height. */
         .gd-art-chip {
             background:var(--bg-tertiary); color:var(--accent-primary);
             font-weight:800; font-size:.8rem; letter-spacing:.02em;
         }
+        .gd-art-chip.gd-art-device-shape { width:48px; height:64px; border-radius:10px; }
         .gd-card-text { min-width:0; }
         .gd-card-name { display:block; font-weight:650; font-size:.92rem; color:var(--text-primary); }
         .gd-card-sub  { display:block; font-size:.75rem; color:var(--text-secondary); margin-top:2px; }
@@ -83,7 +89,7 @@
         .gd-unpub { font-size:.66rem; font-weight:700; color:var(--warning); margin-left:6px; }
 
         /* ---- search -------------------------------------------------------- */
-        .gd-search-row { display:flex; gap:10px; margin-bottom:16px; }
+        .gd-search-row { display:flex; gap:10px; margin-bottom:14px; }
         .gd-search-row .input { flex:1; }
         .gd-results { display:flex; flex-direction:column; gap:8px; }
         .gd-result-path { font-size:.72rem; color:var(--text-secondary); margin-top:2px; }
@@ -136,7 +142,15 @@
         .gd-tier.gd-admin { background:var(--warning); color:#241a00; }
 
         /* ---- sidebar tree (injected into the shared sidebar) ---------------- */
-        #sbNavAlt .sb-back { width:100%; border:0; background:transparent; cursor:pointer; font-family:inherit; }
+        #sbNavAlt .sb-back {
+            width:100%; border:0; background:transparent; cursor:pointer; font-family:inherit;
+            margin-bottom:6px; padding-bottom:10px; border-bottom:1px solid var(--bg-tertiary);
+            justify-content:flex-start; text-align:left;
+        }
+        /* .sb-item .sb-label is flex:1, which combined with a button's centred
+           text alignment pushes the label to the middle of the row. The label
+           belongs beside the arrow, so let it size to its own content. */
+        #sbNavAlt .sb-back .sb-label { flex:0 1 auto; white-space:nowrap; }
         #sbNavAlt .gd-tree-group { margin-bottom:2px; }
         #sbNavAlt .gd-tw {
             display:flex; align-items:center; gap:6px; width:100%; padding:6px 10px;
@@ -177,6 +191,8 @@
         @media (max-width: 600px) {
             .gd-grid { grid-template-columns:1fr; }
             .gd-card-art { width:64px; height:40px; }
+            .gd-art-device,
+            .gd-art-chip.gd-art-device-shape { width:44px; height:58px; }
             .gd-doc-head h2 { font-size:1.15rem; }
             .gd-body { font-size:.88rem; }
             .modal-actions.split { flex-direction:column-reverse; align-items:stretch; }
@@ -214,7 +230,9 @@
                 </span>
                 <div class="page-title">
                     <h1>Guides</h1>
-                    <div class="page-title-sub" id="pageSubtitle">Terminal configuration procedures</div>
+                    <!-- The only place the location is shown, and it is the
+                         navigation: each ancestor is a button back to that level. -->
+                    <div class="page-title-sub gd-crumbs" id="gdCrumbs"></div>
                 </div>
             </div>
             <div class="page-actions">
@@ -225,12 +243,12 @@
             </div>
         </div>
 
-        <div class="card fade-in d2">
-            <div class="gd-crumbs" id="gdCrumbs"></div>
-            <div class="gd-search-row">
-                <input type="text" id="gdSearch" class="input" placeholder="Search all guides…"
-                       oninput="onSearchInput()" autocomplete="off">
-            </div>
+        <div class="gd-search-row fade-in d2">
+            <input type="text" id="gdSearch" class="input" placeholder="Search all guides…"
+                   oninput="onSearchInput()" autocomplete="off">
+        </div>
+
+        <div class="card fade-in d3">
             <div id="gdMain"></div>
         </div>
 
@@ -524,7 +542,7 @@
             const parts = [];
             const atHome = !view.client && !view.slug;
 
-            if (atHome) { host.innerHTML = '<span class="gd-crumb-now">All guides</span>'; return; }
+            if (atHome) { host.innerHTML = '<span class="gd-crumb-now">Terminal configuration procedures</span>'; return; }
 
             parts.push('<button class="gd-crumb-link" type="button" onclick="go({})">Guides</button>');
 
@@ -566,12 +584,10 @@
             if (view.slug)  { host.innerHTML = guideHTML(guideIndex[view.slug]); host.scrollTop = 0; return; }
 
             if (!view.client) {
-                document.getElementById('pageSubtitle').textContent = 'Pick a client to start';
                 host.innerHTML = clientCardsHTML();
                 return;
             }
             if (!view.vendor) {
-                document.getElementById('pageSubtitle').textContent = clientLabel(view.client);
                 host.innerHTML = cardsHTML(vendorsOf(view.client).map(v => ({
                     label: vendorLabel(v),
                     mark: initialsOf(vendorLabel(v)),
@@ -582,7 +598,6 @@
                 return;
             }
             if (!view.device) {
-                document.getElementById('pageSubtitle').textContent = clientLabel(view.client) + ' › ' + vendorLabel(view.vendor);
                 const devices = devicesOf(view.client, view.vendor);
                 host.innerHTML = '<div class="gd-grid">' + devices.map(d => {
                     const n = guidesOf(view.client, view.vendor, d).length;
@@ -591,7 +606,6 @@
                 return;
             }
 
-            document.getElementById('pageSubtitle').textContent = view.device;
             host.innerHTML = '<div class="gd-list">'
                 + guidesOf(view.client, view.vendor, view.device).map(g => guideRow(g)).join('')
                 + '</div>';
@@ -665,8 +679,9 @@
             return { kind: 'device', srcs: srcs };
         }
 
-        function artHTML(art, fallbackMark) {
-            const chip = '<span class="gd-card-art gd-art-chip">' + escapeHTML(fallbackMark || '') + '</span>';
+        function artHTML(art, fallbackMark, shape) {
+            const chipCls = 'gd-card-art gd-art-chip' + (shape === 'device' ? ' gd-art-device-shape' : '');
+            const chip = '<span class="' + chipCls + '">' + escapeHTML(fallbackMark || '') + '</span>';
             if (!art || !art.srcs.length) return chip;
 
             if (art.kind === 'logo') {
@@ -677,7 +692,7 @@
                     + ' style="--art:url(&quot;' + escapeHTML(art.srcs[0]) + '&quot;)"'
                     + ' data-mark="' + escapeHTML(fallbackMark || '') + '"></span>';
             }
-            return '<span class="gd-card-art gd-art-device">'
+            return '<span class="gd-card-art gd-art-device" data-shape="device">'
                 + '<img src="' + escapeHTML(art.srcs[0]) + '" alt="" loading="lazy" decoding="async"'
                 + ' data-art=\'' + jsonAttr(art.srcs) + '\' data-i="0"'
                 + ' data-mark="' + escapeHTML(fallbackMark || '') + '">'
@@ -719,14 +734,15 @@
 
         function replaceWithChip(slot, mark) {
             if (!slot) return;
-            slot.className = 'gd-card-art gd-art-chip';
+            const shape = slot.dataset.shape === 'device' ? ' gd-art-device-shape' : '';
+            slot.className = 'gd-card-art gd-art-chip' + shape;
             slot.removeAttribute('style');
             slot.textContent = mark || '';
         }
 
         function deviceCard(device, guideCount) {
             return '<button class="gd-card" type="button" onclick="openDevice(' + jsStr(view.client) + ',' + jsStr(view.vendor) + ',' + jsStr(device) + ')">'
-                + artHTML(deviceArt(view.vendor, device), initialsOf(device))
+                + artHTML(deviceArt(view.vendor, device), initialsOf(device), 'device')
                 + '<span class="gd-card-text"><span class="gd-card-name">' + escapeHTML(device) + '</span>'
                 + '<span class="gd-card-sub">' + escapeHTML(countLabel(guideCount, 'guide')) + '</span></span></button>';
         }
@@ -858,7 +874,7 @@
                 html += '</div></div>';
             });
 
-            if (typeof setSidebarAltNav === 'function') setSidebarAltNav(html, 'Menu');
+            if (typeof setSidebarAltNav === 'function') setSidebarAltNav(html, 'Return to main menu');
         }
 
         function treeToggle(key, label, cls) {

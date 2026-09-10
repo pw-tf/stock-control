@@ -12,14 +12,19 @@
  * WHY EACH STEP
  * -------------
  * The supplied photos are shot at whatever angle the manufacturer chose — some
- * lying diagonally, some upright. Every device is rotated so its long axis is
- * horizontal, which is what makes a row of device cards read as one set and
- * matches the flow of the wide logo wordmarks beside them.
+ * lying diagonally, some upright. Each is levelled to a canonical horizontal
+ * pose, corrected there, then stood upright, so a row of device cards reads as
+ * one set of terminals standing on a bench.
  *
  * Rotation angles are not eyeballed: `--measure` prints the principal axis of
  * each image's alpha mask (a PCA over the opaque pixels), and the angles in
  * DEVICES below are those measurements. They are stored rather than recomputed
  * so the output is reproducible even if a source file is replaced.
+ *
+ * The pipeline is measure -> level -> mirror -> repair -> stand upright, in that
+ * order. Levelling first is what lets the branding repair below be specified in
+ * fixed pixel coordinates: they are measured against the horizontal pose, so
+ * changing how the device is finally presented never invalidates them.
  *
  * Devices are trimmed, scaled to a common content box and centred on one canvas
  * size, so no card's artwork looks heavier than its neighbour's.
@@ -29,10 +34,16 @@ import sharp from 'sharp';
 import { mkdir, copyFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-// Output canvas. 8:5 matches the 72x44 slot the cards render into; the pixel
-// size is ~4x that so the art stays crisp on a retina phone.
-const CANVAS = { w: 320, h: 200 };
-const CONTENT = { w: 300, h: 172 };   // the box the device is scaled to fit
+// Output canvas. Portrait, because the devices are presented standing upright;
+// 5:8 matches the card's device slot. The pixel size is ~4x that so the art
+// stays crisp on a retina phone.
+const CANVAS = { w: 200, h: 320 };
+const CONTENT = { w: 176, h: 300 };   // the box the device is scaled to fit
+
+// Applied to every device after it has been levelled and repaired. A terminal
+// photographed lying at an angle looks wrong on a card — it is not resting on
+// anything — so the last step stands it up, screen at the top.
+const UPRIGHT_TURN = -90;
 
 const DEVICES = [
     {
@@ -181,6 +192,12 @@ async function buildDevice(srcDir, outDir, d) {
     }
 
     if (d.trimThin) buf = await trimThinEdges(buf);
+
+    // Stand the device up, now that every coordinate-sensitive step is done.
+    buf = await sharp(buf)
+        .rotate(UPRIGHT_TURN, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .trim({ threshold: 1 })
+        .toBuffer();
 
     const file = path.join(outDir, 'assets/devices', d.out);
     await sharp(buf)
