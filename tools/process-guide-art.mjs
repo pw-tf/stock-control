@@ -69,9 +69,32 @@ const DEVICES = [
     { out: 'p400.webp',  src: 'p400.png', rotate: 45.1 },
 ];
 
+// Manufacturer wordmarks. Dark-on-transparent lettering, rendered in the page
+// through a CSS mask in currentColor, so they only ever need trimming.
 const LOGOS = [
     { out: 'ingenico.svg', src: 'Ingenico_Logo.svg', copy: true },
     { out: 'verifone.webp', src: 'Verifone_logotype_black_rgb.png', logo: true },
+];
+
+// Bank marks, keyed by vendor_id. These are full-colour pictorial logos, not
+// wordmarks, so they are rendered as images on a light tile rather than masked
+// — Hungry Jack's in particular is a solid red tile whose alpha channel is the
+// whole square, which would mask to a featureless blob.
+//
+// Their aspect ratios run from 1.02 (Hungry Jack's, square) to 5.0 (Westpac, a
+// long wordmark). A plain contain-fit would let the square mark tower over the
+// wordmarks, so each is scaled to a common AREA instead and only then clamped
+// to the box. That is what makes a row of them look evenly weighted.
+const BRAND_CANVAS = { w: 288, h: 176 };
+const BRAND_BOX = { w: 264, h: 140 };
+const BRAND_AREA = 0.40 * BRAND_BOX.w * BRAND_BOX.h;
+
+const BRANDS = [
+    { out: 'cba.webp', src: 'cba-src.webp' },
+    { out: 'nab.webp', src: 'nab-src.png' },
+    { out: 'wpb.webp', src: 'wpb-src.webp', note: 'Westpac — WPB covers Westpac, BankSA and St.George' },
+    { out: 'sun.webp', src: 'sun-src.png' },
+    { out: 'hjk.webp', src: 'hjk-src.png' },
 ];
 
 /**
@@ -213,6 +236,32 @@ async function buildDevice(srcDir, outDir, d) {
 // clarity of the pipeline's shape.
 async function centreOn() { return { top: 0, bottom: 0, left: 0, right: 0, background: { r: 0, g: 0, b: 0, alpha: 0 } }; }
 
+/**
+ * Trim, scale to a common optical weight, and centre a brand mark.
+ */
+async function buildBrand(srcDir, outDir, brandDir, l) {
+    const src = path.join(brandDir || srcDir, l.src);
+    const trimmed = await sharp(src).ensureAlpha().trim({ threshold: 1 }).toBuffer();
+    const m = await sharp(trimmed).metadata();
+
+    // Equal-area scaling, then clamp so nothing overflows the box.
+    let scale = Math.sqrt(BRAND_AREA / (m.width * m.height));
+    scale = Math.min(scale, BRAND_BOX.w / m.width, BRAND_BOX.h / m.height);
+    const w = Math.max(1, Math.round(m.width * scale));
+    const h = Math.max(1, Math.round(m.height * scale));
+
+    const resized = await sharp(trimmed).resize(w, h, { fit: 'fill' }).toBuffer();
+    const file = path.join(outDir, 'assets/logos', l.out);
+    await sharp({
+        create: { width: BRAND_CANVAS.w, height: BRAND_CANVAS.h, channels: 4,
+                  background: { r: 0, g: 0, b: 0, alpha: 0 } }
+    })
+        .composite([{ input: resized, gravity: 'center' }])
+        .webp({ quality: 90, alphaQuality: 100, effort: 6 })
+        .toFile(file);
+    return { file, w, h };
+}
+
 async function main() {
     const srcDir = process.argv[2];
     if (!srcDir) { console.error('usage: node tools/process-guide-art.mjs <source-dir> [--out DIR]'); process.exit(1); }
@@ -235,6 +284,13 @@ async function main() {
         const m = await sharp(f).metadata();
         const { size } = await stat(f);
         console.log(`${d.out.padEnd(20)} ${m.width}x${m.height}  ${(size / 1024).toFixed(1)}KB${d.note ? '   # ' + d.note : ''}`);
+    }
+
+    const brandDir = path.join(srcDir, 'brand');
+    for (const l of BRANDS) {
+        const { file, w, h } = await buildBrand(srcDir, outDir, brandDir, l);
+        const { size } = await stat(file);
+        console.log(`${l.out.padEnd(20)} ${w}x${h} on ${BRAND_CANVAS.w}x${BRAND_CANVAS.h}  ${(size / 1024).toFixed(1)}KB${l.note ? '   # ' + l.note : ''}`);
     }
 
     for (const l of LOGOS) {
