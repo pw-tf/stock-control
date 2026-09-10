@@ -175,3 +175,24 @@ async function initAuth(requiredRoles = null) {
 
     return user;
 }
+/**
+ * Register the service worker.
+ *
+ * Lives here because auth.js is the one script every page loads. Its only job
+ * is to make the app installable on Android — see the header of sw.js for why
+ * it caches nothing but the offline page.
+ *
+ * Deliberately after 'load': registration competes with the page's own requests
+ * for connection slots, and nothing on screen depends on it.
+ */
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        // Root-scoped so it covers every page. The app is served from the domain
+        // root (see .htaccess), so an absolute path is correct here.
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+            // Never fatal: the app works perfectly well without it, so log and
+            // carry on rather than surfacing anything to the technician.
+            console.error('Service worker registration failed:', err);
+        });
+    });
+}

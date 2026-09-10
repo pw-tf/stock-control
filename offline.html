@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="ocean" data-mode="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0c1417">
+    <link rel="icon" href="/favicon.ico" sizes="48x48 32x32 16x16">
+    <title>Offline - Stock Control</title>
+    <!--
+        This is the ONLY file the service worker caches, and it is shown only
+        when a navigation fails because the device is offline.
+
+        The styles and markup are inline on purpose: styles.css, the fonts and
+        the icon script are all uncached by design, so any of them would be a
+        broken reference at exactly the moment this page is needed. The colours
+        are Ocean Dark's, hardcoded, because the theme variables live in the
+        stylesheet this page cannot load.
+
+        The one external reference is the favicon, which is not needed for the
+        page to render — it is served with a one-month expiry, so it usually
+        comes from the HTTP cache, and the tab just shows a default glyph when
+        it does not.
+    -->
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px;
+            background: #0c1417; color: #f0f4f7;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .card {
+            width: 100%; max-width: 380px; text-align: center;
+            background: #152328; border: 1px solid #22333d;
+            border-radius: 14px; padding: 32px 24px;
+        }
+        .mark {
+            width: 56px; height: 56px; margin: 0 auto 20px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(43, 79, 99, 0.25); border: 1px solid #22333d;
+            border-radius: 8px; color: #5a8a9e;
+        }
+        h1 { margin: 0 0 8px; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+        p  { margin: 0 0 22px; font-size: 0.9rem; line-height: 1.5; color: #9fb3bf; }
+        button {
+            width: 100%; min-height: 44px; padding: 12px 20px;
+            font: inherit; font-weight: 600; font-size: 0.92rem;
+            color: #f0f4f7; background: #2B4F63;
+            border: 1px solid #3d6b80; border-radius: 8px; cursor: pointer;
+        }
+        button:active { background: #3d6b80; }
+        .note { margin: 16px 0 0; font-size: 0.78rem; color: #6f8592; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <span class="mark">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+            </svg>
+        </span>
+        <h1>You're offline</h1>
+        <p>Stock Control needs a connection — jobs, serials and shifts are all saved to the server as you enter them.</p>
+        <button type="button" onclick="location.reload()">Try again</button>
+        <p class="note">Anything you had already submitted is safe.</p>
+    </div>
+    <script>
+        // Reload the moment the connection comes back, so the tech does not have
+        // to notice and tap.
+        addEventListener('online', function () { location.reload(); });
+    </script>
+</body>
+</html>

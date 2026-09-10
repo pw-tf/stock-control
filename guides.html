@@ -3,6 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Favicons. favicon.ico carries 16/32/48 for the bare /favicon.ico probe
+         every browser makes; the PNGs are what modern browsers actually pick. -->
+    <link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+    <link rel="apple-touch-icon" href="assets/icons/favicon-180.png">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0c1417">
     <title>Guides — Stock Control</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -62,11 +70,19 @@
            theme as an <img>. Painting them through their own alpha channel with
            currentColor makes them legible in all 22 theme/mode combinations
            without a second copy of either file or a per-theme filter. */
+        /* Painted white rather than in --text-primary: every dark theme's text
+           colour is a tinted off-white (Tokyo Night's is #c0caf5, a muted
+           lavender), and a wordmark in it sits back into the card instead of
+           reading as a logo. Light mode cannot use white on a light card, so it
+           takes the mirror-image treatment — a near-black ink, again fixed
+           rather than themed, so the mark is the highest-contrast thing on the
+           card in all 22 combinations. */
         .gd-art-logo {
-            background-color:currentColor; color:var(--text-primary);
+            background-color:currentColor; color:#ffffff;
             -webkit-mask:var(--art) center/contain no-repeat;
                     mask:var(--art) center/contain no-repeat;
         }
+        [data-mode="light"] .gd-art-logo { color:#10161d; }
 
         /* Fallback when no artwork exists for a card — the original lettered chip.
            It takes the shape of whichever slot it is standing in, so a row that

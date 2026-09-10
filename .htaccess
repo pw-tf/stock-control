@@ -73,6 +73,12 @@ DirectoryIndex index.html
 # artwork is served as WebP, so declare it rather than relying on the server's.
 <IfModule mod_mime.c>
     AddType image/webp .webp
+    # Browsers probe /favicon.ico whether or not a <link> points at it, and some
+    # servers still hand it out as text/plain, which Chrome refuses.
+    AddType image/x-icon .ico
+    # The web app manifest. Chrome accepts application/json, but this is the
+    # registered type and what the spec asks for.
+    AddType application/manifest+json .webmanifest
 </IfModule>
 
 <IfModule mod_expires.c>
@@ -83,10 +89,32 @@ DirectoryIndex index.html
     ExpiresByType image/svg+xml "access plus 1 month"
     # Guide artwork (assets/devices, assets/logos) ships as WebP.
     ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/x-icon "access plus 1 month"
 </IfModule>
 
 <IfModule mod_headers.c>
     <FilesMatch "\.(css|js)$">
         Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+
+    # sw.js MUST NOT inherit that week-long cache: the service worker is the one
+    # file that can only be replaced by the browser re-fetching it, so a stale
+    # copy is a stale copy of the update mechanism itself. This section follows
+    # the one above deliberately — for the same header, the later match wins.
+    <FilesMatch "^sw\.js$">
+        Header set Cache-Control "no-cache, max-age=0, must-revalidate"
+    </FilesMatch>
+
+    # Same reasoning for the manifest: it is small, read rarely, and a stale one
+    # means a wrong name or icon on someone's home screen until it expires.
+    <FilesMatch "^manifest\.json$">
+        Header set Cache-Control "no-cache, max-age=0, must-revalidate"
+        Header set Content-Type "application/manifest+json"
+    </FilesMatch>
+
+    # The offline page is cached by the service worker, not by HTTP; keeping it
+    # revalidated means a VERSION bump in sw.js actually picks up a new copy.
+    <FilesMatch "^offline\.html$">
+        Header set Cache-Control "no-cache, max-age=0, must-revalidate"
     </FilesMatch>
 </IfModule>
