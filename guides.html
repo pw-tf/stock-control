@@ -37,22 +37,23 @@
         }
         .gd-card:hover { border-color:var(--accent-primary); transform:translateY(-1px); }
         /* ---- card artwork ---------------------------------------------------
-           Two slot shapes, because the artwork is two shapes: the logo wordmarks
-           are wide, the device photos are upright terminals. The two never appear
-           on the same screen, so each level gets the slot that fits it. */
+           One slot shape for every level: the wordmarks, the bank marks and the
+           device photos are all landscape, so a card is the same height wherever
+           you are in the drill-down. */
         .gd-card-art {
             display:flex; align-items:center; justify-content:center; flex-shrink:0;
             width:72px; height:44px; border-radius:9px; overflow:hidden;
         }
         .gd-card-art img { width:100%; height:100%; object-fit:contain; display:block; }
 
-        /* Device photos are mostly black hardware and the card is dark in nine of
-           the eleven themes, so the photo gets a light stage to sit on. In light
-           themes the same tile reads as a faint panel rather than disappearing. */
-        .gd-art-device { width:48px; height:64px; background:#eef1f4; padding:4px; border-radius:10px; }
-        /* Bank marks are full colour, so they need the same light stage as the
-           device photos — several are dark lettering that would vanish on a dark
-           card, and Hungry Jack's carries its own red ground. */
+        /* Device photos are mostly black hardware and the bank marks are full
+           colour — several dark lettering, and Hungry Jack's its own red square.
+           Neither survives on a card that is dark in nine of the eleven themes,
+           so both get a light stage. In light themes it reads as a faint panel
+           rather than disappearing. The two are kept as separate class names
+           because they mark different levels of the drill-down, even though the
+           tile they ask for is currently the same. */
+        .gd-art-device,
         .gd-art-brand { background:#eef1f4; padding:4px; }
         [data-mode="light"] .gd-art-device,
         [data-mode="light"] .gd-art-brand { background:#f2f4f6; }
@@ -76,11 +77,10 @@
             font-weight:700; font-size:.92rem; letter-spacing:.04em;
         }
         /* A device fallback is a truncated model name, not a catalogue code, so
-           it keeps the UI face and a size that fits the narrower slot. */
-        .gd-art-chip.gd-art-device-shape {
+           it keeps the UI face rather than the mono one the ids are set in. */
+        .gd-art-chip.gd-art-device-chip {
             font-family:inherit; font-weight:800; font-size:.8rem; letter-spacing:.02em;
         }
-        .gd-art-chip.gd-art-device-shape { width:48px; height:64px; border-radius:10px; }
         .gd-card-text { min-width:0; }
         .gd-card-name { display:block; font-weight:650; font-size:.92rem; color:var(--text-primary); }
         .gd-card-sub  { display:block; font-size:.75rem; color:var(--text-secondary); margin-top:2px; }
@@ -202,8 +202,6 @@
         @media (max-width: 600px) {
             .gd-grid { grid-template-columns:1fr; }
             .gd-card-art { width:64px; height:40px; }
-            .gd-art-device,
-            .gd-art-chip.gd-art-device-shape { width:44px; height:58px; }
             .gd-doc-head h2 { font-size:1.15rem; }
             .gd-body { font-size:.88rem; }
             .modal-actions.split { flex-direction:column-reverse; align-items:stretch; }
@@ -709,7 +707,7 @@
 
         function artHTML(art, fallbackMark, shape) {
             const kind = shape || (art && art.kind) || 'logo';
-            const chipCls = 'gd-card-art gd-art-chip' + (kind === 'device' ? ' gd-art-device-shape' : '');
+            const chipCls = 'gd-card-art gd-art-chip' + (kind === 'device' ? ' gd-art-device-chip' : '');
             const chip = '<span class="' + chipCls + '">' + escapeHTML(fallbackMark || '') + '</span>';
             if (!art || !art.srcs.length) return chip;
 
@@ -767,7 +765,7 @@
 
         function replaceWithChip(slot, mark) {
             if (!slot) return;
-            const shape = slot.dataset.shape === 'device' ? ' gd-art-device-shape' : '';
+            const shape = slot.dataset.shape === 'device' ? ' gd-art-device-chip' : '';
             slot.className = 'gd-card-art gd-art-chip' + shape;
             slot.removeAttribute('style');
             slot.textContent = mark || '';
