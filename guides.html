@@ -26,7 +26,7 @@
         .gd-crumb-now { padding:3px 2px; color:var(--text-secondary); font-weight:600; }
 
         /* ---- drill-down cards ---------------------------------------------- */
-        .gd-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; }
+        .gd-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px; }
         .gd-card {
             display:flex; align-items:center; gap:12px; width:100%; text-align:left;
             padding:16px; border:1px solid var(--bg-tertiary); border-radius:12px;
@@ -34,9 +34,33 @@
             transition:border-color .12s ease, transform .12s ease;
         }
         .gd-card:hover { border-color:var(--accent-primary); transform:translateY(-1px); }
-        .gd-card-mark {
+        /* ---- card artwork ---------------------------------------------------
+           A landscape slot, because the device photos and the logo wordmarks are
+           both wide; a square chip would letterbox both. */
+        .gd-card-art {
             display:flex; align-items:center; justify-content:center; flex-shrink:0;
-            width:38px; height:38px; border-radius:10px;
+            width:72px; height:44px; border-radius:9px; overflow:hidden;
+        }
+        .gd-card-art img { width:100%; height:100%; object-fit:contain; display:block; }
+
+        /* Device photos are mostly black hardware and the card is dark in nine of
+           the eleven themes, so the photo gets a light stage to sit on. In light
+           themes the same tile reads as a faint panel rather than disappearing. */
+        .gd-art-device { background:#eef1f4; padding:3px; }
+        [data-mode="light"] .gd-art-device { background:#f2f4f6; }
+
+        /* Both wordmarks are dark-on-transparent, so neither survives a dark
+           theme as an <img>. Painting them through their own alpha channel with
+           currentColor makes them legible in all 22 theme/mode combinations
+           without a second copy of either file or a per-theme filter. */
+        .gd-art-logo {
+            background-color:currentColor; color:var(--text-primary);
+            -webkit-mask:var(--art) center/contain no-repeat;
+                    mask:var(--art) center/contain no-repeat;
+        }
+
+        /* Fallback when no artwork exists for a card — the original lettered chip. */
+        .gd-art-chip {
             background:var(--bg-tertiary); color:var(--accent-primary);
             font-weight:800; font-size:.8rem; letter-spacing:.02em;
         }
@@ -152,6 +176,7 @@
 
         @media (max-width: 600px) {
             .gd-grid { grid-template-columns:1fr; }
+            .gd-card-art { width:64px; height:40px; }
             .gd-doc-head h2 { font-size:1.15rem; }
             .gd-body { font-size:.88rem; }
             .modal-actions.split { flex-direction:column-reverse; align-items:stretch; }
@@ -490,6 +515,7 @@
             renderCrumbs();
             renderMain();
             renderSidebarTree();
+            bindArtFallbacks(document.getElementById('gdMain'));
             lucide.createIcons();
         }
 
@@ -549,6 +575,7 @@
                 host.innerHTML = cardsHTML(vendorsOf(view.client).map(v => ({
                     label: vendorLabel(v),
                     mark: initialsOf(vendorLabel(v)),
+                    art: logoArt(v),
                     sub: countLabel(devicesOf(view.client, v).length, 'device'),
                     target: { client: view.client, vendor: v }
                 })));
@@ -574,6 +601,7 @@
             const cards = clientsWithGuides().map(c => ({
                 label: clientLabel(c),
                 mark: initialsOf(clientLabel(c)),
+                art: logoArt(c),
                 sub: countLabel(vendorsOf(c).length, 'vendor'),
                 target: { client: c }
             }));
@@ -594,17 +622,111 @@
             if (!cards.length) return emptyHTML('Nothing here yet.');
             return '<div class="gd-grid">' + cards.map(c =>
                 '<button class="gd-card" type="button" onclick=\'go(' + jsonAttr(c.target) + ')\'>'
-                + '<span class="gd-card-mark">' + escapeHTML(c.mark) + '</span>'
+                + artHTML(c.art, c.mark)
                 + '<span class="gd-card-text"><span class="gd-card-name">' + escapeHTML(c.label) + '</span>'
                 + '<span class="gd-card-sub">' + escapeHTML(c.sub) + '</span></span></button>'
             ).join('') + '</div>';
         }
 
+        /*
+         * Artwork lives on disk under a naming convention rather than in a table
+         * the code has to keep in step:
+         *
+         *   assets/logos/<client or vendor id>.svg|.webp
+         *   assets/devices/<vendor>-<device>.webp   bank-specific, tried first
+         *   assets/devices/<device>.webp            the generic fall-back
+         *
+         * The bank-specific step is what serves the Move5000: it appears under
+         * four banks but the photo is CBA-branded, so move5000-cba.webp resolves
+         * under CBA and everything else lands on the unbranded move5000.webp.
+         *
+         * A missing file is not an error — onArtError() swaps the card back to
+         * its lettered chip. So dropping a bank logo into assets/logos/ makes it
+         * appear with no code change, which is how the vendor cards will get
+         * their logos later.
+         */
+        function artSlug(text) {
+            return String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        }
+
+        function logoArt(id) {
+            if (!id) return null;
+            const base = 'assets/logos/' + artSlug(id);
+            // Ingenico ships as SVG, Verifone as WebP; try both before giving up.
+            return { kind: 'logo', srcs: [base + '.svg', base + '.webp'] };
+        }
+
+        function deviceArt(vendor, device) {
+            if (!device) return null;
+            const slug = artSlug(device);
+            const srcs = [];
+            if (vendor) srcs.push('assets/devices/' + artSlug(vendor) + '-' + slug + '.webp');
+            srcs.push('assets/devices/' + slug + '.webp');
+            return { kind: 'device', srcs: srcs };
+        }
+
+        function artHTML(art, fallbackMark) {
+            const chip = '<span class="gd-card-art gd-art-chip">' + escapeHTML(fallbackMark || '') + '</span>';
+            if (!art || !art.srcs.length) return chip;
+
+            if (art.kind === 'logo') {
+                // Masked, so it takes the card's text colour. The mask URL is the
+                // first candidate; onArtError can't see a CSS mask fail, so the
+                // probe below drives the fallback instead.
+                return '<span class="gd-card-art gd-art-logo" data-art=\'' + jsonAttr(art.srcs) + '\''
+                    + ' style="--art:url(&quot;' + escapeHTML(art.srcs[0]) + '&quot;)"'
+                    + ' data-mark="' + escapeHTML(fallbackMark || '') + '"></span>';
+            }
+            return '<span class="gd-card-art gd-art-device">'
+                + '<img src="' + escapeHTML(art.srcs[0]) + '" alt="" loading="lazy" decoding="async"'
+                + ' data-art=\'' + jsonAttr(art.srcs) + '\' data-i="0"'
+                + ' data-mark="' + escapeHTML(fallbackMark || '') + '">'
+                + '</span>';
+        }
+
+        /*
+         * Walk the candidate list on failure, and fall back to the lettered chip
+         * once every candidate is exhausted. Bound by the list length, so a
+         * missing file can never loop.
+         */
+        function bindArtFallbacks(root) {
+            root.querySelectorAll('.gd-art-device img[data-art]').forEach(img => {
+                img.addEventListener('error', () => {
+                    const srcs = JSON.parse(img.dataset.art);
+                    const next = Number(img.dataset.i) + 1;
+                    if (next < srcs.length) {
+                        img.dataset.i = String(next);
+                        img.src = srcs[next];
+                        return;
+                    }
+                    replaceWithChip(img.closest('.gd-card-art'), img.dataset.mark);
+                });
+            });
+
+            // A CSS mask gives no load event, so probe the file to decide whether
+            // the logo slot can stay.
+            root.querySelectorAll('.gd-art-logo[data-art]').forEach(el => {
+                const srcs = JSON.parse(el.dataset.art);
+                (function probe(i) {
+                    if (i >= srcs.length) { replaceWithChip(el, el.dataset.mark); return; }
+                    const test = new Image();
+                    test.onload = () => { el.style.setProperty('--art', 'url("' + srcs[i] + '")'); };
+                    test.onerror = () => probe(i + 1);
+                    test.src = srcs[i];
+                })(0);
+            });
+        }
+
+        function replaceWithChip(slot, mark) {
+            if (!slot) return;
+            slot.className = 'gd-card-art gd-art-chip';
+            slot.removeAttribute('style');
+            slot.textContent = mark || '';
+        }
+
         function deviceCard(device, guideCount) {
             return '<button class="gd-card" type="button" onclick="openDevice(' + jsStr(view.client) + ',' + jsStr(view.vendor) + ',' + jsStr(device) + ')">'
-                + '<span class="gd-card-mark">'
-                + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>'
-                + '</span>'
+                + artHTML(deviceArt(view.vendor, device), initialsOf(device))
                 + '<span class="gd-card-text"><span class="gd-card-name">' + escapeHTML(device) + '</span>'
                 + '<span class="gd-card-sub">' + escapeHTML(countLabel(guideCount, 'guide')) + '</span></span></button>';
         }
@@ -658,6 +780,7 @@
             searchTerm = document.getElementById('gdSearch').value.trim().toLowerCase();
             renderCrumbs();
             renderMain();
+            bindArtFallbacks(document.getElementById('gdMain'));
             lucide.createIcons();
         }
 

@@ -69,12 +69,20 @@ DirectoryIndex index.html
 </IfModule>
 
 # Cache static assets
+# WebP is only in Apache's default mime table on newer builds, and the guide
+# artwork is served as WebP, so declare it rather than relying on the server's.
+<IfModule mod_mime.c>
+    AddType image/webp .webp
+</IfModule>
+
 <IfModule mod_expires.c>
     ExpiresActive On
     ExpiresByType text/css "access plus 1 week"
     ExpiresByType application/javascript "access plus 1 week"
     ExpiresByType image/png "access plus 1 month"
     ExpiresByType image/svg+xml "access plus 1 month"
+    # Guide artwork (assets/devices, assets/logos) ships as WebP.
+    ExpiresByType image/webp "access plus 1 month"
 </IfModule>
 
 <IfModule mod_headers.c>

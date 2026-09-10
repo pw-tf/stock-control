@@ -138,6 +138,19 @@ Terminal configuration procedures, stored as rows in `guides` rather than hardco
 
 **Editing** (manager/super_admin): "New guide" plus Edit on the open guide, in one modal keyed on `editingGuideId` — title (the variant name), subtitle, client, vendor, device, slug, sort order, published toggle, and a body textarea with an Edit/Preview toggle running the real renderer. Vendor is disabled until a client is picked and device until a vendor is, mirroring the two DB check constraints. The device field is a text input backed by a `<datalist>` of devices already used under that vendor, so picking an existing one is a click and a new one is just typing. Creating from inside a device pre-fills that path. The slug auto-derives from client-vendor-device-title while creating and is never touched afterwards, because it is a URL people may have shared. Unpublished guides stay visible to managers, flagged "draft", and hidden from technicians.
 
+**Card artwork**: client cards carry the manufacturer wordmark and device cards a photo of the terminal, both in a 72×44 landscape slot (64×40 below 600px). Files are found by convention rather than a lookup table, so adding artwork is a filename and never a code change:
+
+```
+assets/logos/<client or vendor id>.svg|.webp
+assets/devices/<vendor>-<device>.webp     bank-specific, tried first
+assets/devices/<device>.webp              generic fall-back
+```
+
+- Anything missing falls back to the lettered chip the cards used before, so the five vendor cards show chips today; dropping `cba.webp` into `assets/logos/` gives that card a logo with no other change
+- The bank-specific device step exists because the **Move5000 is used under four banks but the supplied photo is CBA-branded**: `cba-move5000.webp` wins under CBA, everyone else gets `move5000.webp` with the branding painted out. The CM5P and P630 keep their CBA branding because those models only ever appear under CBA
+- Device photos sit on a light tile — they are mostly black hardware and the card is dark in nine of the eleven themes. The two wordmarks are dark-on-transparent, so instead of a tile they are painted through their own alpha channel with `currentColor` (`-webkit-mask`/`mask`), which makes them legible in all 22 theme/mode combinations with no per-theme rule and no second copy of either file. A CSS mask fires no load event, so `bindArtFallbacks()` probes the file with an `Image()` before deciding the slot can stay
+- Source artwork is normalised by `tools/process-guide-art.mjs` (a dev utility needing `npm i sharp`; the app itself stays dependency-free). Every device is rotated so its long axis is horizontal — the angle comes from a PCA of the alpha mask, not from eye — then trimmed, scaled to a common content box and centred on one 320×200 canvas so no card looks heavier than its neighbour. Re-run it when new artwork arrives
+
 **Search**: a box on every level matches title, subtitle, device, client, vendor and body text (via `markdownToText()`), and jumps straight to a guide.
 
 **Deep-links**: `?guide=<slug>` opens a guide; `?client=`, `?client=&vendor=`, `?client=&vendor=&device=` open a browse level.
@@ -247,6 +260,7 @@ guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nul
 - **Guide grouping**: a guide is either general (no client, vendor or device) or a full path — client, vendor and device. A vendor without a client is rejected by `guides_vendor_needs_client_check` and a device without a vendor by `guides_device_needs_vendor_check`: neither would have a branch to render on
 - **Guide devices**: the level between vendor and guide. Several guides share one device when it has variants (Move5000 → Standalone / Integrated / Cloud); a device with a single guide is opened directly rather than showing a one-item list. Devices are ordered by the lowest `sort_order` among their guides
 - **Guide bodies are self-contained**: no body refers the reader to another guide. Shared steps are duplicated on purpose, so editing one means editing every guide that carries it
+- **Guide artwork is looked up by filename**, never registered in code: `assets/devices/<vendor>-<device>.webp` then `assets/devices/<device>.webp`, falling back to a lettered chip. A device photo carrying one bank's branding must therefore be filed under that bank and a neutral copy provided for the rest — as the Move5000 is
 - **Guide slugs**: lowercase letters, digits and hyphens (DB check constraint), because the slug travels as a `?guide=` URL parameter. Renaming one breaks every link anyone has shared
 - **Shift time multipliers**: Mon-Fri 1x, Sat 1.5x, Sun 2x — used in shift reports and CSV exports
 - **Image compression**: client-side canvas resize (max 1200px), iterative quality reduction until < 100KB, saved as JPEG to `job-receipts` Supabase storage bucket
@@ -291,6 +305,9 @@ guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nul
 ├── sidebar.js               Navigation (Workspace: Home, Stock Entry, Inventory, Planner, Guides)
 ├── icons.js                 Lucide icons
 ├── markdown.js              Escape-first markdown renderer for guide bodies
+├── assets/logos/            Manufacturer wordmarks, masked to currentColor
+├── assets/devices/          Normalised terminal photos for the device cards
+├── tools/process-guide-art.mjs  Dev utility: rotate/trim/scale source artwork
 ├── styles.css               Full design system + 11 theme variants
 ├── sql/planner.sql          One-off migration: planner columns, constraints, RLS
 ├── sql/guides.sql           One-off migration: guides table, RLS, catalogue display
