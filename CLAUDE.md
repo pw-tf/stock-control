@@ -286,6 +286,14 @@ guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nul
 
 **Print stylesheet**: custom rules for barcode printing with `page-break-inside: avoid` on job sections.
 
+**App icon**: one master, `tools/icon-src.png`, built into the shipped set by `tools/make-favicons.mjs` (`npm i sharp`, same dev-only footing as the guide-art tool). Every page's `<head>` declares the same four links. Notes worth keeping:
+- `favicon.ico` lives at the web root because browsers probe `/favicon.ico` whether or not a `<link>` points at it. It holds 16/32/48 as **PNG** entries rather than BMP — universally supported, and a fraction of the size. Chromium picks it over the PNG links at both 1x and 2x, so the PNGs are there for engines that prefer an explicit one
+- `favicon-180.png` (apple-touch-icon) is the one icon flattened onto **white**. iOS composites a transparent home-screen icon onto black, and this artwork is black-outlined, so it would otherwise disappear
+- `icon-192.png` / `icon-512.png` are the web app manifest sizes. They are **not referenced yet** — there is no manifest, which is why Android Chrome offers only a bookmark shortcut rather than an install. See the note below
+- Verifying a favicon needs **server-side** request logging: Chromium fetches it from the browser process, so it never appears in `page.on('response')`
+
+**Not a PWA yet**: there is no `manifest.json` and no service worker. iOS Safari makes a home-screen web app regardless, which is why iPhone users see a full-screen app; Android Chrome requires the manifest and so falls back to a tab. The icons above are the missing half of that work.
+
 ---
 
 ## File Structure
@@ -311,8 +319,14 @@ guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nul
 ├── sidebar.js               Navigation (Workspace: Home, Stock Entry, Inventory, Planner, Guides)
 ├── icons.js                 Lucide icons
 ├── markdown.js              Escape-first markdown renderer for guide bodies
+├── favicon.ico              16/32/48 in one file — the bare /favicon.ico probe
 ├── assets/logos/            Manufacturer wordmarks, masked to currentColor
 ├── assets/devices/          Normalised terminal photos for the device cards
+├── assets/icons/            Favicon PNGs, apple-touch-icon, and the 192/512
+│                              app-icon sizes
+├── tools/icon-src.png       App icon master (1024px), committed so the set
+│                              can be regenerated
+├── tools/make-favicons.mjs  Dev utility: build the icon set from that master
 ├── tools/process-guide-art.mjs  Dev utility: rotate/trim/scale source artwork
 ├── styles.css               Full design system + 11 theme variants
 ├── sql/planner.sql          One-off migration: planner columns, constraints, RLS

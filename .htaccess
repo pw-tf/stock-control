@@ -73,6 +73,9 @@ DirectoryIndex index.html
 # artwork is served as WebP, so declare it rather than relying on the server's.
 <IfModule mod_mime.c>
     AddType image/webp .webp
+    # Browsers probe /favicon.ico whether or not a <link> points at it, and some
+    # servers still hand it out as text/plain, which Chrome refuses.
+    AddType image/x-icon .ico
 </IfModule>
 
 <IfModule mod_expires.c>
@@ -83,6 +86,7 @@ DirectoryIndex index.html
     ExpiresByType image/svg+xml "access plus 1 month"
     # Guide artwork (assets/devices, assets/logos) ships as WebP.
     ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/x-icon "access plus 1 month"
 </IfModule>
 
 <IfModule mod_headers.c>
