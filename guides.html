@@ -50,7 +50,12 @@
            the eleven themes, so the photo gets a light stage to sit on. In light
            themes the same tile reads as a faint panel rather than disappearing. */
         .gd-art-device { width:48px; height:64px; background:#eef1f4; padding:4px; border-radius:10px; }
-        [data-mode="light"] .gd-art-device { background:#f2f4f6; }
+        /* Bank marks are full colour, so they need the same light stage as the
+           device photos — several are dark lettering that would vanish on a dark
+           card, and Hungry Jack's carries its own red ground. */
+        .gd-art-brand { background:#eef1f4; padding:4px; }
+        [data-mode="light"] .gd-art-device,
+        [data-mode="light"] .gd-art-brand { background:#f2f4f6; }
 
         /* Both wordmarks are dark-on-transparent, so neither survives a dark
            theme as an <img>. Painting them through their own alpha channel with
@@ -597,7 +602,7 @@
                 host.innerHTML = cardsHTML(vendorsOf(view.client).map(v => ({
                     label: vendorLabel(v),
                     mark: catalogueMark(v),
-                    art: logoArt(v),
+                    art: vendorArt(v),
                     sub: countLabel(devicesOf(view.client, v).length, 'device'),
                     target: { client: view.client, vendor: v }
                 })));
@@ -621,7 +626,7 @@
             const cards = clientsWithGuides().map(c => ({
                 label: clientLabel(c),
                 mark: catalogueMark(c),
-                art: logoArt(c),
+                art: clientArt(c),
                 sub: countLabel(vendorsOf(c).length, 'vendor'),
                 target: { client: c }
             }));
@@ -669,11 +674,28 @@
             return String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
         }
 
-        function logoArt(id) {
+        /*
+         * Manufacturer wordmarks — dark lettering on transparency. Painted
+         * through a CSS mask in currentColor so they follow the theme.
+         * Ingenico ships as SVG, Verifone as WebP; try both before giving up.
+         */
+        function clientArt(id) {
             if (!id) return null;
             const base = 'assets/logos/' + artSlug(id);
-            // Ingenico ships as SVG, Verifone as WebP; try both before giving up.
             return { kind: 'logo', srcs: [base + '.svg', base + '.webp'] };
+        }
+
+        /*
+         * Bank marks. These are full-colour pictorial logos, so they render as
+         * images on a light tile rather than through the mask — Hungry Jack's
+         * is a solid red tile whose alpha is the whole square, and masking it
+         * would give a featureless blob. Same lookup by vendor id, so dropping
+         * a new bank's file into assets/logos/ still needs no code change.
+         */
+        function vendorArt(id) {
+            if (!id) return null;
+            const base = 'assets/logos/' + artSlug(id);
+            return { kind: 'brand', srcs: [base + '.webp', base + '.svg', base + '.png'] };
         }
 
         function deviceArt(vendor, device) {
@@ -686,19 +708,24 @@
         }
 
         function artHTML(art, fallbackMark, shape) {
-            const chipCls = 'gd-card-art gd-art-chip' + (shape === 'device' ? ' gd-art-device-shape' : '');
+            const kind = shape || (art && art.kind) || 'logo';
+            const chipCls = 'gd-card-art gd-art-chip' + (kind === 'device' ? ' gd-art-device-shape' : '');
             const chip = '<span class="' + chipCls + '">' + escapeHTML(fallbackMark || '') + '</span>';
             if (!art || !art.srcs.length) return chip;
 
             if (art.kind === 'logo') {
                 // Masked, so it takes the card's text colour. The mask URL is the
-                // first candidate; onArtError can't see a CSS mask fail, so the
-                // probe below drives the fallback instead.
+                // first candidate; a CSS mask raises no load event, so the probe
+                // in bindArtFallbacks drives the fallback instead.
                 return '<span class="gd-card-art gd-art-logo" data-art=\'' + jsonAttr(art.srcs) + '\''
                     + ' style="--art:url(&quot;' + escapeHTML(art.srcs[0]) + '&quot;)"'
                     + ' data-mark="' + escapeHTML(fallbackMark || '') + '"></span>';
             }
-            return '<span class="gd-card-art gd-art-device" data-shape="device">'
+
+            // Brand marks and device photos are both images on a light tile;
+            // only the slot's shape differs.
+            const tile = art.kind === 'device' ? 'gd-art-device' : 'gd-art-brand';
+            return '<span class="gd-card-art ' + tile + '" data-shape="' + escapeHTML(art.kind) + '">'
                 + '<img src="' + escapeHTML(art.srcs[0]) + '" alt="" loading="lazy" decoding="async"'
                 + ' data-art=\'' + jsonAttr(art.srcs) + '\' data-i="0"'
                 + ' data-mark="' + escapeHTML(fallbackMark || '') + '">'
@@ -711,7 +738,7 @@
          * missing file can never loop.
          */
         function bindArtFallbacks(root) {
-            root.querySelectorAll('.gd-art-device img[data-art]').forEach(img => {
+            root.querySelectorAll('.gd-art-device img[data-art], .gd-art-brand img[data-art]').forEach(img => {
                 img.addEventListener('error', () => {
                     const srcs = JSON.parse(img.dataset.art);
                     const next = Number(img.dataset.i) + 1;
