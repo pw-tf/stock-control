@@ -19,8 +19,14 @@
  * favicon-180.png      apple-touch-icon. Flattened onto white, because iOS
  *                      composites a transparent icon onto BLACK — and this
  *                      artwork is black-outlined, so it would disappear.
- * icon-192/512.png     Web app manifest sizes. Kept transparent; Android masks
- *                      and grounds them itself.
+ * icon-192/512.png     Web app manifest sizes. Kept transparent; the browser
+ *                      grounds them itself.
+ * icon-maskable-512    Android crops a maskable icon to a circle/squircle, and
+ *                      only guarantees the central 80% diameter. A square
+ *                      inscribed in that circle is 0.8/sqrt(2) = 56% of the
+ *                      canvas, so the artwork is drawn at 56% and centred on an
+ *                      opaque ground. Without this Android letterboxes the
+ *                      normal icon inside a white circle instead.
  */
 
 import sharp from 'sharp';
@@ -94,6 +100,11 @@ const pngs = [
     ['icon-512.png',    512, null],
 ];
 
+// White, not the app's accent: the artwork is black-outlined with pale fills,
+// so it needs a light ground to read at all. Same reasoning as the 180.
+const MASKABLE_GROUND = '#ffffff';
+const MASKABLE_SAFE = 0.56;
+
 console.log(`source ${t.width}x${t.height} trimmed -> ${box}x${box} master`);
 console.log(`favicon.ico`.padEnd(20) + `${icoSizes.join('/')}  ${(statSync(icoFile).size / 1024).toFixed(1)}KB`);
 for (const [name, size, bg] of pngs) {
@@ -101,3 +112,15 @@ for (const [name, size, bg] of pngs) {
     await writeFile(path.join(ROOT, 'assets/icons', name), buf);
     console.log(name.padEnd(20) + `${size}px${bg ? ' on ' + bg : ''}  ${(buf.length / 1024).toFixed(1)}KB`);
 }
+
+const MSIZE = 512;
+const inner = Math.round(MSIZE * MASKABLE_SAFE);
+const maskable = await sharp({
+    create: { width: MSIZE, height: MSIZE, channels: 4, background: MASKABLE_GROUND }
+}).composite([{
+    input: await sharp(master).resize(inner, inner, { fit: 'contain', kernel: 'lanczos3',
+        background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer(),
+    left: Math.round((MSIZE - inner) / 2), top: Math.round((MSIZE - inner) / 2)
+}]).png({ compressionLevel: 9 }).toBuffer();
+await writeFile(path.join(ROOT, 'assets/icons/icon-maskable-512.png'), maskable);
+console.log('icon-maskable-512.png'.padEnd(20) + `${MSIZE}px, art at ${inner}px on ${MASKABLE_GROUND}  ${(maskable.length / 1024).toFixed(1)}KB`);

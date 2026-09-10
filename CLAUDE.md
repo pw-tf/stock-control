@@ -289,10 +289,20 @@ guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nul
 **App icon**: one master, `tools/icon-src.png`, built into the shipped set by `tools/make-favicons.mjs` (`npm i sharp`, same dev-only footing as the guide-art tool). Every page's `<head>` declares the same four links. Notes worth keeping:
 - `favicon.ico` lives at the web root because browsers probe `/favicon.ico` whether or not a `<link>` points at it. It holds 16/32/48 as **PNG** entries rather than BMP — universally supported, and a fraction of the size. Chromium picks it over the PNG links at both 1x and 2x, so the PNGs are there for engines that prefer an explicit one
 - `favicon-180.png` (apple-touch-icon) is the one icon flattened onto **white**. iOS composites a transparent home-screen icon onto black, and this artwork is black-outlined, so it would otherwise disappear
-- `icon-192.png` / `icon-512.png` are the web app manifest sizes. They are **not referenced yet** — there is no manifest, which is why Android Chrome offers only a bookmark shortcut rather than an install. See the note below
+- `icon-192.png` / `icon-512.png` are the manifest's `any` icons, kept transparent
+- `icon-maskable-512.png` is the `maskable` one. Android crops a maskable icon to a circle and only guarantees the central 80% diameter, so the artwork is drawn at **56%** of the canvas (a square inscribed in that circle) on an opaque white ground. Declaring the plain icon maskable instead would clip the book's edges
 - Verifying a favicon needs **server-side** request logging: Chromium fetches it from the browser process, so it never appears in `page.on('response')`
 
-**Not a PWA yet**: there is no `manifest.json` and no service worker. iOS Safari makes a home-screen web app regardless, which is why iPhone users see a full-screen app; Android Chrome requires the manifest and so falls back to a tab. The icons above are the missing half of that work.
+**Installable (PWA)**: `manifest.json` + `sw.js`, registered from the bottom of auth.js because that is the one script every page loads.
+
+- Android Chrome needs the manifest to offer a real install (a WebAPK with its own launcher icon and app-switcher entry). Without one it only makes a bookmark shortcut that opens in a browser tab. iOS Safari makes a home-screen web app regardless, which is why iPhone users had a full-screen app long before this existed
+- `start_url` is `/`, **not** `/index.html`: the `.htaccess` 301-redirects `/index.html`, and a redirecting start URL can break the install
+- **The service worker caches exactly one file: `offline.html`.** This app has no build step and no asset versioning — `styles.css` is `styles.css` forever — so a conventional precache would pin technicians to whatever JS was current when they first loaded the app, and a bad deploy would be unfixable from the server. That is worse than opening in a tab. So every request for HTML, JS, CSS, images and Supabase data goes to the network every time, and the only cached response the worker can ever produce is the offline page, only after a *navigation* has already failed. The app cannot go stale because there is nothing stale to serve
+- A non-navigation request is never intercepted at all (no `respondWith`), and a non-GET never is either — a Supabase write must fail loudly rather than pass through this. A 404 or 500 is a *successful* fetch, so real server errors still surface as server errors
+- `offline.html` is entirely self-contained: it cannot reference styles.css or the fonts, because nothing else is cached. Its colours are Ocean Dark's, hardcoded
+- Bump `VERSION` in sw.js when offline.html changes; `activate` then deletes every other cache
+- `.htaccess` gives `sw.js` `no-cache` explicitly. It would otherwise inherit the week-long `\.(css|js)$` rule — a stale copy of the update mechanism itself. The `manifest.json` and `offline.html` rules exist for the same reason
+- Not verifiable in this environment: `beforeinstallprompt` does not fire in headless Chromium, so the install prompt itself has to be confirmed on a real device. Chrome's own manifest parser (CDP `Page.getAppManifest`) does report zero errors
 
 ---
 
@@ -319,11 +329,14 @@ guides:           id (UUID), slug (unique, url-safe), client_id (FK clients, nul
 ├── sidebar.js               Navigation (Workspace: Home, Stock Entry, Inventory, Planner, Guides)
 ├── icons.js                 Lucide icons
 ├── markdown.js              Escape-first markdown renderer for guide bodies
+├── manifest.json            Web app manifest — makes Android offer a real install
+├── sw.js                    Service worker: caches ONLY offline.html, never app code
+├── offline.html             Self-contained offline fallback (the one cached file)
 ├── favicon.ico              16/32/48 in one file — the bare /favicon.ico probe
 ├── assets/logos/            Manufacturer wordmarks, masked to currentColor
 ├── assets/devices/          Normalised terminal photos for the device cards
-├── assets/icons/            Favicon PNGs, apple-touch-icon, and the 192/512
-│                              app-icon sizes
+├── assets/icons/            Favicon PNGs, apple-touch-icon, and the 192/512 plus
+│                              maskable app-icon sizes
 ├── tools/icon-src.png       App icon master (1024px), committed so the set
 │                              can be regenerated
 ├── tools/make-favicons.mjs  Dev utility: build the icon set from that master
