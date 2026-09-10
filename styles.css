@@ -3779,15 +3779,31 @@ body:has(.topbar) .hamburger-btn { display: none !important; }
   gap: var(--gap);
   flex-wrap: wrap;
 }
-.page-title-group { display: flex; align-items: center; gap: 16px; }
+/* Top-aligned, not centred. Centring looks identical while the subtitle is one
+   line, but several subtitles are built at runtime and wrap on a phone — the
+   guides breadcrumb runs to three lines, and inventory's ?shift= subtitle to
+   two — and a centred mark slides down the page as they grow. The offset below
+   reproduces the centred position for a one-line subtitle and then holds it. */
+.page-title-group { display: flex; align-items: flex-start; gap: 16px; }
 .page-title-mark {
   width: 44px; height: 44px;
+  /* Never let a long title or subtitle compress the icon: it is a flex item, so
+     without this it shrinks below 44px while the svg inside stays 22px, which
+     reads as the icon having changed size and drifted off-centre. */
+  flex-shrink: 0;
+  /* Half the difference between the 44px mark and a one-line title block
+     (26px h1 + 2px + 26px subtitle = 54px), so the mark sits exactly where
+     align-items:center used to put it. */
+  margin-top: 5px;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--accent-glow);
   color: var(--accent-tertiary);
   border-radius: 6px;
   border: 1px solid var(--border-primary);
 }
+/* Lets the title block shrink and wrap instead of overflowing the head now that
+   the icon beside it holds its width. */
+.page-title { min-width: 0; }
 .page-title h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
 .page-title-sub { font-size: 0.85rem; color: var(--text-secondary); margin-top: 2px; }
 .page-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
