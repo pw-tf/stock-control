@@ -20,8 +20,9 @@
 -- Note this is the reverse of the source document's wording, which called the
 -- banks "clients"; the column names here follow the app's schema.
 --
---   client NULL, vendor NULL, device NULL  -> general, reached from the home screen
---   all three set                          -> a bank's terminal model variant
+--   all three set  -> a bank's terminal model variant. Every seeded guide is
+--                     one of these; the nullable columns exist so a general
+--                     guide *can* be added, not because one is shipped.
 --
 -- Guides are global, like clients and vendors themselves: terminal procedures are
 -- national, so every depot reads the same rows.
@@ -236,32 +237,6 @@ COMMIT;
 -- written out in both rather than cross-referenced.
 
 BEGIN;
-
-INSERT INTO public.guides (slug, client_id, vendor_id, device, title, subtitle, sort_order, body_md) VALUES
-('general-reading-these-guides', NULL, NULL, NULL,
- 'Reading these guides', 'Warning tiers and software policy', 0,
-$md$Guides are found by narrowing down: **client** (Ingenico or Verifone — whoever
-dispatched the work), then **vendor** (the bank), then the **device**, then the
-variant you are working on.
-
-Every guide is complete on its own. If two guides share a procedure the steps are
-written out in both, so you never have to leave a job half-done to go and read
-something else.
-
-## Warning tiers
-
-| Tier | Meaning |
-|---|---|
-| **CRITICAL** | Irreversible, or will stop the merchant transacting. |
-| **NOTE** | Procedural detail or known behaviour. |
-| **ADMIN** | Stock, paperwork, or upload requirement. |
-
-## Software
-
-All terminals should be running the latest software. Specific version numbers are
-deliberately not listed anywhere in these guides — check the current version via
-webchat if a job calls for it.$md$)
-ON CONFLICT (slug) DO NOTHING;
 
 -- Ingenico / CBA / Move5000 -------------------------------------------------
 
